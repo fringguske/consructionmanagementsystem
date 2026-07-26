@@ -1,3 +1,77 @@
-bin/
-obj/
+# .NET build and IDE output
+**/bin/
+**/obj/
+artifacts/
+publish/
+.vs/
+.idea/
 *.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.DotSettings.user
+
+# Test and coverage output
+TestResults/
+coverage/
+coverage.*
+*.coverage
+*.coveragexml
+
+# Local logs and databases
+*.log
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+*.dump
+*.backup
+*.bak
+
+# Secrets and machine-specific configuration
+.env
+.env.*
+!.env.example
+**/appsettings.Local.json
+**/appsettings.*.Local.json
+**/appsettings.local.json
+**/appsettings.*.local.json
+**/appsettings.Production.json
+**/appsettings.Staging.json
+**/secrets.json
+.npmrc
+.netrc
+NuGet.Config
+nuget.config
+credentials.json
+service-account*.json
+application_default_credentials.json
+id_rsa
+id_dsa
+id_ecdsa
+id_ed25519
+*.pfx
+*.p12
+*.pem
+*.key
+*.snk
+*.jks
+*.keystore
+*.kdbx
+*.ovpn
+*.publishsettings
+
+# Frontend dependencies and generated output
+**/node_modules/
+**/dist/
+**/.vite/
+**/.eslintcache
+*.tsbuildinfo
+
+# Local development tools
+.kilo/
+
+# Operating-system files
+.DS_Store
+Thumbs.db
