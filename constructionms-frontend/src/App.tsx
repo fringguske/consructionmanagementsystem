@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { BrowserRouter, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
+import { BrowserRouter, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router'
 import './App.css'
 import {
   FinanceApprovals,
