@@ -4,7 +4,7 @@ ConstructionMS is a React and ASP.NET Core foundation for tracing construction p
 
 ## Current status
 
-The frontend is a demonstration application. The backend contains the domain model, validated contracts, EF Core persistence and migrations, but the HTTP API is intentionally not connected yet. Controllers are not registered or mapped, and authentication/RBAC is not implemented. Do not expose the API publicly until those controls are complete.
+The frontend is a demonstration application. The backend contains the domain model, validated contracts, EF Core persistence and migrations, but the HTTP API is intentionally not connected yet. Controllers are not registered or mapped, and authentication/RBAC is not implemented.
 
 ## Repository structure
 
