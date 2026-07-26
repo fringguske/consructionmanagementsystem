@@ -393,11 +393,9 @@ function Dashboard() {
         <h2>Good morning, Josephine.</h2>
         <p>Three projects are doing well. <strong>Gilgal 2 needs your attention.</strong></p>
       </div>
-      <div className="last-updated"><i/><span><b>Information is up to date</b>Last updated today at 10:45</span></div>
     </section>
 
     <section className="owner-money">
-      <div className="owner-money-intro"><span>YOUR MONEY</span><p>A simple view of the approved budget across all four projects.</p></div>
       <div><span>Total budget</span><strong>KES 182.5M</strong><small>Approved for all projects</small></div>
       <div><span>Already paid</span><strong>KES 89.2M</strong><small>Money that has left the business</small></div>
       <div><span>Approved orders</span><strong>KES 20.8M</strong><small>Promised, but not paid yet</small></div>
@@ -431,7 +429,6 @@ function Dashboard() {
     <section className="panel owner-chain-panel">
       <div className="owner-chain-head">
         <div><span>DEMONSTRATION WORKFLOW</span><h3>See the complete paper trail</h3><p>Open any movement to see who requested, approved, bought, received, checked, authorised, paid and audited it.</p></div>
-        <div className="owner-observer-note"><Icon name="eye" size={16}/><span><b>You stay outside routine work</b>Only exceptions above your threshold ask for a decision.</span></div>
       </div>
       <div className="owner-chain-list">
         {transactionChains.map(chain => <article className={chain.ceoActionRequired ? 'requires-owner' : ''} key={chain.id}>
