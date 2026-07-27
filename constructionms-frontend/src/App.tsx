@@ -19,7 +19,19 @@ type IconName =
   | 'truck' | 'file' | 'close' | 'menu' | 'trend' | 'pin' | 'calendar'
   | 'swap' | 'eye' | 'lock' | 'receipt'
 
-type DemoRole = 'CEO' | 'Manager' | 'Engineer' | 'Foreman' | 'Cashier' | 'Storekeeper' | 'Procurement Officer' | 'Finance Officer' | 'Auditor'
+type DemoRole = 'CEO' | 'Supervisor' | 'Engineer' | 'Foreman' | 'Cashier' | 'Storekeeper' | 'Procurement Officer' | 'Finance Officer' | 'Auditor'
+type ProjectName = 'Gilgal 1' | 'Gilgal 2' | 'SNEP HQ' | 'Church'
+
+type DemoProfile = {
+  id: string
+  role: DemoRole
+  name: string
+  initials: string
+  workspace: string
+  subtitle: string
+  description: string
+  projects: readonly ProjectName[] | null
+}
 
 type PaymentCandidate = {
   reference: string
@@ -30,28 +42,30 @@ type PaymentCandidate = {
   method: string
 }
 
-const roleOptions = [
-  { name: 'CEO', description: 'Portfolio oversight', enabled: true },
-  { name: 'Manager', description: 'Projects and site operations', enabled: true },
-  { name: 'Engineer', description: 'Progress and quality', enabled: true },
-  { name: 'Foreman', description: 'Site work and requests', enabled: true },
-  { name: 'Cashier', description: 'Payments and site cash', enabled: true },
-  { name: 'Storekeeper', description: 'Stock and material movement', enabled: true },
-  { name: 'Procurement Officer', description: 'Sourcing and purchase orders', enabled: true },
-  { name: 'Finance Officer', description: 'Matching and payment control', enabled: true },
-  { name: 'Auditor', description: 'Read-only controls review', enabled: true },
-] as const
+const demoProfiles: readonly DemoProfile[] = [
+  { id: 'ceo', role: 'CEO', name: 'JOSEPHINE CHARLES', initials: 'JC', workspace: 'Executive workspace', subtitle: 'CEO', description: 'All projects · executive oversight', projects: null },
+  { id: 'supervisor-gilgal', role: 'Supervisor', name: 'GILGAL SITES SUPERVISOR', initials: 'S1', workspace: 'Gilgal 1 & 2 operations', subtitle: 'Supervisor', description: 'Gilgal 1 & Gilgal 2', projects: ['Gilgal 1', 'Gilgal 2'] },
+  { id: 'supervisor-church-hq', role: 'Supervisor', name: 'CHURCH & SNEP SUPERVISOR', initials: 'S2', workspace: 'Church & SNEP HQ operations', subtitle: 'Supervisor', description: 'Church & SNEP HQ', projects: ['Church', 'SNEP HQ'] },
+  { id: 'engineer-gilgal', role: 'Engineer', name: 'GILGAL SITES ENGINEER', initials: 'E1', workspace: 'Gilgal 1 & 2 technical', subtitle: 'Engineer', description: 'Gilgal 1 & Gilgal 2', projects: ['Gilgal 1', 'Gilgal 2'] },
+  { id: 'engineer-church-hq', role: 'Engineer', name: 'CHURCH & SNEP ENGINEER', initials: 'E2', workspace: 'Church & SNEP HQ technical', subtitle: 'Engineer', description: 'Church & SNEP HQ', projects: ['Church', 'SNEP HQ'] },
+  { id: 'foreman-gilgal', role: 'Foreman', name: 'GILGAL SITES FOREMAN', initials: 'F1', workspace: 'Gilgal 1 & 2 field work', subtitle: 'Foreman', description: 'Gilgal 1 & Gilgal 2', projects: ['Gilgal 1', 'Gilgal 2'] },
+  { id: 'foreman-church-hq', role: 'Foreman', name: 'CHURCH & SNEP FOREMAN', initials: 'F2', workspace: 'Church & SNEP HQ field work', subtitle: 'Foreman', description: 'Church & SNEP HQ', projects: ['Church', 'SNEP HQ'] },
+  { id: 'cashier', role: 'Cashier', name: 'EUNICE NGUMBI', initials: 'EN', workspace: 'Payments workspace', subtitle: 'Cashier', description: 'Payments and accountable cash', projects: null },
+  { id: 'storekeeper', role: 'Storekeeper', name: 'LUCY NJERI', initials: 'LN', workspace: 'Stores workspace', subtitle: 'Storekeeper', description: 'Stock and material movement', projects: null },
+  { id: 'procurement', role: 'Procurement Officer', name: 'PAUL KIMANI', initials: 'PK', workspace: 'Procurement workspace', subtitle: 'Procurement Officer', description: 'Sourcing and purchase orders', projects: null },
+  { id: 'finance', role: 'Finance Officer', name: 'JAMES KAMAU', initials: 'JK', workspace: 'Financial control workspace', subtitle: 'Finance Officer', description: 'Matching and payment control', projects: null },
+  { id: 'auditor', role: 'Auditor', name: 'MARY ATIENZA', initials: 'MA', workspace: 'Read-only audit workspace', subtitle: 'Auditor', description: 'All projects · independent review', projects: null },
+]
 
-const roleProfiles: Record<DemoRole, { name: string; initials: string; workspace: string; subtitle: string }> = {
-  CEO: { name: 'JOSEPHINE CHARLES', initials: 'JC', workspace: 'Executive workspace', subtitle: 'CEO' },
-  Manager: { name: 'STEVEN KAKAI', initials: 'ST', workspace: 'Operations workspace', subtitle: 'Manager' },
-  Engineer: { name: 'DANIEL OTIENO', initials: 'DO', workspace: 'Technical workspace', subtitle: 'Engineer' },
-  Foreman: { name: 'SAMUEL KARIUKI', initials: 'SK', workspace: 'Gilgal 2 field workspace', subtitle: 'Foreman' },
-  Cashier: { name: 'EUNICE NGUMBI', initials: 'EN', workspace: 'Payments workspace', subtitle: 'Cashier' },
-  Storekeeper: { name: 'LUCY NJERI', initials: 'LN', workspace: 'Stores workspace', subtitle: 'Storekeeper' },
-  'Procurement Officer': { name: 'PAUL KIMANI', initials: 'PK', workspace: 'Procurement workspace', subtitle: 'Procurement Officer' },
-  'Finance Officer': { name: 'JAMES KAMAU', initials: 'JK', workspace: 'Financial control workspace', subtitle: 'Finance Officer' },
-  Auditor: { name: 'MARY ATIENZA', initials: 'MA', workspace: 'Read-only audit workspace', subtitle: 'Auditor' },
+const allProjectNames: readonly ProjectName[] = ['Gilgal 1', 'Gilgal 2', 'SNEP HQ', 'Church']
+
+function projectScopeLabel(projectScope: readonly ProjectName[]) {
+  return projectScope.join(' & ')
+}
+
+function demoEmail(name: string) {
+  const localPart = name.toLowerCase().replace(/[^a-z0-9]+/g, '.').replace(/^\.|\.$/g, '')
+  return `${localPart}@snep.co.ke`
 }
 
 function Icon({ name, size = 18 }: { name: IconName; size?: number }) {
@@ -92,10 +106,10 @@ function Icon({ name, size = 18 }: { name: IconName; size?: number }) {
 }
 
 const projects = [
-  { name: 'Gilgal 1', location: 'Sweet-Waters, Machakos', manager: 'Peter Mwangi', budget: 48.2, spent: 31.4, committed: 5.7, progress: 68, status: 'On track', code: 'G1', color: '#1c5d52' },
-  { name: 'Gilgal 2', location: 'Sweet-Waters, Machakos', manager: 'Mercy Wanjiku', budget: 36.5, spent: 28.9, committed: 3.2, progress: 74, status: 'At risk', code: 'G2', color: '#bc6a35' },
-  { name: 'SNEP HQ', location: 'Mumbuni, Machakos', manager: 'James Otieno', budget: 72.0, spent: 20.6, committed: 9.8, progress: 39, status: 'On track', code: 'HQ', color: '#3d5b86' },
-  { name: 'Church', location: 'Vota, Machakos', manager: 'David Maina', budget: 25.8, spent: 8.3, committed: 2.1, progress: 31, status: 'On track', code: 'CH', color: '#765b8e' },
+  { name: 'Gilgal 1', location: 'Sweet-Waters, Machakos', supervisor: 'Gilgal Sites Supervisor', budget: 48.2, spent: 31.4, committed: 5.7, progress: 68, status: 'On track', code: 'G1', color: '#1c5d52' },
+  { name: 'Gilgal 2', location: 'Sweet-Waters, Machakos', supervisor: 'Gilgal Sites Supervisor', budget: 36.5, spent: 28.9, committed: 3.2, progress: 74, status: 'At risk', code: 'G2', color: '#bc6a35' },
+  { name: 'SNEP HQ', location: 'Mumbuni, Machakos', supervisor: 'Church & SNEP Supervisor', budget: 72.0, spent: 20.6, committed: 9.8, progress: 39, status: 'On track', code: 'HQ', color: '#3d5b86' },
+  { name: 'Church', location: 'Vota, Machakos', supervisor: 'Church & SNEP Supervisor', budget: 25.8, spent: 8.3, committed: 2.1, progress: 31, status: 'On track', code: 'CH', color: '#765b8e' },
 ]
 
 const requisitions = [
@@ -119,7 +133,7 @@ const nav = [
 
 const roleNavigation: Record<DemoRole, string[]> = {
   CEO: ['/', '/projects', '/procurement', '/inventory', '/finance', '/workforce', '/equipment', '/audit'],
-  Manager: ['/', '/projects', '/procurement', '/inventory', '/finance', '/workforce', '/equipment'],
+  Supervisor: ['/', '/projects', '/procurement', '/inventory', '/finance', '/workforce', '/equipment'],
   Engineer: ['/', '/projects', '/quality', '/drawings'],
   Foreman: ['/', '/procurement', '/inventory', '/workforce', '/equipment'],
   Cashier: ['/', '/finance'],
@@ -189,24 +203,31 @@ function Shell() {
   const [site, setSite] = useState('All projects')
   const [searchOpen, setSearchOpen] = useState(false)
   const [roleMenuOpen, setRoleMenuOpen] = useState(false)
-  const [role, setRole] = useState<DemoRole>('CEO')
+  const [activeProfileId, setActiveProfileId] = useState('ceo')
   const location = useLocation()
   const navigate = useNavigate()
-  const profile = roleProfiles[role]
+  const profile = demoProfiles.find(candidate => candidate.id === activeProfileId) ?? demoProfiles[0]
+  const role = profile.role
+  const availableProjects = profile.projects ?? allProjectNames
+  const aggregateSiteLabel = profile.projects ? 'Assigned projects' : 'All projects'
+  const projectScope = site === aggregateSiteLabel || !allProjectNames.includes(site as ProjectName)
+    ? [...availableProjects]
+    : [site as ProjectName]
+  const scopeLabel = projectScopeLabel(projectScope)
   const standardNav = nav.filter(item => roleNavigation[role].includes(item.to)).map(item => ({
     ...item,
     label: role === 'Cashier' && item.to === '/finance'
       ? 'Payments & cash'
-      : role === 'Manager' && item.to === '/finance'
+      : role === 'Supervisor' && item.to === '/finance'
         ? 'Budget tracking'
         : item.label,
   }))
   const visibleNav = fieldRoleNav[role] ?? standardNav
   const roleHomeTitles: Record<DemoRole, [string, string]> = {
     CEO: ['Portfolio overview', 'Saturday, 25 July 2026'],
-    Manager: ['Site operations', 'Work requiring the manager today'],
-    Engineer: ['Technical overview', 'Progress, quality and site compliance'],
-    Foreman: ['Today at Gilgal 2', 'Work, people and materials under your supervision'],
+    Supervisor: ['Site operations', `Work requiring attention across ${scopeLabel}`],
+    Engineer: ['Technical overview', `Progress, quality and compliance across ${scopeLabel}`],
+    Foreman: [`Today · ${scopeLabel}`, 'Work, people and materials under your supervision'],
     Cashier: ['Payments desk', 'Approved payments and accountable site cash'],
     Storekeeper: ['Stores overview', 'Deliveries, issues and stock custody requiring action'],
     'Procurement Officer': ['Procurement overview', 'Source approved needs and control purchase orders'],
@@ -220,13 +241,13 @@ function Shell() {
     '/inventory': role === 'Foreman' ? ['Materials on site', 'Confirm receipt, record use and report wastage'] : role === 'Storekeeper' ? ['Stock ledger', 'Immutable balances across project stores'] : ['Inventory', 'Stock levels and material movement'],
     '/finance': role === 'Cashier'
       ? ['Payments & cash', 'Execute approved payments and reconcile site floats']
-      : role === 'Manager'
+      : role === 'Supervisor'
         ? ['Budget tracking', 'Read-only cost position across projects']
         : role === 'Finance Officer'
           ? ['Budgets & payables', 'Control commitments, invoices and available project funds']
         : ['Finance', 'Budget, commitments and payments'],
-    '/workforce': role === 'Foreman' ? ['Daily site log', 'People, work completed and blockers at Gilgal 2'] : ['Workforce', 'Attendance, labour and subcontractors'],
-    '/equipment': role === 'Foreman' ? ['Tools issued to me', 'Custody and condition of Gilgal 2 tools'] : ['Equipment', 'Assignments, condition and rental costs'],
+    '/workforce': role === 'Foreman' ? ['Daily site log', `People, work completed and blockers across ${scopeLabel}`] : ['Workforce', 'Attendance, labour and subcontractors'],
+    '/equipment': role === 'Foreman' ? ['Tools issued to me', `Custody and condition across ${scopeLabel}`] : ['Equipment', 'Assignments, condition and rental costs'],
     '/quality': ['Quality inspections', 'Technical checks, defects and corrective work'],
     '/drawings': ['Drawings & documents', 'Current approved information for construction'],
     '/receiving': ['Receive deliveries', 'Record actual quantities and condition against approved orders'],
@@ -244,10 +265,10 @@ function Shell() {
     '/settings': ['Settings', 'People, roles and control configuration'],
   }
   const [title, subtitle] = titles[location.pathname] || titles['/']
-  const switchRole = (nextRole: DemoRole) => {
-    setRole(nextRole)
+  const switchProfile = (nextProfile: DemoProfile) => {
+    setActiveProfileId(nextProfile.id)
     setRoleMenuOpen(false)
-    setSite(nextRole === 'Foreman' ? 'Gilgal 2' : 'All projects')
+    setSite(nextProfile.projects ? 'Assigned projects' : 'All projects')
     navigate('/')
   }
   const canAccess = (path: string) => roleNavigation[role].includes(path)
@@ -281,25 +302,24 @@ function Shell() {
         <button className="menu-button" onClick={() => setNavOpen(true)} aria-label="Open navigation"><Icon name="menu"/></button>
         <div className="page-title"><h1>{title}</h1><p>{subtitle}</p></div>
         <div className="top-actions">
-          <label className={`site-picker ${role === 'Foreman' ? 'assigned-site' : ''}`}><Icon name="building" size={16}/><select value={site} disabled={role === 'Foreman'} onChange={e => setSite(e.target.value)}>{role !== 'Foreman' && <option>All projects</option>}{projects.filter(project => role !== 'Foreman' || project.name === 'Gilgal 2').map(project => <option key={project.name}>{project.name}</option>)}</select><span>{role === 'Foreman' ? <Icon name="lock" size={12}/> : '⌄'}</span></label>
+          <label className={`site-picker ${profile.projects ? 'assigned-site' : ''}`}><Icon name="building" size={16}/><select value={site} onChange={e => setSite(e.target.value)}><option>{aggregateSiteLabel}</option>{projects.filter(project => availableProjects.includes(project.name as ProjectName)).map(project => <option key={project.name}>{project.name}</option>)}</select><span>{profile.projects ? <Icon name="lock" size={12}/> : '⌄'}</span></label>
           <button className="icon-button" onClick={() => setSearchOpen(!searchOpen)} aria-label="Search"><Icon name="search"/></button>
           <button className="icon-button notification" aria-label="Notifications"><Icon name="bell"/><i>5</i></button>
           <div className="role-switcher">
             <button className="profile" onClick={() => setRoleMenuOpen(!roleMenuOpen)} aria-expanded={roleMenuOpen}>
-              <span className="avatar">{profile.initials}</span><div><b>{profile.name}</b><small>{profile.subtitle} · Demo role</small></div><span>⌄</span>
+              <span className="avatar">{profile.initials}</span><div><b>{profile.name}</b><small>{profile.subtitle} · Demo user</small></div><span>⌄</span>
             </button>
             {roleMenuOpen && <div className="role-menu">
-              <div className="role-menu-head"><div><span>DEMO AS A ROLE</span><b>Choose a workspace</b></div><button onClick={() => setRoleMenuOpen(false)} aria-label="Close role menu"><Icon name="close" size={16}/></button></div>
+              <div className="role-menu-head"><div><span>DEMO AS A USER</span><b>Choose a workspace</b></div><button onClick={() => setRoleMenuOpen(false)} aria-label="Close role menu"><Icon name="close" size={16}/></button></div>
               <div className="role-menu-list">
-                {roleOptions.map(option => <button
-                  key={option.name}
-                  disabled={!option.enabled}
-                  className={role === option.name ? 'active' : ''}
-                  onClick={() => option.enabled && switchRole(option.name as DemoRole)}
+                {demoProfiles.map(option => <button
+                  key={option.id}
+                  className={activeProfileId === option.id ? 'active' : ''}
+                  onClick={() => switchProfile(option)}
                 >
-                  <span className="role-dot">{option.name.split(' ').map(word => word[0]).join('').slice(0,2)}</span>
-                  <span><b>{option.name}</b><small>{option.description}</small></span>
-                  {option.enabled ? role === option.name && <Icon name="check" size={15}/> : <em>Coming next</em>}
+                  <span className="role-dot">{option.initials}</span>
+                  <span><b>{option.role}</b><small>{option.description}</small></span>
+                  {activeProfileId === option.id && <Icon name="check" size={15}/>}
                 </button>)}
               </div>
               <p><Icon name="lock" size={13}/></p>
@@ -310,15 +330,15 @@ function Shell() {
       {searchOpen && <div className="search-panel"><Icon name="search"/><input autoFocus placeholder="Search requisitions, suppliers, sites or payments…"/><kbd>ESC</kbd></div>}
       <div className="page-content">
         <Routes>
-          <Route path="/" element={<RoleDashboard role={role}/>}/>
-          <Route path="/projects" element={canAccess('/projects') ? role === 'Engineer' ? <EngineerProgress/> : <Projects readOnly={role === 'CEO'}/> : <AccessRestricted role={role}/>}/>
-          <Route path="/procurement" element={canAccess('/procurement') ? role === 'Foreman' ? <ForemanRequests/> : role === 'Procurement Officer' ? <ProcurementApprovedRequests/> : <Procurement readOnly={role === 'CEO'}/> : <AccessRestricted role={role}/>}/>
-          <Route path="/inventory" element={canAccess('/inventory') ? role === 'Foreman' ? <ForemanMaterials/> : role === 'Storekeeper' ? <StorekeeperLedger/> : <Inventory readOnly={role === 'CEO' || role === 'Manager'}/> : <AccessRestricted role={role}/>}/>
-          <Route path="/finance" element={canAccess('/finance') ? role === 'Cashier' ? <CashierFinance/> : role === 'Manager' ? <ManagerBudget/> : role === 'Finance Officer' ? <FinanceControl/> : <Finance/> : <AccessRestricted role={role}/>}/>
-          <Route path="/workforce" element={canAccess('/workforce') ? role === 'Foreman' ? <ForemanDailyLog/> : <Workforce readOnly={role === 'CEO' || role === 'Manager'}/> : <AccessRestricted role={role}/>}/>
-          <Route path="/equipment" element={canAccess('/equipment') ? role === 'Foreman' ? <ForemanTools/> : <Equipment readOnly={role === 'CEO' || role === 'Manager'}/> : <AccessRestricted role={role}/>}/>
-          <Route path="/quality" element={canAccess('/quality') ? <EngineerQuality/> : <AccessRestricted role={role}/>}/>
-          <Route path="/drawings" element={canAccess('/drawings') ? <EngineerDrawings/> : <AccessRestricted role={role}/>}/>
+          <Route path="/" element={<RoleDashboard role={role} profile={profile} projectScope={projectScope}/>}/>
+          <Route path="/projects" element={canAccess('/projects') ? role === 'Engineer' ? <EngineerProgress projectScope={projectScope}/> : <Projects readOnly={role === 'CEO'} projectScope={projectScope}/> : <AccessRestricted role={role}/>}/>
+          <Route path="/procurement" element={canAccess('/procurement') ? role === 'Foreman' ? <ForemanRequests projectScope={projectScope}/> : role === 'Procurement Officer' ? <ProcurementApprovedRequests/> : <Procurement readOnly={role === 'CEO'} projectScope={projectScope}/> : <AccessRestricted role={role}/>}/>
+          <Route path="/inventory" element={canAccess('/inventory') ? role === 'Foreman' ? <ForemanMaterials projectScope={projectScope}/> : role === 'Storekeeper' ? <StorekeeperLedger/> : <Inventory readOnly={role === 'CEO' || role === 'Supervisor'} projectScope={projectScope}/> : <AccessRestricted role={role}/>}/>
+          <Route path="/finance" element={canAccess('/finance') ? role === 'Cashier' ? <CashierFinance/> : role === 'Supervisor' ? <SupervisorBudget projectScope={projectScope}/> : role === 'Finance Officer' ? <FinanceControl/> : <Finance/> : <AccessRestricted role={role}/>}/>
+          <Route path="/workforce" element={canAccess('/workforce') ? role === 'Foreman' ? <ForemanDailyLog projectScope={projectScope}/> : <Workforce readOnly={role === 'CEO' || role === 'Supervisor'} projectScope={projectScope}/> : <AccessRestricted role={role}/>}/>
+          <Route path="/equipment" element={canAccess('/equipment') ? role === 'Foreman' ? <ForemanTools projectScope={projectScope}/> : <Equipment readOnly={role === 'CEO' || role === 'Supervisor'} projectScope={projectScope}/> : <AccessRestricted role={role}/>}/>
+          <Route path="/quality" element={canAccess('/quality') ? <EngineerQuality projectScope={projectScope}/> : <AccessRestricted role={role}/>}/>
+          <Route path="/drawings" element={canAccess('/drawings') ? <EngineerDrawings projectScope={projectScope}/> : <AccessRestricted role={role}/>}/>
           <Route path="/receiving" element={canAccess('/receiving') ? <StorekeeperReceiving/> : <AccessRestricted role={role}/>}/>
           <Route path="/issues" element={canAccess('/issues') ? <StorekeeperIssues/> : <AccessRestricted role={role}/>}/>
           <Route path="/transfers" element={canAccess('/transfers') ? <StorekeeperTransfers/> : <AccessRestricted role={role}/>}/>
@@ -332,17 +352,17 @@ function Shell() {
           <Route path="/audit-reports" element={canAccess('/audit-reports') ? <AuditReports/> : <AccessRestricted role={role}/>}/>
           <Route path="/audit" element={canAccess('/audit') ? <Audit readOnly={role === 'Auditor' || role === 'CEO'} ownerView={role === 'CEO'}/> : <AccessRestricted role={role}/>}/>
           <Route path="/settings" element={role === 'CEO' ? <Settings/> : <AccessRestricted role={role}/>}/>
-          <Route path="*" element={<RoleDashboard role={role}/>}/>
+          <Route path="*" element={<RoleDashboard role={role} profile={profile} projectScope={projectScope}/>}/>
         </Routes>
       </div>
     </main>
   </div>
 }
 
-function RoleDashboard({ role }: { role: DemoRole }) {
-  if (role === 'Manager') return <ManagerDashboard/>
-  if (role === 'Engineer') return <EngineerDashboard/>
-  if (role === 'Foreman') return <ForemanDashboard/>
+function RoleDashboard({ role, profile, projectScope }: { role: DemoRole; profile: DemoProfile; projectScope: ProjectName[] }) {
+  if (role === 'Supervisor') return <SupervisorDashboard profile={profile} projectScope={projectScope}/>
+  if (role === 'Engineer') return <EngineerDashboard profile={profile} projectScope={projectScope}/>
+  if (role === 'Foreman') return <ForemanDashboard profile={profile} projectScope={projectScope}/>
   if (role === 'Cashier') return <CashierDashboard/>
   if (role === 'Storekeeper') return <StorekeeperDashboard/>
   if (role === 'Procurement Officer') return <ProcurementOfficerDashboard/>
@@ -447,12 +467,12 @@ function Dashboard() {
         <div className="decision-list">
           <article>
             <div className="decision-number">1</div>
-            <div><span>HIGH-VALUE PURCHASE</span><h3>Approve Church roof trusses</h3><p>The Manager and Finance Officer have completed their checks. It reaches you only because it exceeds the KES 500,000 owner threshold.</p><small><b>KES 784,500</b> · Complete evidence chain attached</small></div>
+            <div><span>HIGH-VALUE PURCHASE</span><h3>Approve Church roof trusses</h3><p>The Supervisor and Finance Officer have completed their checks. It reaches you only because it exceeds the KES 500,000 owner threshold.</p><small><b>KES 784,500</b> · Complete evidence chain attached</small></div>
             <Button variant="secondary" onClick={() => setSelectedChain(transactionChains[2])}>Review chain</Button>
           </article>
           <article>
             <div className="decision-number">2</div>
-            <div><span>BUDGET EXCEPTION</span><h3>Decide on Gilgal 2’s structural variation</h3><p>A KES 1.2M budget movement needs owner approval. Routine budget monitoring remains with the Manager and Finance Officer.</p></div>
+            <div><span>BUDGET EXCEPTION</span><h3>Decide on Gilgal 2’s structural variation</h3><p>A KES 1.2M budget movement needs owner approval. Routine budget monitoring remains with the Supervisor and Finance Officer.</p></div>
             <Button variant="secondary" onClick={() => navigate('/finance')}>Review</Button>
           </article>
         </div>
@@ -470,33 +490,41 @@ function Dashboard() {
   </>
 }
 
-function ManagerDashboard() {
+function SupervisorDashboard({ profile, projectScope }: { profile: DemoProfile; projectScope: ProjectName[] }) {
   const navigate = useNavigate()
   const milestones = [
     { project: 'Gilgal 1', code: 'G1', progress: 68, money: 65, next: 'Roof ring beam', date: '31 Jul', tone: '#1c5d52', status: 'On schedule' },
     { project: 'Gilgal 2', code: 'G2', progress: 74, money: 79, next: 'First-floor slab', date: '28 Jul', tone: '#bc6a35', status: 'Watch budget' },
     { project: 'SNEP HQ', code: 'HQ', progress: 39, money: 29, next: 'Ground floor walls', date: '04 Aug', tone: '#3d5b86', status: 'On schedule' },
     { project: 'Church', code: 'CH', progress: 31, money: 32, next: 'Column casting', date: '02 Aug', tone: '#765b8e', status: 'On schedule' },
-  ]
+  ].filter(project => projectScope.includes(project.project as ProjectName))
+  const priorities = [
+    { project: 'Gilgal 1', kind: 'PROGRAMME', title: 'Confirm roof ring-beam readiness', copy: 'The next milestone is due on 31 July.', action: 'Open project', route: '/projects' },
+    { project: 'Gilgal 2', kind: 'BUDGET', title: 'Check the remaining structural budget', copy: 'Approved orders are growing faster than site progress.', action: 'See budget position', route: '/finance' },
+    { project: 'SNEP HQ', kind: 'DELIVERY', title: 'Decide on a short cement delivery', copy: '40 bags were not delivered; the storekeeper recorded the evidence.', action: 'Review the issue', route: '/inventory' },
+    { project: 'Church', kind: 'APPROVAL', title: 'Review the column-work request', copy: 'The site needs approval before the next activity is committed.', action: 'Review request', route: '/procurement' },
+  ].filter(item => projectScope.includes(item.project as ProjectName))
+  const scope = projectScopeLabel(projectScope)
+  const movingWell = milestones.filter(project => project.status === 'On schedule').length
   return <>
-    <section className="role-welcome manager-welcome">
-      <div><span>MANAGER WORKSPACE</span><h2>Good morning, Steve.</h2><p>Two approvals and one delivery issue need you today.</p></div>
+    <section className="role-welcome supervisor-welcome">
+      <div><span>SUPERVISOR WORKSPACE</span><h2>{scope}</h2><p>{profile.projects ? 'Only your two assigned projects are shown.' : 'Project operations requiring attention today.'}</p></div>
       <Button icon="plus" onClick={() => navigate('/procurement')}>New requisition</Button>
     </section>
     <section className="role-guardrail"><Icon name="shield" size={17}/><p><b>Your responsibility:</b> keep projects moving, approve valid site needs, and monitor budget and materials. Payment execution remains with the Cashier.</p></section>
     <section className="metrics-grid role-metrics">
-      <Metric label="Projects moving well" value="3 of 4" note="Gilgal 2 needs a budget check" icon="building" tone="green"/>
-      <Metric label="Waiting on you" value="2 approvals" note="KES 255,000 combined value" icon="clock" tone="orange"/>
-      <Metric label="People on site" value="126 today" note="All four attendance logs received" icon="users" tone="navy"/>
-      <Metric label="Material issue" value="1 open" note="Short cement delivery at SNEP HQ" icon="alert" tone="red"/>
+      <Metric label="Projects moving well" value={`${movingWell} of ${milestones.length}`} note={`${scope} only`} icon="building" tone="green"/>
+      <Metric label="Waiting on you" value={`${priorities.length} items`} note="Ranked by programme impact" icon="clock" tone="orange"/>
+      <Metric label="Assigned sites" value={`${projectScope.length} projects`} note="Scope enforced by user assignment" icon="users" tone="navy"/>
+      <Metric label="Material exceptions" value={`${priorities.filter(item => item.kind === 'DELIVERY').length} open`} note="Based on recorded store events" icon="alert" tone="red"/>
     </section>
-    <section className="manager-grid">
-      <div className="panel manager-projects">
+    <section className="supervisor-grid">
+      <div className="panel supervisor-projects">
         <PanelHead title="Project execution" subtitle="Physical progress, spending pace and the next site milestone" action="Open projects" onClick={() => navigate('/projects')}/>
-        <div className="manager-project-list">
+        <div className="supervisor-project-list">
           {milestones.map(project => <article key={project.project}>
-            <div className="manager-project-name"><b style={{background:project.tone}}>{project.code}</b><div><strong>{project.project}</strong><Status>{project.status}</Status></div></div>
-            <div className="manager-progress-pair">
+            <div className="supervisor-project-name"><b style={{background:project.tone}}>{project.code}</b><div><strong>{project.project}</strong><Status>{project.status}</Status></div></div>
+            <div className="supervisor-progress-pair">
               <div><span>Built</span><div><i style={{width:`${project.progress}%`}}/></div><b>{project.progress}%</b></div>
               <div><span>Paid</span><div><i style={{width:`${project.money}%`}}/></div><b>{project.money}%</b></div>
             </div>
@@ -505,15 +533,13 @@ function ManagerDashboard() {
           </article>)}
         </div>
       </div>
-      <aside className="panel manager-priorities">
+      <aside className="panel supervisor-priorities">
         <PanelHead title="Your priorities" subtitle="Ordered by what may delay work"/>
-        <div className="manager-priority-list">
-          <article className="high"><i>1</i><div><span>APPROVAL · SNEP HQ</span><h3>Approve 180 cement bags</h3><p>Needed by Monday for ground-floor walls.</p><button onClick={() => navigate('/procurement')}>Review KES 171,000 <Icon name="arrow" size={13}/></button></div></article>
-          <article><i>2</i><div><span>DELIVERY · SNEP HQ</span><h3>Decide on a short delivery</h3><p>40 cement bags were not delivered. The storekeeper has recorded evidence.</p><button onClick={() => navigate('/inventory')}>Review the issue <Icon name="arrow" size={13}/></button></div></article>
-          <article><i>3</i><div><span>BUDGET · GILGAL 2</span><h3>Check the remaining structural budget</h3><p>Approved orders are growing faster than site progress.</p><button onClick={() => navigate('/finance')}>See budget position <Icon name="arrow" size={13}/></button></div></article>
+        <div className="supervisor-priority-list">
+          {priorities.map((item, index) => <article className={index === 0 ? 'high' : ''} key={`${item.project}-${item.kind}`}><i>{index + 1}</i><div><span>{item.kind} · {item.project.toUpperCase()}</span><h3>{item.title}</h3><p>{item.copy}</p><button onClick={() => navigate(item.route)}>{item.action} <Icon name="arrow" size={13}/></button></div></article>)}
         </div>
       </aside>
-      <div className="panel manager-materials">
+      <div className="panel supervisor-materials">
         <PanelHead title="Material movement today" subtitle="What entered, left or moved between sites" action="Open inventory" onClick={() => navigate('/inventory')}/>
         <div className="movement-summary">
           <div><i className="received"><Icon name="truck" size={17}/></i><span><b>3 deliveries received</b><small>282 units recorded into stores</small></span></div>
@@ -521,32 +547,45 @@ function ManagerDashboard() {
           <div><i className="moving"><Icon name="swap" size={17}/></i><span><b>3 transfers in motion</b><small>1 receipt is overdue</small></span></div>
         </div>
       </div>
-      <div className="panel manager-team">
+      <div className="panel supervisor-team">
         <PanelHead title="Site reporting" subtitle="Today’s required field records"/>
         <div className="reporting-list">
-          {[['Attendance','4 of 4 sites','Complete'],['Daily progress','3 of 4 sites','Church pending'],['Material usage','4 of 4 sites','Complete'],['Safety briefing','4 of 4 sites','Complete']].map(row => <div key={row[0]}><span>{row[0]}<small>{row[2]}</small></span><b>{row[1]}</b><Status>{row[2] === 'Complete' ? 'Complete' : 'Pending'}</Status></div>)}
+          {[['Attendance',`${projectScope.length} of ${projectScope.length} sites`,'Complete'],['Daily progress',`${projectScope.length} of ${projectScope.length} sites`,'Complete'],['Material usage',`${projectScope.length} of ${projectScope.length} sites`,'Complete'],['Safety briefing',`${projectScope.length} of ${projectScope.length} sites`,'Complete']].map(row => <div key={row[0]}><span>{row[0]}<small>{row[2]}</small></span><b>{row[1]}</b><Status>{row[2] === 'Complete' ? 'Complete' : 'Pending'}</Status></div>)}
         </div>
       </div>
     </section>
   </>
 }
 
-function EngineerDashboard() {
+function EngineerDashboard({ profile, projectScope }: { profile: DemoProfile; projectScope: ProjectName[] }) {
   const navigate = useNavigate()
   const sites = [
     ['Gilgal 1','68%','67%','Roof ring beam','On track'],
     ['Gilgal 2','74%','71%','First-floor slab','Verification due'],
     ['SNEP HQ','39%','39%','Ground-floor masonry','On track'],
     ['Church','31%','28%','Column casting','Inspection due'],
-  ]
+  ].filter(site => projectScope.includes(site[0] as ProjectName))
+  const actions = [
+    ['Gilgal 1','PROGRESS','Verify roof ring-beam completion','The field report is ready for measurement.','/projects'],
+    ['Gilgal 2','BEFORE CONCRETE','Inspect first-floor slab reinforcement','Pour is planned for Monday at 07:00.','/quality'],
+    ['Church','PROGRESS','Verify column-work progress','Reported progress is ahead of the last verified value.','/projects'],
+    ['SNEP HQ','DRAWING','Issue revised electrical layout','Revision C is reviewed and ready for construction.','/drawings'],
+  ].filter(action => projectScope.includes(action[0] as ProjectName))
+  const inspections = [
+    ['INS-0184','Gilgal 1','Roof ring-beam formwork','Passed','Today, 08:20'],
+    ['INS-0183','SNEP HQ','Blockwork line and level','Passed with note','Yesterday, 15:10'],
+    ['INS-0182','Church','Column starter bars','Correction required','Yesterday, 11:35'],
+    ['INS-0181','Gilgal 2','Slab reinforcement','Verification due','Yesterday, 09:10'],
+  ].filter(row => projectScope.includes(row[1] as ProjectName))
+  const scope = projectScopeLabel(projectScope)
   return <>
-    <section className="role-welcome engineer-welcome"><div><span>ENGINEER WORKSPACE</span><h2>Good morning, Daniel.</h2><p>Two site inspections and one progress verification need technical action.</p></div><Button icon="plus" onClick={()=>navigate('/quality')}>Record inspection</Button></section>
+    <section className="role-welcome engineer-welcome"><div><span>ENGINEER WORKSPACE</span><h2>{scope}</h2><p>{profile.projects ? 'Technical records are limited to your two assigned projects.' : 'Technical actions requiring attention.'}</p></div><Button icon="plus" onClick={()=>navigate('/quality')}>Record inspection</Button></section>
     <section className="engineer-guardrail"><Icon name="shield" size={17}/><p><b>Your technical authority:</b> verify construction progress, quality and approved drawings. You can raise corrective work, but cannot approve purchases, move stock or handle payments.</p></section>
     <section className="metrics-grid role-metrics">
-      <Metric label="Inspections due" value="2 today" note="Slab steel and column formwork" icon="shield" tone="orange"/>
-      <Metric label="Open defects" value="4 items" note="1 high-priority correction" icon="alert" tone="red"/>
-      <Metric label="Progress to verify" value="2 reports" note="Gilgal 2 and Church" icon="trend" tone="navy"/>
-      <Metric label="Drawing control" value="2 updates" note="Revisions awaiting technical issue" icon="file" tone="green"/>
+      <Metric label="Technical actions" value={`${actions.length} open`} note={`${scope} only`} icon="shield" tone="orange"/>
+      <Metric label="Open defects" value={`${Math.max(1, projectScope.length)} items`} note="Prioritised by construction risk" icon="alert" tone="red"/>
+      <Metric label="Progress to verify" value={`${sites.filter(site => site[1] !== site[2]).length} reports`} note="Reported versus measured progress" icon="trend" tone="navy"/>
+      <Metric label="Assigned sites" value={`${projectScope.length} projects`} note="No access outside this pair" icon="file" tone="green"/>
     </section>
     <section className="engineer-grid">
       <div className="panel engineer-progress-card"><PanelHead title="Reported versus verified progress" subtitle="Site claims only become official after technical verification" action="Full progress view" onClick={()=>navigate('/projects')}/>
@@ -554,13 +593,11 @@ function EngineerDashboard() {
       </div>
       <aside className="panel technical-actions"><PanelHead title="Technical actions" subtitle="Ordered by programme impact"/>
         <div className="technical-action-list">
-          <article className="urgent"><i><Icon name="alert" size={15}/></i><div><span>GILGAL 2 · BEFORE CONCRETE</span><h3>Inspect first-floor slab reinforcement</h3><p>Pour is planned for Monday at 07:00.</p><button onClick={()=>navigate('/quality')}>Open inspection <Icon name="arrow" size={13}/></button></div></article>
-          <article><i><Icon name="eye" size={15}/></i><div><span>CHURCH · PROGRESS</span><h3>Verify column-work progress</h3><p>Foreman reported 31%; last verified value is 28%.</p><button onClick={()=>navigate('/projects')}>Verify report <Icon name="arrow" size={13}/></button></div></article>
-          <article><i><Icon name="file" size={15}/></i><div><span>SNEP HQ · DRAWING</span><h3>Issue revised electrical layout</h3><p>Revision C is reviewed and ready for construction.</p><button onClick={()=>navigate('/drawings')}>Review revision <Icon name="arrow" size={13}/></button></div></article>
+          {actions.map((action, index) => <article className={index === 0 ? 'urgent' : ''} key={`${action[0]}-${action[1]}`}><i><Icon name={index === 0 ? 'alert' : action[1] === 'DRAWING' ? 'file' : 'eye'} size={15}/></i><div><span>{action[0].toUpperCase()} · {action[1]}</span><h3>{action[2]}</h3><p>{action[3]}</p><button onClick={()=>navigate(action[4])}>Open action <Icon name="arrow" size={13}/></button></div></article>)}
         </div>
       </aside>
       <div className="panel inspection-snapshot"><PanelHead title="Recent quality inspections" subtitle="Last five technical decisions" action="All inspections" onClick={()=>navigate('/quality')}/>
-        <div className="inspection-snapshot-list">{[['INS-0184','Gilgal 1','Roof ring-beam formwork','Passed','Today, 08:20'],['INS-0183','SNEP HQ','Blockwork line and level','Passed with note','Yesterday, 15:10'],['INS-0182','Church','Column starter bars','Correction required','Yesterday, 11:35']].map(row=><div key={row[0]}><b className="mono">{row[0]}</b><span><strong>{row[2]}</strong><small>{row[1]} · {row[4]}</small></span><Status>{row[3]}</Status></div>)}</div>
+        <div className="inspection-snapshot-list">{inspections.map(row=><div key={row[0]}><b className="mono">{row[0]}</b><span><strong>{row[2]}</strong><small>{row[1]} · {row[4]}</small></span><Status>{row[3]}</Status></div>)}</div>
       </div>
       <div className="panel drawing-snapshot"><PanelHead title="Information used on site" subtitle="Current approved revisions" action="Drawing register" onClick={()=>navigate('/drawings')}/>
         <div className="drawing-count"><div><Icon name="file" size={21}/><span><strong>46</strong><small>Current drawings</small></span></div><div><Icon name="alert" size={21}/><span><strong>2</strong><small>Superseded on site</small></span></div></div>
@@ -569,11 +606,19 @@ function EngineerDashboard() {
   </>
 }
 
-function ForemanDashboard() {
+function ForemanDashboard({ profile, projectScope }: { profile: DemoProfile; projectScope: ProjectName[] }) {
   const navigate=useNavigate()
+  const scope = projectScopeLabel(projectScope)
+  const isGilgalTeam = profile.id === 'foreman-gilgal'
+  const workPlan = isGilgalTeam
+    ? [['01','Fix Y12 slab reinforcement','Steel fixing team · 9 people','65%','In progress'],['02','Complete roof ring-beam formwork','Carpentry team · 6 people','40%','In progress'],['03','Place electrical conduits','Electrical team · 4 people','0%','Starts 13:00']]
+    : [['01','Continue Church column work','Concrete team · 8 people','55%','In progress'],['02','Build SNEP HQ ground-floor walls','Masonry team · 12 people','45%','In progress'],['03','Set out electrical conduits','Electrical team · 4 people','0%','Starts 13:00']]
+  const handover = isGilgalTeam
+    ? ['MIV-0087 · Y12 reinforcement steel','80 lengths issued by Lucy Njeri at 09:12','80 lengths']
+    : ['MIV-0091 · Bamburi cement','140 bags issued by Lucy Njeri at 09:35','140 bags']
   return <>
-    <section className="role-welcome foreman-welcome"><div><span>FOREMAN · GILGAL 2</span><h2>Good morning, Samuel.</h2><p>Here is today’s work, crew and material position for your site.</p></div><Button icon="plus" onClick={()=>navigate('/procurement')}>Request materials</Button></section>
-    <section className="foreman-site-band"><div><Icon name="pin" size={17}/><span><b>Gilgal 2 · Sweet-Waters, Machakos</b><small>You can only record activity for your assigned site.</small></span></div><div><span>Today’s shift</span><b>07:00–17:00</b></div><Status>Site active</Status></section>
+    <section className="role-welcome foreman-welcome"><div><span>FOREMAN WORKSPACE</span><h2>{scope}</h2><p>Today’s work, crew and material position for your assigned projects.</p></div><Button icon="plus" onClick={()=>navigate('/procurement')}>Request materials</Button></section>
+    <section className="foreman-site-band"><div><Icon name="pin" size={17}/><span><b>{scope}</b><small>You can only record activity for these assigned projects.</small></span></div><div><span>Today’s shift</span><b>07:00–17:00</b></div><Status>Sites active</Status></section>
     <section className="foreman-quick-actions">
       <button onClick={()=>navigate('/workforce')}><i><Icon name="users"/></i><span><b>Daily site log</b><small>Record crew and completed work</small></span><Icon name="chevron" size={15}/></button>
       <button onClick={()=>navigate('/inventory')}><i><Icon name="boxes"/></i><span><b>Log material use</b><small>Record what the crew consumed</small></span><Icon name="chevron" size={15}/></button>
@@ -581,20 +626,20 @@ function ForemanDashboard() {
       <button onClick={()=>navigate('/equipment')}><i><Icon name="tool"/></i><span><b>Report a problem</b><small>Tool damage, delay or safety issue</small></span><Icon name="chevron" size={15}/></button>
     </section>
     <section className="metrics-grid role-metrics">
-      <Metric label="Crew on site" value="31 people" note="Attendance logged at 07:14" icon="users" tone="navy"/>
-      <Metric label="Today’s work" value="3 activities" note="Slab steel, formwork and conduit" icon="building" tone="green"/>
-      <Metric label="Material requests" value="2 open" note="1 approved, 1 awaiting manager" icon="cart" tone="orange"/>
+      <Metric label="Crew on site" value={isGilgalTeam ? '61 people' : '65 people'} note={`Across ${projectScope.length} assigned projects`} icon="users" tone="navy"/>
+      <Metric label="Today’s work" value="3 activities" note={scope} icon="building" tone="green"/>
+      <Metric label="Material requests" value="2 open" note="1 approved, 1 awaiting supervisor" icon="cart" tone="orange"/>
       <Metric label="Handover waiting" value="1 voucher" note="Confirm only what you physically receive" icon="truck" tone="red"/>
     </section>
     <section className="foreman-grid">
-      <div className="panel today-work"><PanelHead title="Today’s work plan" subtitle="Agreed with the Manager and Engineer"/>
-        <div className="work-plan-list">{[['01','Fix Y12 slab reinforcement','Steel fixing team · 9 people','65%','In progress'],['02','Complete slab-edge formwork','Carpentry team · 6 people','40%','In progress'],['03','Place electrical conduits','Electrical team · 4 people','0%','Starts 13:00']].map(row=><article key={row[0]}><i>{row[0]}</i><div><b>{row[1]}</b><span>{row[2]}</span></div><div className="work-progress"><span>{row[3]}</span><div><i style={{width:row[3]}}/></div></div><Status tone={row[4]==='In progress'?'issued':'at-risk'}>{row[4]}</Status></article>)}</div>
+      <div className="panel today-work"><PanelHead title="Today’s work plan" subtitle="Agreed with the Supervisor and Engineer"/>
+        <div className="work-plan-list">{workPlan.map(row=><article key={row[0]}><i>{row[0]}</i><div><b>{row[1]}</b><span>{row[2]}</span></div><div className="work-progress"><span>{row[3]}</span><div><i style={{width:row[3]}}/></div></div><Status tone={row[4]==='In progress'?'issued':'at-risk'}>{row[4]}</Status></article>)}</div>
       </div>
       <aside className="panel foreman-material-watch"><PanelHead title="Material watch" subtitle="What could stop today’s work"/>
-        <div className="field-material-list"><div className="warning"><Icon name="alert" size={16}/><span><b>Y12 steel may run short</b><small>38 lengths left · about 1 day of work</small></span></div><div><Icon name="check" size={16}/><span><b>Cement is sufficient</b><small>124 bags available for planned work</small></span></div><div><Icon name="clock" size={16}/><span><b>PVC conduit requested</b><small>Manager approval is still pending</small></span></div></div>
+        <div className="field-material-list"><div className="warning"><Icon name="alert" size={16}/><span><b>{isGilgalTeam ? 'Y12 steel may run short' : 'Cement delivery has a shortfall'}</b><small>{isGilgalTeam ? '38 lengths left · about 1 day of work' : '40 bags still due from the supplier'}</small></span></div><div><Icon name="check" size={16}/><span><b>{isGilgalTeam ? 'Cement is sufficient' : 'Column steel is sufficient'}</b><small>Available for today’s planned work</small></span></div><div><Icon name="clock" size={16}/><span><b>PVC conduit requested</b><small>Supervisor approval is still pending</small></span></div></div>
       </aside>
       <div className="panel site-handover"><PanelHead title="Material handovers" subtitle="Store issues that require your physical confirmation" action="Open materials" onClick={()=>navigate('/inventory')}/>
-        <div className="handover-row"><div className="voucher-icon"><Icon name="file" size={18}/></div><div><b>MIV-0087 · Y12 reinforcement steel</b><span>80 lengths issued by Lucy Njeri at 09:12</span></div><strong>80 lengths</strong><Status>Confirm receipt</Status></div>
+        <div className="handover-row"><div className="voucher-icon"><Icon name="file" size={18}/></div><div><b>{handover[0]}</b><span>{handover[1]}</span></div><strong>{handover[2]}</strong><Status>Confirm receipt</Status></div>
       </div>
       <div className="panel field-reporting"><PanelHead title="End-of-day records" subtitle="Complete before leaving site"/>
         <div className="field-report-list"><div><Icon name="check" size={14}/><span>Morning attendance</span><Status>Complete</Status></div><div><Icon name="clock" size={14}/><span>Material usage</span><Status tone="at-risk">Due 16:30</Status></div><div><Icon name="clock" size={14}/><span>Work progress & blockers</span><Status tone="at-risk">Due 16:45</Status></div></div>
@@ -731,25 +776,29 @@ function PageIntro({ title, copy, action, icon, onAction }: {title:string;copy:s
   return <section className="page-intro"><div><h2>{title}</h2><p>{copy}</p></div><Button icon={icon} onClick={onAction}>{action}</Button></section>
 }
 
-function Projects({readOnly=false}:{readOnly?:boolean}) {
+function Projects({readOnly=false, projectScope=[...allProjectNames]}:{readOnly?:boolean; projectScope?:ProjectName[]}) {
   const [modal, setModal] = useState(false)
+  const visibleProjects = projects.filter(project => projectScope.includes(project.name as ProjectName))
+  const budget = visibleProjects.reduce((total, project) => total + project.budget, 0)
+  const spent = visibleProjects.reduce((total, project) => total + project.spent, 0)
+  const committed = visibleProjects.reduce((total, project) => total + project.committed, 0)
   return <>
     <PageIntro title="Project portfolio" copy="A single view of delivery, budgets and site responsibility." action={readOnly?'Download portfolio':'Add project'} icon={readOnly?'download':'plus'} onAction={readOnly?undefined:() => setModal(true)}/>
     {readOnly&&<section className="role-guardrail owner-readonly-note"><Icon name="eye" size={17}/><p><b>Owner oversight:</b> project teams maintain operational records. You can inspect progress and financial exposure without changing their source data.</p></section>}
     <section className="portfolio-strip">
-      <div><span>Portfolio budget</span><strong>KES 182.5M</strong></div>
-      <div><span>Actual spend</span><strong>KES 89.2M</strong><small>48.9% of budget</small></div>
-      <div><span>Open commitments</span><strong>KES 20.8M</strong><small>11.4% of budget</small></div>
-      <div><span>Active sites</span><strong>4</strong><small>0 currently paused</small></div>
+      <div><span>Assigned budget</span><strong>KES {budget.toFixed(1)}M</strong></div>
+      <div><span>Actual spend</span><strong>KES {spent.toFixed(1)}M</strong><small>{budget ? (spent / budget * 100).toFixed(1) : '0.0'}% of budget</small></div>
+      <div><span>Open commitments</span><strong>KES {committed.toFixed(1)}M</strong><small>{budget ? (committed / budget * 100).toFixed(1) : '0.0'}% of budget</small></div>
+      <div><span>Active sites</span><strong>{visibleProjects.length}</strong><small>0 currently paused</small></div>
     </section>
     <section className="project-cards">
-      {projects.map((p, i) => <article className="project-card" key={p.name}>
+      {visibleProjects.map(p => <article className="project-card" key={p.name}>
         <div className="project-card-top"><div className="project-badge" style={{background:p.color}}>{p.code}</div><Status>{p.status}</Status>{!readOnly&&<button aria-label="More options"><Icon name="more"/></button>}</div>
         <h3>{p.name}</h3><p><Icon name="pin" size={15}/>{p.location}</p>
         <div className="site-progress"><div><span>Site completion</span><b>{p.progress}%</b></div><div className="progress large"><i style={{width:`${p.progress}%`, background:p.color}}/></div></div>
         <div className="card-stats"><div><span>Approved budget</span><strong>KES {p.budget.toFixed(1)}M</strong></div><div><span>Remaining</span><strong>KES {(p.budget-p.spent-p.committed).toFixed(1)}M</strong></div></div>
         <div className="card-budget"><span>Spent <b>KES {p.spent.toFixed(1)}M</b></span><span>Committed <b>KES {p.committed.toFixed(1)}M</b></span></div>
-        <footer><div className="manager-avatar">{['PM','MW','JO','DM'][i]}</div><div><span>Site manager</span><b>{p.manager}</b></div><button>Open project <Icon name="arrow" size={14}/></button></footer>
+        <footer><div className="supervisor-avatar">{p.supervisor.split(' ').map(word => word[0]).join('').slice(0, 2)}</div><div><span>Site supervisor</span><b>{p.supervisor}</b></div><button>Open project <Icon name="arrow" size={14}/></button></footer>
       </article>)}
     </section>
     {!readOnly && modal && <ProjectModal onClose={() => setModal(false)}/>}
@@ -762,60 +811,62 @@ function ProjectModal({onClose}:{onClose:()=>void}) {
   return <div className="modal-wrap"><div className="modal-backdrop" onClick={onClose}/><form className="modal" onSubmit={submit}>
     <div className="modal-head"><div><span className="eyebrow">PROJECT SETUP</span><h2>Add a construction site</h2><p>New sites inherit the standard approval controls.</p></div><button type="button" onClick={onClose}><Icon name="close"/></button></div>
     {saved ? <div className="success-state"><div><Icon name="check" size={28}/></div><h3>Project created</h3><p>The site is ready for budget allocation and team access.</p></div> : <>
-      <div className="form-grid"><label className="full">Project name<input required placeholder="e.g. Gilgal 3"/></label><label className="full">Location<input required placeholder="Site address or area"/></label><label>Approved budget (KES)<input required type="number" placeholder="0.00"/></label><label>Start date<input required type="date"/></label><label>Planned end date<input type="date"/></label><label>Status<select><option>Active</option><option>On Hold</option></select></label><label className="full">Site manager<select><option>Select a manager…</option><option>Peter Mwangi</option><option>Mercy Wanjiku</option></select></label></div>
+      <div className="form-grid"><label className="full">Project name<input required placeholder="e.g. Gilgal 3"/></label><label className="full">Location<input required placeholder="Site address or area"/></label><label>Approved budget (KES)<input required type="number" placeholder="0.00"/></label><label>Start date<input required type="date"/></label><label>Planned end date<input type="date"/></label><label>Status<select><option>Active</option><option>On Hold</option></select></label><label className="full">Site supervisor<select><option>Select a supervisor…</option><option>Gilgal Sites Supervisor</option><option>Church & SNEP Supervisor</option></select></label></div>
       <div className="control-callout"><Icon name="shield"/><div><b>Standard control policy will apply</b><span>Four-person purchase-to-pay segregation and immutable activity logging.</span></div></div>
       <div className="modal-actions"><Button variant="secondary" onClick={onClose}>Cancel</Button><Button type="submit">Create project</Button></div>
     </>}
   </form></div>
 }
 
-function Procurement({readOnly=false}:{readOnly?:boolean}) {
+function Procurement({readOnly=false,projectScope=[...allProjectNames]}:{readOnly?:boolean;projectScope?:ProjectName[]}) {
   const [tab,setTab]=useState('Requisitions')
   const [modal,setModal]=useState(false)
   const [toast,setToast]=useState('')
+  const visibleRequisitions=requisitions.filter(requisition=>projectScope.includes(requisition.site as ProjectName))
   const approve=(id:string)=>{setToast(`${id} approved and released to procurement`);setTimeout(()=>setToast(''),3000)}
   return <>
     <PageIntro title={readOnly?'Procurement oversight':'Procurement control'} copy={readOnly?'Follow requests, orders and deliveries without entering the operational approval queue.':'Every purchase starts with an approved, traceable request.'} action={readOnly?'Export overview':'New requisition'} icon={readOnly?'download':'plus'} onAction={readOnly?undefined:()=>setModal(true)}/>
-    {readOnly&&<section className="role-guardrail owner-readonly-note"><Icon name="eye" size={17}/><p><b>Observer mode:</b> routine requests are handled by the Manager and Procurement team. Only a high-value or unresolved exception returns to your CEO workspace.</p></section>}
+    {readOnly&&<section className="role-guardrail owner-readonly-note"><Icon name="eye" size={17}/><p><b>Observer mode:</b> routine requests are handled by the Supervisor and Procurement team. Only a high-value or unresolved exception returns to your CEO workspace.</p></section>}
     <div className="tabs">{['Requisitions','Purchase orders','Goods received','Suppliers'].map((t,i)=><button className={tab===t?'active':''} onClick={()=>setTab(t)} key={t}>{t}{i<3&&<span>{[12,7,4][i]}</span>}</button>)}</div>
     <section className="panel table-panel">
       <div className="table-tools"><div className="inline-search"><Icon name="search"/><input placeholder={`Search ${tab.toLowerCase()}…`}/></div><button><Icon name="filter"/>Filters <b>2</b></button><button><Icon name="download"/>Export</button></div>
       {tab==='Requisitions' ? <div className="data-table procurement-table">
         <div className="data-row data-head"><span>REFERENCE</span><span>DESCRIPTION</span><span>SITE</span><span>REQUESTED BY</span><span>EST. VALUE</span><span>STATUS</span><span></span></div>
-        {requisitions.map(r=><div className="data-row" key={r.id}>
+        {visibleRequisitions.map(r=><div className="data-row" key={r.id}>
           <div><b className="mono">{r.id}</b><small>{r.date}</small></div>
           <div><strong>{r.item}</strong><small>{r.qty}{r.risk&&<em><Icon name="alert" size={11}/>{r.risk}</em>}</small></div>
           <span>{r.site}</span><span>{r.requester}</span><strong>{r.value}</strong><Status>{r.status}</Status>
           <div className="row-actions">{r.status==='Needs approval'&&!readOnly?<><button className="approve" onClick={()=>approve(r.id)}><Icon name="check" size={15}/>Approve</button><button><Icon name="more"/></button></>:<button><Icon name="eye" size={16}/>View</button>}</div>
         </div>)}
-      </div> : <ModuleTable tab={tab}/>}
+      </div> : <ModuleTable tab={tab} projectScope={projectScope}/>}
       <footer className="table-footer"><span>Showing 1–5 of {tab==='Suppliers'?28:12} records</span><div><button disabled>‹</button><button className="active">1</button><button>2</button><button>3</button><button>›</button></div></footer>
     </section>
-    {!readOnly&&modal&&<RequisitionModal onClose={()=>setModal(false)} onSaved={()=>{setModal(false);setToast('MR-0249 submitted for approval')}}/>}
+    {!readOnly&&modal&&<RequisitionModal projectOptions={projectScope} onClose={()=>setModal(false)} onSaved={()=>{setModal(false);setToast('MR-0249 submitted for approval')}}/>}
     {toast&&<div className="toast"><Icon name="check"/>{toast}</div>}
   </>
 }
 
-function ModuleTable({tab}:{tab:string}) {
+function ModuleTable({tab,projectScope}:{tab:string;projectScope:ProjectName[]}) {
   const rows:Record<string,string[][]>={
     'Purchase orders':[['PO-0189','Apex Steel Ltd','Gilgal 2','KES 412,800','Awaiting approval'],['PO-0188','Bamburi Cement PLC','SNEP HQ','KES 171,000','Issued'],['PO-0187','Kaydee Hardware','Church','KES 84,000','Part delivered'],['PO-0186','Mavoko Aggregates','Gilgal 1','KES 63,000','Closed']],
     'Goods received':[['GRN-0112','PO-0188 · Cement','SNEP HQ','140 / 180 bags','Discrepancy'],['GRN-0111','PO-0186 · River sand','Gilgal 1','18 / 18 tonnes','Accepted'],['GRN-0110','PO-0185 · Ballast','Church','12 / 12 tonnes','Accepted'],['GRN-0109','PO-0184 · Steel','Gilgal 2','180 / 180 lengths','Accepted']],
     'Suppliers':[['SUP-0031','Apex Steel Ltd','Steel & reinforcement','3 open orders','Approved'],['SUP-0014','Bamburi Cement PLC','Cement','2 open orders','Approved'],['SUP-0022','Kaydee Hardware','General hardware','1 open order','Review due'],['SUP-0008','Mavoko Aggregates','Aggregates','0 open orders','Approved']],
   }
+  const visibleRows=tab==='Suppliers'?rows[tab]:rows[tab].filter(row=>projectScope.includes(row[2] as ProjectName))
   return <div className="simple-module-table">
     <div className="simple-head">{['REFERENCE','PARTY / ITEM','CATEGORY / SITE','ACTIVITY','STATUS',''].map(x=><span key={x}>{x}</span>)}</div>
-    {rows[tab].map(row=><div className="simple-row" key={row[0]}>{row.map((c,j)=>j===4?<Status key={c}>{c}</Status>:<span className={j===0?'mono':''} key={c}>{c}</span>)}<button><Icon name="eye" size={16}/>View</button></div>)}
+    {visibleRows.map(row=><div className="simple-row" key={row[0]}>{row.map((c,j)=>j===4?<Status key={c}>{c}</Status>:<span className={j===0?'mono':''} key={c}>{c}</span>)}<button><Icon name="eye" size={16}/>View</button></div>)}
   </div>
 }
 
-function RequisitionModal({onClose,onSaved,lockedProject}:{onClose:()=>void;onSaved:()=>void;lockedProject?:string}) {
+function RequisitionModal({onClose,onSaved,lockedProject,projectOptions}:{onClose:()=>void;onSaved:()=>void;lockedProject?:string;projectOptions?:readonly ProjectName[]}) {
   const [step,setStep]=useState(1)
   const submit=(e:FormEvent)=>{e.preventDefault(); if(step===1)setStep(2);else onSaved()}
   return <div className="modal-wrap"><div className="modal-backdrop" onClick={onClose}/><form className="modal requisition-modal" onSubmit={submit}>
     <div className="modal-head"><div><span className="eyebrow">MATERIAL REQUEST</span><h2>New requisition</h2><p>Request materials for an approved project activity.</p></div><button type="button" onClick={onClose}><Icon name="close"/></button></div>
     <div className="stepper"><div className="active"><i>{step>1?<Icon name="check" size={13}/>:1}</i><span>Request details</span></div><em/><div className={step===2?'active':''}><i>2</i><span>Review & submit</span></div></div>
     {step===1?<div className="form-grid">
-      <label>Project / site<select required disabled={Boolean(lockedProject)} defaultValue={lockedProject ?? ''}>{!lockedProject&&<option value="" disabled>Select project…</option>}{projects.filter(project=>!lockedProject||project.name===lockedProject).map(project=><option key={project.name}>{project.name}</option>)}</select></label>
+      <label>Project / site<select required disabled={Boolean(lockedProject)} defaultValue={lockedProject ?? ''}>{!lockedProject&&<option value="" disabled>Select project…</option>}{projects.filter(project=>(!lockedProject||project.name===lockedProject)&&(!projectOptions||projectOptions.includes(project.name as ProjectName))).map(project=><option key={project.name}>{project.name}</option>)}</select></label>
       <label>Cost code<select required defaultValue=""><option value="" disabled>Select cost code…</option><option>03.20 — Structural steel</option><option>04.10 — Masonry</option><option>09.40 — Finishes</option></select></label>
       <label className="full">Material<select required defaultValue=""><option value="" disabled>Search material catalogue…</option><option>Y12 reinforcement steel · lengths</option><option>Bamburi Powermax cement · bags</option><option>River sand · tonnes</option></select></label>
       <label>Quantity<input type="number" min="1" required placeholder="0"/></label><label>Needed by<input type="date" required/></label>
@@ -828,24 +879,24 @@ function RequisitionModal({onClose,onSaved,lockedProject}:{onClose:()=>void;onSa
   </form></div>
 }
 
-function ForemanRequests() {
+function ForemanRequests({ projectScope }: { projectScope: ProjectName[] }) {
   const [modal,setModal]=useState(false)
   const [toast,setToast]=useState('')
   const ownRequests=[['MR-0248','Y12 reinforcement steel','240 lengths','Today, 09:42','Needs approval'],['MR-0239','PVC conduit 25mm','150 lengths','23 Jul, 14:05','Approved'],['MR-0234','Binding wire 16G','12 rolls','22 Jul, 10:18','PO created'],['MR-0228','Marine plywood 18mm','24 sheets','20 Jul, 08:40','Fulfilled']]
   return <>
     <PageIntro title="My material requests" copy="Ask for materials before they are purchased or issued to your site." action="New material request" icon="plus" onAction={()=>setModal(true)}/>
-    <section className="field-boundary"><Icon name="lock" size={16}/><span><b>You request; the Manager approves.</b> You cannot approve your own request, choose a supplier, change a price or create a purchase order.</span></section>
+    <section className="field-boundary"><Icon name="lock" size={16}/><span><b>You request; the Supervisor approves.</b> You cannot approve your own request, choose a supplier, change a price or create a purchase order.</span></section>
     <section className="field-request-summary"><div><span>Waiting for approval</span><strong>1</strong></div><div><span>Approved / being sourced</span><strong>2</strong></div><div><span>Ready at store</span><strong>1</strong></div><div><span>Fulfilled this month</span><strong>8</strong></div></section>
-    <section className="panel foreman-request-panel"><PanelHead title="Requests raised by you" subtitle="Gilgal 2 only"/>
+    <section className="panel foreman-request-panel"><PanelHead title="Requests raised by you" subtitle={`${projectScopeLabel(projectScope)} only`}/>
       <div className="foreman-request-table"><div className="foreman-request-row request-head"><span>REFERENCE</span><span>MATERIAL</span><span>QUANTITY</span><span>RAISED</span><span>STATUS</span><span></span></div>{ownRequests.map(row=><div className="foreman-request-row" key={row[0]}><b className="mono">{row[0]}</b><strong>{row[1]}</strong><span>{row[2]}</span><span>{row[3]}</span><Status>{row[4]}</Status><button><Icon name="eye" size={15}/>View</button></div>)}</div>
     </section>
-    <section className="request-explainer"><div><i>1</i><span><b>You request</b><small>Purpose and quantity</small></span></div><em/><div><i>2</i><span><b>Manager approves</b><small>Need and budget</small></span></div><em/><div><i>3</i><span><b>Procurement buys</b><small>Supplier and price</small></span></div><em/><div><i>4</i><span><b>Store issues</b><small>You confirm handover</small></span></div></section>
-    {modal&&<RequisitionModal lockedProject="Gilgal 2" onClose={()=>setModal(false)} onSaved={()=>{setModal(false);setToast('Material request submitted to the Manager for approval.')}}/>}
+    <section className="request-explainer"><div><i>1</i><span><b>You request</b><small>Purpose and quantity</small></span></div><em/><div><i>2</i><span><b>Supervisor approves</b><small>Need and budget</small></span></div><em/><div><i>3</i><span><b>Procurement buys</b><small>Supplier and price</small></span></div><em/><div><i>4</i><span><b>Store issues</b><small>You confirm handover</small></span></div></section>
+    {modal&&<RequisitionModal projectOptions={projectScope} onClose={()=>setModal(false)} onSaved={()=>{setModal(false);setToast('Material request submitted to the Supervisor for approval.')}}/>}
     {toast&&<div className="toast"><Icon name="check"/>{toast}</div>}
   </>
 }
 
-function ForemanMaterials() {
+function ForemanMaterials({ projectScope }: { projectScope: ProjectName[] }) {
   const [confirmed,setConfirmed]=useState(false)
   const [recordMode,setRecordMode]=useState<'usage'|'wastage'|null>(null)
   const [toast,setToast]=useState('')
@@ -860,66 +911,69 @@ function ForemanMaterials() {
         <div className="custody-list">{[['Y12 reinforcement steel','38 lengths','About 1 day','Low'],['Bamburi cement','124 bags','About 3 days','Sufficient'],['Binding wire 16G','8 rolls','About 4 days','Sufficient'],['Marine plywood 18mm','18 sheets','About 2 days','Watch']].map(row=><div key={row[0]}><div><b>{row[0]}</b><small>Estimated cover: {row[2]}</small></div><strong>{row[1]}</strong><Status tone={row[3]==='Low'?'low-stock':row[3]==='Watch'?'at-risk':'healthy'}>{row[3]}</Status></div>)}</div>
       </div>
       <aside className="panel material-actions"><PanelHead title="Record a movement" subtitle="Every unit needs a reason"/><button onClick={()=>setRecordMode('usage')}><i><Icon name="boxes"/></i><span><b>Material used</b><small>Consumed in an identified activity</small></span><Icon name="chevron" size={15}/></button><button onClick={()=>setRecordMode('wastage')}><i className="warn"><Icon name="alert"/></i><span><b>Waste or damage</b><small>Reason and evidence are required</small></span><Icon name="chevron" size={15}/></button></aside>
-      <div className="panel span-full"><PanelHead title="Recent records by you" subtitle="Today at Gilgal 2"/>
+      <div className="panel span-full"><PanelHead title="Recent records by you" subtitle={`Today · ${projectScopeLabel(projectScope)}`}/>
         <div className="field-ledger">{[['10:20','Material used','Y12 reinforcement steel','42 lengths','Slab reinforcement · Grid A–D'],['09:25','Handover confirmed','Binding wire 16G','4 rolls','MIV-0084'],['Yesterday','Wastage','Marine plywood 18mm','2 sheets','Split during stripping · photo attached']].map(row=><div key={row.join('-')}><span>{row[0]}</span><Status tone={row[1]==='Wastage'?'at-risk':row[1]==='Material used'?'issued':'accepted'}>{row[1]}</Status><strong>{row[2]}</strong><b>{row[3]}</b><small>{row[4]}</small></div>)}</div>
       </div>
     </section>
-    {recordMode&&<MaterialRecordModal mode={recordMode} onClose={()=>setRecordMode(null)} onComplete={()=>completeRecord(recordMode==='usage'?'Material usage recorded against today’s work activity.':'Wastage report submitted with an accountable reason.')}/>}
+    {recordMode&&<MaterialRecordModal mode={recordMode} projectScope={projectScope} onClose={()=>setRecordMode(null)} onComplete={()=>completeRecord(recordMode==='usage'?'Material usage recorded against today’s work activity.':'Wastage report submitted with an accountable reason.')}/>}
     {toast&&<div className="toast"><Icon name="check"/>{toast}</div>}
   </>
 }
 
-function MaterialRecordModal({mode,onClose,onComplete}:{mode:'usage'|'wastage';onClose:()=>void;onComplete:()=>void}) {
-  return <div className="modal-wrap"><div className="modal-backdrop" onClick={onClose}/><form className="modal field-modal" onSubmit={event=>{event.preventDefault();onComplete()}}><div className="modal-head"><div><span className="eyebrow">GILGAL 2 · MATERIAL CONTROL</span><h2>{mode==='usage'?'Record material used':'Report waste or damage'}</h2><p>This record reduces the quantity under your custody.</p></div><button type="button" onClick={onClose}><Icon name="close"/></button></div><div className="form-grid"><label className="full">Material<select required defaultValue=""><option value="" disabled>Select issued material…</option><option>Y12 reinforcement steel · 38 lengths held</option><option>Bamburi cement · 124 bags held</option><option>Binding wire 16G · 8 rolls held</option><option>Marine plywood 18mm · 18 sheets held</option></select></label><label>Quantity<input required min="1" type="number" placeholder="0"/></label><label>Unit<select><option>lengths</option><option>bags</option><option>rolls</option><option>sheets</option></select></label><label className="full">{mode==='usage'?'Work activity / location':'Reason for waste or damage'}<textarea required rows={3} placeholder={mode==='usage'?'e.g. First-floor slab, grid A–D':'Explain exactly what happened and where…'}/></label>{mode==='wastage'&&<label className="full">Evidence photo<input type="file" accept="image/*"/></label>}</div><div className="control-callout"><Icon name="lock"/><div><b>Quantity cannot be edited after submission</b><span>A correction must be requested through the Manager and remains visible in the audit trail.</span></div></div><div className="modal-actions"><Button variant="secondary" onClick={onClose}>Cancel</Button><Button type="submit">{mode==='usage'?'Record usage':'Submit wastage report'}</Button></div></form></div>
+function MaterialRecordModal({mode,projectScope,onClose,onComplete}:{mode:'usage'|'wastage';projectScope:ProjectName[];onClose:()=>void;onComplete:()=>void}) {
+  return <div className="modal-wrap"><div className="modal-backdrop" onClick={onClose}/><form className="modal field-modal" onSubmit={event=>{event.preventDefault();onComplete()}}><div className="modal-head"><div><span className="eyebrow">{projectScopeLabel(projectScope).toUpperCase()} · MATERIAL CONTROL</span><h2>{mode==='usage'?'Record material used':'Report waste or damage'}</h2><p>This record reduces the quantity under your custody.</p></div><button type="button" onClick={onClose}><Icon name="close"/></button></div><div className="form-grid"><label>Project<select required>{projectScope.map(project=><option key={project}>{project}</option>)}</select></label><label>Material<select required defaultValue=""><option value="" disabled>Select issued material…</option><option>Y12 reinforcement steel · 38 lengths held</option><option>Bamburi cement · 124 bags held</option><option>Binding wire 16G · 8 rolls held</option><option>Marine plywood 18mm · 18 sheets held</option></select></label><label>Quantity<input required min="1" type="number" placeholder="0"/></label><label>Unit<select><option>lengths</option><option>bags</option><option>rolls</option><option>sheets</option></select></label><label className="full">{mode==='usage'?'Work activity / location':'Reason for waste or damage'}<textarea required rows={3} placeholder={mode==='usage'?'e.g. First-floor slab, grid A–D':'Explain exactly what happened and where…'}/></label>{mode==='wastage'&&<label className="full">Evidence photo<input type="file" accept="image/*"/></label>}</div><div className="control-callout"><Icon name="lock"/><div><b>Quantity cannot be edited after submission</b><span>A correction must be requested through the Supervisor and remains visible in the audit trail.</span></div></div><div className="modal-actions"><Button variant="secondary" onClick={onClose}>Cancel</Button><Button type="submit">{mode==='usage'?'Record usage':'Submit wastage report'}</Button></div></form></div>
 }
 
-function ForemanDailyLog() {
+function ForemanDailyLog({ projectScope }: { projectScope: ProjectName[] }) {
   const [modal,setModal]=useState(false)
   const [submitted,setSubmitted]=useState(false)
   return <>
-    <PageIntro title="Daily site log" copy="One accountable record of people, progress, delays and safety at Gilgal 2." action={submitted?'Update today’s log':'Complete today’s log'} icon="plus" onAction={()=>setModal(true)}/>
+    <PageIntro title="Daily site log" copy={`Accountable records of people, progress, delays and safety across ${projectScopeLabel(projectScope)}.`} action={submitted?'Update today’s log':'Complete today’s log'} icon="plus" onAction={()=>setModal(true)}/>
     <section className="daily-log-status"><div><Icon name={submitted?'check':'clock'} size={20}/><span><b>{submitted?'Today’s site log is submitted':'Today’s site log is still open'}</b><small>{submitted?'Submitted by Samuel Kariuki at 16:42':'Complete work progress and blockers before 17:00'}</small></span></div><strong>Saturday, 25 July 2026</strong></section>
     <section className="daily-log-grid"><div className="panel"><PanelHead title="Crew attendance" subtitle="31 people confirmed at morning roll call"/>
       <div className="crew-breakdown">{[['Masons','9','08:00'],['General labourers','16','07:00'],['Steel fixers','4','07:00'],['Electricians','2','13:00']].map(row=><div key={row[0]}><span><b>{row[0]}</b><small>Shift started {row[2]}</small></span><strong>{row[1]}</strong><Status>Present</Status></div>)}</div>
     </div><aside className="panel"><PanelHead title="Site readiness" subtitle="Morning checks"/><div className="readiness-list">{[['Toolbox safety talk','Complete'],['PPE check','Complete'],['Work areas released','Complete'],['Weather interruption','None']].map(row=><div key={row[0]}><span>{row[0]}</span><Status tone={row[1]==='None'?'accepted':'complete'}>{row[1]}</Status></div>)}</div></aside>
       <div className="panel span-full"><PanelHead title="Today’s activity record" subtitle="Planned versus completed work"/><div className="daily-activity-table">{[['Slab reinforcement','65%','65%','On plan'],['Slab-edge formwork','50%','40%','10% behind'],['Electrical conduits','30%','0%','Starts 13:00']].map(row=><div key={row[0]}><strong>{row[0]}</strong><span>Planned <b>{row[1]}</b></span><span>Recorded <b>{row[2]}</b></span><Status tone={row[3]==='On plan'?'accepted':'at-risk'}>{row[3]}</Status></div>)}</div></div>
     </section>
-    {modal&&<DailyLogModal onClose={()=>setModal(false)} onComplete={()=>{setModal(false);setSubmitted(true)}}/>}
+    {modal&&<DailyLogModal projectScope={projectScope} onClose={()=>setModal(false)} onComplete={()=>{setModal(false);setSubmitted(true)}}/>}
   </>
 }
 
-function DailyLogModal({onClose,onComplete}:{onClose:()=>void;onComplete:()=>void}) {
-  return <div className="modal-wrap"><div className="modal-backdrop" onClick={onClose}/><form className="modal field-modal" onSubmit={event=>{event.preventDefault();onComplete()}}><div className="modal-head"><div><span className="eyebrow">GILGAL 2 · 25 JUL 2026</span><h2>Complete today’s site log</h2><p>Record what actually happened—not what was planned.</p></div><button type="button" onClick={onClose}><Icon name="close"/></button></div><div className="form-grid"><label>Total people on site<input required type="number" defaultValue="31"/></label><label>Hours worked<input required type="number" defaultValue="8"/></label><label className="full">Work completed<textarea required rows={3} defaultValue="Slab reinforcement continued from grid A to D. Edge formwork completed on the eastern side."/></label><label className="full">Delays or blockers<textarea rows={2} placeholder="Record material, weather, drawing, labour or equipment delays…"/></label><label className="full">Site photos<input type="file" multiple accept="image/*"/></label><label className="full cashier-confirm"><input required type="checkbox"/><span>I confirm this log reflects the people and work physically observed on site today.</span></label></div><div className="modal-actions"><Button variant="secondary" onClick={onClose}>Save draft</Button><Button type="submit">Submit daily log</Button></div></form></div>
+function DailyLogModal({projectScope,onClose,onComplete}:{projectScope:ProjectName[];onClose:()=>void;onComplete:()=>void}) {
+  return <div className="modal-wrap"><div className="modal-backdrop" onClick={onClose}/><form className="modal field-modal" onSubmit={event=>{event.preventDefault();onComplete()}}><div className="modal-head"><div><span className="eyebrow">DAILY FIELD RECORD · 25 JUL 2026</span><h2>Complete today’s site log</h2><p>Record what actually happened—not what was planned.</p></div><button type="button" onClick={onClose}><Icon name="close"/></button></div><div className="form-grid"><label>Project<select required>{projectScope.map(project=><option key={project}>{project}</option>)}</select></label><label>Total people on site<input required type="number" defaultValue="31"/></label><label>Hours worked<input required type="number" defaultValue="8"/></label><label className="full">Work completed<textarea required rows={3} defaultValue="Work completed against today’s approved activity plan."/></label><label className="full">Delays or blockers<textarea rows={2} placeholder="Record material, weather, drawing, labour or equipment delays…"/></label><label className="full">Site photos<input type="file" multiple accept="image/*"/></label><label className="full cashier-confirm"><input required type="checkbox"/><span>I confirm this log reflects the people and work physically observed on site today.</span></label></div><div className="modal-actions"><Button variant="secondary" onClick={onClose}>Save draft</Button><Button type="submit">Submit daily log</Button></div></form></div>
 }
 
-function ForemanTools() {
+function ForemanTools({ projectScope }: { projectScope: ProjectName[] }) {
   const [reported,setReported]=useState<string[]>([])
   const tools=[['TL-0244','Bosch rotary hammer','Good','Issued 11 Jul'],['TL-0198','Makita angle grinder','Good','Issued 18 Jul'],['TL-0302','Rebar cutter 25mm','Service due','Issued 20 Jul'],['TL-0164','Laser level','Good','Issued 22 Jul']]
-  return <><PageIntro title="Tools issued to me" copy="Custody, condition and return history for Gilgal 2 field equipment." action="Report tool problem" icon="alert" onAction={()=>setReported(current=>current.includes('TL-0302')?current:[...current,'TL-0302'])}/><section className="field-boundary"><Icon name="tool" size={16}/><span><b>You are the current custodian.</b> Report loss or damage immediately; the equipment record cannot be deleted or backdated.</span></section><section className="tool-custody-grid">{tools.map(tool=><article className="panel" key={tool[0]}><div><span className="tool-code">{tool[0]}</span><Status tone={reported.includes(tool[0])?'at-risk':tool[2]==='Good'?'healthy':'service-due'}>{reported.includes(tool[0])?'Problem reported':tool[2]}</Status></div><i><Icon name="tool" size={24}/></i><h3>{tool[1]}</h3><p>{tool[3]} · Custodian: Samuel Kariuki</p><button onClick={()=>setReported(current=>current.includes(tool[0])?current:[...current,tool[0]])}>{reported.includes(tool[0])?<><Icon name="check" size={14}/>Report submitted</>:<>Report damage <Icon name="arrow" size={13}/></>}</button></article>)}</section></>
+  return <><PageIntro title="Tools issued to me" copy={`Custody, condition and return history across ${projectScopeLabel(projectScope)}.`} action="Report tool problem" icon="alert" onAction={()=>setReported(current=>current.includes('TL-0302')?current:[...current,'TL-0302'])}/><section className="field-boundary"><Icon name="tool" size={16}/><span><b>You are the current custodian.</b> Report loss or damage immediately; the equipment record cannot be deleted or backdated.</span></section><section className="tool-custody-grid">{tools.map(tool=><article className="panel" key={tool[0]}><div><span className="tool-code">{tool[0]}</span><Status tone={reported.includes(tool[0])?'at-risk':tool[2]==='Good'?'healthy':'service-due'}>{reported.includes(tool[0])?'Problem reported':tool[2]}</Status></div><i><Icon name="tool" size={24}/></i><h3>{tool[1]}</h3><p>{tool[3]} · Assigned foreman custody</p><button onClick={()=>setReported(current=>current.includes(tool[0])?current:[...current,tool[0]])}>{reported.includes(tool[0])?<><Icon name="check" size={14}/>Report submitted</>:<>Report damage <Icon name="arrow" size={13}/></>}</button></article>)}</section></>
 }
 
-function EngineerProgress() {
+function EngineerProgress({ projectScope }: { projectScope: ProjectName[] }) {
   const [verified,setVerified]=useState<string[]>([])
   const [toast,setToast]=useState('')
-  const rows=[['Gilgal 1','Roof structure','68%','67%','18 Dec 2026','1%'],['Gilgal 2','First-floor slab','74%','71%','30 Sep 2026','3%'],['SNEP HQ','Ground-floor masonry','39%','39%','28 Feb 2027','0%'],['Church','Column works','31%','28%','15 Apr 2027','3%']]
+  const rows=[['Gilgal 1','Roof structure','68%','67%','18 Dec 2026','1%'],['Gilgal 2','First-floor slab','74%','71%','30 Sep 2026','3%'],['SNEP HQ','Ground-floor masonry','39%','39%','28 Feb 2027','0%'],['Church','Column works','31%','28%','15 Apr 2027','3%']].filter(row=>projectScope.includes(row[0] as ProjectName))
+  const milestones=[['28 Jul','Gilgal 2','Slab reinforcement approved','Inspection required'],['31 Jul','Gilgal 1','Roof ring beam complete','On schedule'],['02 Aug','Church','Ground-floor columns cast','Inspection required'],['04 Aug','SNEP HQ','Masonry reaches lintel level','On schedule']].filter(row=>projectScope.includes(row[1] as ProjectName))
   const verify=(name:string)=>{setVerified(current=>[...current,name]);setToast(`${name} progress verified and added to its technical history.`);setTimeout(()=>setToast(''),3000)}
-  return <><PageIntro title="Progress & milestones" copy="Compare field reports with technically verified construction progress." action="Export progress report" icon="download"/><section className="engineer-guardrail"><Icon name="eye" size={16}/><p><b>Only verified progress becomes official.</b> A Foreman may report completion, but the Engineer confirms workmanship and measured quantities before certification.</p></section><section className="panel engineer-progress-register"><PanelHead title="Project progress register" subtitle="Latest reporting cycle · 25 July 2026"/><div className="progress-register"><div className="progress-register-row progress-register-head"><span>PROJECT</span><span>CURRENT STAGE</span><span>REPORTED</span><span>VERIFIED</span><span>EXPECTED FINISH</span><span>GAP</span><span></span></div>{rows.map(row=><div className="progress-register-row" key={row[0]}><strong>{row[0]}</strong><span>{row[1]}</span><b>{row[2]}</b><b>{verified.includes(row[0])?row[2]:row[3]}</b><span>{row[4]}</span><Status tone={row[5]==='0%'?'accepted':'at-risk'}>{verified.includes(row[0])?'0%':row[5]}</Status>{verified.includes(row[0])?<Status>Verified</Status>:<button onClick={()=>verify(row[0])}>Verify <Icon name="arrow" size={12}/></button>}</div>)}</div></section><section className="milestone-board"><div className="panel"><PanelHead title="Milestones in the next 14 days" subtitle="Inspections gate the next construction stage"/><div className="milestone-list">{[['28 Jul','Gilgal 2','Slab reinforcement approved','Inspection required'],['31 Jul','Gilgal 1','Roof ring beam complete','On schedule'],['02 Aug','Church','Ground-floor columns cast','Inspection required'],['04 Aug','SNEP HQ','Masonry reaches lintel level','On schedule']].map(row=><div key={row[0]+row[1]}><time>{row[0]}</time><span><b>{row[2]}</b><small>{row[1]}</small></span><Status>{row[3]}</Status></div>)}</div></div></section>{toast&&<div className="toast"><Icon name="check"/>{toast}</div>}</>
+  return <><PageIntro title="Progress & milestones" copy={`Technically verified progress for ${projectScopeLabel(projectScope)}.`} action="Export progress report" icon="download"/><section className="engineer-guardrail"><Icon name="eye" size={16}/><p><b>Only verified progress becomes official.</b> A Foreman may report completion, but the Engineer confirms workmanship and measured quantities before certification.</p></section><section className="panel engineer-progress-register"><PanelHead title="Project progress register" subtitle="Latest reporting cycle · 25 July 2026"/><div className="progress-register"><div className="progress-register-row progress-register-head"><span>PROJECT</span><span>CURRENT STAGE</span><span>REPORTED</span><span>VERIFIED</span><span>EXPECTED FINISH</span><span>GAP</span><span></span></div>{rows.map(row=><div className="progress-register-row" key={row[0]}><strong>{row[0]}</strong><span>{row[1]}</span><b>{row[2]}</b><b>{verified.includes(row[0])?row[2]:row[3]}</b><span>{row[4]}</span><Status tone={row[5]==='0%'?'accepted':'at-risk'}>{verified.includes(row[0])?'0%':row[5]}</Status>{verified.includes(row[0])?<Status>Verified</Status>:<button onClick={()=>verify(row[0])}>Verify <Icon name="arrow" size={12}/></button>}</div>)}</div></section><section className="milestone-board"><div className="panel"><PanelHead title="Milestones in the next 14 days" subtitle="Inspections gate the next construction stage"/><div className="milestone-list">{milestones.map(row=><div key={row[0]+row[1]}><time>{row[0]}</time><span><b>{row[2]}</b><small>{row[1]}</small></span><Status>{row[3]}</Status></div>)}</div></div></section>{toast&&<div className="toast"><Icon name="check"/>{toast}</div>}</>
 }
 
-function EngineerQuality() {
+function EngineerQuality({ projectScope }: { projectScope: ProjectName[] }) {
   const [modal,setModal]=useState(false)
   const [toast,setToast]=useState('')
-  const inspections=[['INS-0186','Gilgal 2','Slab reinforcement before pour','Today, 14:00','Scheduled'],['INS-0185','Church','Column formwork and plumb','Today, 16:00','Scheduled'],['INS-0184','Gilgal 1','Roof ring-beam formwork','Today, 08:20','Passed'],['INS-0183','SNEP HQ','Blockwork line and level','24 Jul, 15:10','Passed with note']]
-  return <><PageIntro title="Quality inspections" copy="Technical hold points, defects and proof of corrective work." action="Record inspection" icon="plus" onAction={()=>setModal(true)}/><section className="quality-summary"><div><span>Due today</span><strong>2</strong><small>Both before covered work</small></div><div><span>Open defects</span><strong>4</strong><small>1 high-priority</small></div><div><span>Closed this week</span><strong>7</strong><small>Evidence verified</small></div><div><span>First-time pass rate</span><strong>86%</strong><small>Last 30 days</small></div></section><section className="quality-grid"><div className="panel"><PanelHead title="Inspection schedule" subtitle="Work cannot proceed past a hold point without a result"/><div className="inspection-register">{inspections.map(row=><div key={row[0]}><b className="mono">{row[0]}</b><span><strong>{row[2]}</strong><small>{row[1]} · {row[3]}</small></span><Status>{row[4]}</Status><button onClick={()=>setModal(true)}>{row[4]==='Scheduled'?'Inspect':'View'} <Icon name="arrow" size={12}/></button></div>)}</div></div><aside className="panel defect-register"><PanelHead title="Open corrective work" subtitle="Must be re-inspected before closure"/><div>{[['High','Gilgal 2','Insufficient cover at beam B4','Due before slab pour'],['Medium','Church','Column C2 is 12mm out of plumb','Due 27 Jul'],['Low','SNEP HQ','Uneven mortar joint at grid F','Due 29 Jul']].map(row=><article key={row[2]}><span className={`severity ${row[0].toLowerCase()}`}>{row[0]}</span><div><b>{row[2]}</b><small>{row[1]} · {row[3]}</small></div><button><Icon name="chevron" size={14}/></button></article>)}</div></aside></section>{modal&&<InspectionModal onClose={()=>setModal(false)} onComplete={()=>{setModal(false);setToast('Inspection recorded with a permanent technical reference.')}}/>}{toast&&<div className="toast"><Icon name="check"/>{toast}</div>}</>
+  const inspections=[['INS-0186','Gilgal 2','Slab reinforcement before pour','Today, 14:00','Scheduled'],['INS-0185','Church','Column formwork and plumb','Today, 16:00','Scheduled'],['INS-0184','Gilgal 1','Roof ring-beam formwork','Today, 08:20','Passed'],['INS-0183','SNEP HQ','Blockwork line and level','24 Jul, 15:10','Passed with note']].filter(row=>projectScope.includes(row[1] as ProjectName))
+  const defects=[['High','Gilgal 2','Insufficient cover at beam B4','Due before slab pour'],['Medium','Church','Column C2 is 12mm out of plumb','Due 27 Jul'],['Low','SNEP HQ','Uneven mortar joint at grid F','Due 29 Jul'],['Low','Gilgal 1','Ring-beam shutter requires bracing','Due 30 Jul']].filter(row=>projectScope.includes(row[1] as ProjectName))
+  return <><PageIntro title="Quality inspections" copy={`Technical hold points and corrective work for ${projectScopeLabel(projectScope)}.`} action="Record inspection" icon="plus" onAction={()=>setModal(true)}/><section className="quality-summary"><div><span>Due today</span><strong>{inspections.filter(row=>row[4]==='Scheduled').length}</strong><small>Before covered work</small></div><div><span>Open defects</span><strong>{defects.length}</strong><small>Prioritised by risk</small></div><div><span>Assigned projects</span><strong>{projectScope.length}</strong><small>Scope enforced</small></div><div><span>First-time pass rate</span><strong>86%</strong><small>Last 30 days</small></div></section><section className="quality-grid"><div className="panel"><PanelHead title="Inspection schedule" subtitle="Work cannot proceed past a hold point without a result"/><div className="inspection-register">{inspections.map(row=><div key={row[0]}><b className="mono">{row[0]}</b><span><strong>{row[2]}</strong><small>{row[1]} · {row[3]}</small></span><Status>{row[4]}</Status><button onClick={()=>setModal(true)}>{row[4]==='Scheduled'?'Inspect':'View'} <Icon name="arrow" size={12}/></button></div>)}</div></div><aside className="panel defect-register"><PanelHead title="Open corrective work" subtitle="Must be re-inspected before closure"/><div>{defects.map(row=><article key={row[2]}><span className={`severity ${row[0].toLowerCase()}`}>{row[0]}</span><div><b>{row[2]}</b><small>{row[1]} · {row[3]}</small></div><button><Icon name="chevron" size={14}/></button></article>)}</div></aside></section>{modal&&<InspectionModal projectScope={projectScope} onClose={()=>setModal(false)} onComplete={()=>{setModal(false);setToast('Inspection recorded with a permanent technical reference.')}}/>}{toast&&<div className="toast"><Icon name="check"/>{toast}</div>}</>
 }
 
-function InspectionModal({onClose,onComplete}:{onClose:()=>void;onComplete:()=>void}) {
-  return <div className="modal-wrap"><div className="modal-backdrop" onClick={onClose}/><form className="modal inspection-modal" onSubmit={event=>{event.preventDefault();onComplete()}}><div className="modal-head"><div><span className="eyebrow">TECHNICAL INSPECTION</span><h2>Record inspection result</h2><p>The result gates whether construction may proceed.</p></div><button type="button" onClick={onClose}><Icon name="close"/></button></div><div className="form-grid"><label>Project<select required><option>Gilgal 2</option><option>Church</option></select></label><label>Inspection type<select required><option>Slab reinforcement before pour</option><option>Column formwork and plumb</option></select></label><label className="full">Result<select required defaultValue=""><option value="" disabled>Select technical result…</option><option>Passed — work may proceed</option><option>Passed with note</option><option>Correction required — work held</option></select></label><label className="full">Measurements and observations<textarea required rows={3} placeholder="Record dimensions, levels, cover, workmanship and referenced drawing…"/></label><label>Drawing revision<input required placeholder="e.g. STR-204 Rev B"/></label><label>Evidence photos<input type="file" multiple accept="image/*"/></label></div><div className="payment-audit-note"><Icon name="shield" size={16}/><span>This decision is signed with your Engineer identity. A failed hold-point inspection automatically blocks the next stage.</span></div><div className="modal-actions"><Button variant="secondary" onClick={onClose}>Cancel</Button><Button type="submit">Save inspection result</Button></div></form></div>
+function InspectionModal({projectScope,onClose,onComplete}:{projectScope:ProjectName[];onClose:()=>void;onComplete:()=>void}) {
+  return <div className="modal-wrap"><div className="modal-backdrop" onClick={onClose}/><form className="modal inspection-modal" onSubmit={event=>{event.preventDefault();onComplete()}}><div className="modal-head"><div><span className="eyebrow">TECHNICAL INSPECTION</span><h2>Record inspection result</h2><p>The result gates whether construction may proceed.</p></div><button type="button" onClick={onClose}><Icon name="close"/></button></div><div className="form-grid"><label>Project<select required>{projectScope.map(project=><option key={project}>{project}</option>)}</select></label><label>Inspection type<select required><option>Structural work before covering</option><option>Formwork, line and level</option></select></label><label className="full">Result<select required defaultValue=""><option value="" disabled>Select technical result…</option><option>Passed — work may proceed</option><option>Passed with note</option><option>Correction required — work held</option></select></label><label className="full">Measurements and observations<textarea required rows={3} placeholder="Record dimensions, levels, cover, workmanship and referenced drawing…"/></label><label>Drawing revision<input required placeholder="e.g. STR-204 Rev B"/></label><label>Evidence photos<input type="file" multiple accept="image/*"/></label></div><div className="payment-audit-note"><Icon name="shield" size={16}/><span>This decision is signed with your Engineer identity. A failed hold-point inspection automatically blocks the next stage.</span></div><div className="modal-actions"><Button variant="secondary" onClick={onClose}>Cancel</Button><Button type="submit">Save inspection result</Button></div></form></div>
 }
 
-function EngineerDrawings() {
-  const drawings=[['STR-204','First-floor slab reinforcement','B','Gilgal 2','Approved for construction','24 Jul 2026'],['ARC-118','Ground-floor general arrangement','C','SNEP HQ','Approved for construction','22 Jul 2026'],['STR-091','Ground-floor column details','A','Church','Under review','23 Jul 2026'],['ELE-044','Electrical conduit layout','C','SNEP HQ','Ready to issue','25 Jul 2026']]
-  return <><PageIntro title="Drawings & technical documents" copy="One controlled register so sites build from the current approved revision." action="Upload revision" icon="plus"/><section className="drawing-warning"><Icon name="alert" size={18}/><span><b>Two superseded drawings may still be printed on site.</b><small>Gilgal 2 and SNEP HQ must confirm that old copies were withdrawn.</small></span><button>Track withdrawal</button></section><section className="drawing-layout"><div className="panel"><PanelHead title="Controlled drawing register" subtitle="Only ‘Approved for construction’ revisions may be built"/><div className="drawing-register"><div className="drawing-row drawing-head"><span>NUMBER</span><span>TITLE</span><span>REV.</span><span>PROJECT</span><span>STATUS</span><span>ISSUED</span><span></span></div>{drawings.map(row=><div className="drawing-row" key={row[0]}><b className="mono">{row[0]}</b><strong>{row[1]}</strong><b>{row[2]}</b><span>{row[3]}</span><Status>{row[4]}</Status><span>{row[5]}</span><button><Icon name="eye" size={14}/>Open</button></div>)}</div></div><aside className="panel rfi-panel"><PanelHead title="Requests for information" subtitle="Questions blocking site work"/><div>{[['RFI-0038','Gilgal 2','Beam B4 / conduit clash','Engineer reply due today'],['RFI-0037','Church','Column C2 setting-out dimension','Answered'],['RFI-0035','SNEP HQ','Window schedule discrepancy','Architect reply due 27 Jul']].map(row=><article key={row[0]}><div><b className="mono">{row[0]}</b><Status>{row[3]}</Status></div><h3>{row[2]}</h3><p>{row[1]}</p><button>Open RFI <Icon name="arrow" size={12}/></button></article>)}</div></aside></section></>
+function EngineerDrawings({ projectScope }: { projectScope: ProjectName[] }) {
+  const drawings=[['STR-204','First-floor slab reinforcement','B','Gilgal 2','Approved for construction','24 Jul 2026'],['ARC-118','Ground-floor general arrangement','C','SNEP HQ','Approved for construction','22 Jul 2026'],['STR-091','Ground-floor column details','A','Church','Under review','23 Jul 2026'],['ELE-044','Electrical conduit layout','C','SNEP HQ','Ready to issue','25 Jul 2026'],['STR-112','Roof ring-beam details','A','Gilgal 1','Approved for construction','23 Jul 2026']].filter(row=>projectScope.includes(row[3] as ProjectName))
+  const rfis=[['RFI-0038','Gilgal 2','Beam B4 / conduit clash','Engineer reply due today'],['RFI-0037','Church','Column C2 setting-out dimension','Answered'],['RFI-0035','SNEP HQ','Window schedule discrepancy','Architect reply due 27 Jul'],['RFI-0034','Gilgal 1','Ring-beam level confirmation','Answered']].filter(row=>projectScope.includes(row[1] as ProjectName))
+  return <><PageIntro title="Drawings & technical documents" copy={`Controlled information for ${projectScopeLabel(projectScope)}.`} action="Upload revision" icon="plus"/><section className="drawing-warning"><Icon name="alert" size={18}/><span><b>Superseded drawings must be withdrawn from site.</b><small>Only records within your assigned project pair are shown.</small></span><button>Track withdrawal</button></section><section className="drawing-layout"><div className="panel"><PanelHead title="Controlled drawing register" subtitle="Only ‘Approved for construction’ revisions may be built"/><div className="drawing-register"><div className="drawing-row drawing-head"><span>NUMBER</span><span>TITLE</span><span>REV.</span><span>PROJECT</span><span>STATUS</span><span>ISSUED</span><span></span></div>{drawings.map(row=><div className="drawing-row" key={row[0]}><b className="mono">{row[0]}</b><strong>{row[1]}</strong><b>{row[2]}</b><span>{row[3]}</span><Status>{row[4]}</Status><span>{row[5]}</span><button><Icon name="eye" size={14}/>Open</button></div>)}</div></div><aside className="panel rfi-panel"><PanelHead title="Requests for information" subtitle="Questions blocking site work"/><div>{rfis.map(row=><article key={row[0]}><div><b className="mono">{row[0]}</b><Status>{row[3]}</Status></div><h3>{row[2]}</h3><p>{row[1]}</p><button>Open RFI <Icon name="arrow" size={12}/></button></article>)}</div></aside></section></>
 }
 
 function StorekeeperLedger() {
@@ -991,7 +1045,7 @@ function ProcurementSuppliers() {
 function AuditEvidence() {
   const [selected,setSelected]=useState('AUD-0094')
   const findings=[['AUD-0094','High','Steel price above reference','KES 412,800'],['AUD-0091','High','Duplicate invoice reference','KES 384,000'],['AUD-0088','Medium','Transfer confirmation overdue','KES 156,000'],['AUD-0084','Medium','Round-number petty cash pattern','KES 50,000'],['AUD-0081','Low','Stock count submitted late','No direct exposure']]
-  return <><PageIntro title="Evidence review" copy="Trace a flagged record through every predecessor, actor and attachment." action="Export selected evidence" icon="download"/><section className="auditor-guardrail"><Icon name="eye" size={16}/><p><b>Read-only evidence mode.</b> Notes are appended to the audit review; source transactions, approvals and attachments cannot be changed here.</p></section><section className="evidence-workspace"><aside className="panel finding-list"><PanelHead title="Audit sample" subtitle="5 items selected for review"/><div>{findings.map(finding=><button className={selected===finding[0]?'active':''} onClick={()=>setSelected(finding[0])} key={finding[0]}><span className={`severity ${finding[1].toLowerCase()}`}>{finding[1]}</span><span><b>{finding[2]}</b><small>{finding[0]} · {finding[3]}</small></span><Icon name="chevron" size={14}/></button>)}</div></aside><div className="panel evidence-detail"><div className="evidence-head"><div><span>SELECTED EVIDENCE CHAIN</span><h2>{selected} · Steel price above reference</h2><p>Gilgal 2 · Structural works · Apex Steel Ltd</p></div><Status tone="at-risk">Open finding</Status></div><div className="evidence-facts"><div><span>Financial exposure</span><b>KES 412,800</b></div><div><span>Reference price difference</span><b>+8.4%</b></div><div><span>Events in chain</span><b>7 verified</b></div><div><span>Attachments</span><b>5 hashed files</b></div></div><div className="evidence-timeline">{[['Material request','MR-0248','Samuel Kariuki · Foreman','25 Jul, 09:42','Created from device 8AF2'],['Manager approval','APR-0441','Steven Kakai · Manager','25 Jul, 10:06','Approved within KES 500K limit'],['Quote comparison','QC-0068','Paul Kimani · Procurement','25 Jul, 11:20','Apex selected; not lowest quote'],['Purchase order','PO-0192','Paul Kimani · Procurement','25 Jul, 11:34','Submitted for independent approval'],['Price exception','FLAG-0183','System control','25 Jul, 11:34','8.4% above reference price']].map((event,index)=><article key={event[1]}><i>{index+1}</i><div><span>{event[0]}</span><h3>{event[1]}</h3><p>{event[2]} · {event[3]}</p><small>{event[4]}</small></div><Icon name="check" size={15}/></article>)}</div><div className="hash-proof"><Icon name="lock" size={16}/><span><b>Hash chain verified</b><small>Previous: 7f4a…821c · Current: c92e…044a</small></span><button>Copy hashes</button></div></div></section></>
+  return <><PageIntro title="Evidence review" copy="Trace a flagged record through every predecessor, actor and attachment." action="Export selected evidence" icon="download"/><section className="auditor-guardrail"><Icon name="eye" size={16}/><p><b>Read-only evidence mode.</b> Notes are appended to the audit review; source transactions, approvals and attachments cannot be changed here.</p></section><section className="evidence-workspace"><aside className="panel finding-list"><PanelHead title="Audit sample" subtitle="5 items selected for review"/><div>{findings.map(finding=><button className={selected===finding[0]?'active':''} onClick={()=>setSelected(finding[0])} key={finding[0]}><span className={`severity ${finding[1].toLowerCase()}`}>{finding[1]}</span><span><b>{finding[2]}</b><small>{finding[0]} · {finding[3]}</small></span><Icon name="chevron" size={14}/></button>)}</div></aside><div className="panel evidence-detail"><div className="evidence-head"><div><span>SELECTED EVIDENCE CHAIN</span><h2>{selected} · Steel price above reference</h2><p>Gilgal 2 · Structural works · Apex Steel Ltd</p></div><Status tone="at-risk">Open finding</Status></div><div className="evidence-facts"><div><span>Financial exposure</span><b>KES 412,800</b></div><div><span>Reference price difference</span><b>+8.4%</b></div><div><span>Events in chain</span><b>7 verified</b></div><div><span>Attachments</span><b>5 hashed files</b></div></div><div className="evidence-timeline">{[['Material request','MR-0248','Samuel Kariuki · Foreman','25 Jul, 09:42','Created from device 8AF2'],['Supervisor approval','APR-0441','Steven Kakai · Supervisor','25 Jul, 10:06','Approved within KES 500K limit'],['Quote comparison','QC-0068','Paul Kimani · Procurement','25 Jul, 11:20','Apex selected; not lowest quote'],['Purchase order','PO-0192','Paul Kimani · Procurement','25 Jul, 11:34','Submitted for independent approval'],['Price exception','FLAG-0183','System control','25 Jul, 11:34','8.4% above reference price']].map((event,index)=><article key={event[1]}><i>{index+1}</i><div><span>{event[0]}</span><h3>{event[1]}</h3><p>{event[2]} · {event[3]}</p><small>{event[4]}</small></div><Icon name="check" size={15}/></article>)}</div><div className="hash-proof"><Icon name="lock" size={16}/><span><b>Hash chain verified</b><small>Previous: 7f4a…821c · Current: c92e…044a</small></span><button>Copy hashes</button></div></div></section></>
 }
 
 function AuditReports() {
@@ -999,15 +1053,16 @@ function AuditReports() {
   return <><PageIntro title="Audit reports & exports" copy="Independent outputs generated from immutable source events." action="Build custom report" icon="plus"/><section className="report-control-note"><Icon name="shield" size={17}/><span><b>Every export carries a verification manifest.</b><small>Recipients can confirm that records and attachments have not changed after export.</small></span></section><section className="audit-report-grid">{reports.map(report=><article className="panel" key={report[0]}><div><Icon name="file" size={22}/><Status>Ready</Status></div><h3>{report[0]}</h3><p>{report[1]}</p><span>{report[2]}</span><footer><small>{report[3]}</small><button><Icon name="download" size={14}/>Download</button></footer></article>)}</section><section className="panel scheduled-reports"><PanelHead title="Scheduled assurance reports" subtitle="Delivery does not grant transactional access"/><div>{[['CEO weekly exception brief','Every Monday, 07:00','Josephine Charles','Active'],['Month-end stock variance','Last day, 18:00','CEO + Auditor','Active'],['High-value payment alert','On every payment > KES 500K','CEO + Auditor','Active']].map(row=><div key={row[0]}><strong>{row[0]}</strong><span>{row[1]}</span><span>{row[2]}</span><Status>{row[3]}</Status><button><Icon name="eye" size={14}/>View rule</button></div>)}</div></section></>
 }
 
-function Inventory({readOnly=false}:{readOnly?:boolean}) {
-  const stock=[['Bamburi Powermax cement','Cement','bags','1,248','Gilgal 1','Healthy'],['Y12 reinforcement steel','Steel','lengths','186','Gilgal 2','Low stock'],['River sand','Aggregates','tonnes','42.5','Church','Healthy'],['PVC conduit 25mm','Electrical','lengths','64','SNEP HQ','Low stock'],['Machine-cut stones','Masonry','pieces','3,420','Church','Healthy']]
+function Inventory({readOnly=false,projectScope=[...allProjectNames]}:{readOnly?:boolean;projectScope?:ProjectName[]}) {
+  const stock=[['Bamburi Powermax cement','Cement','bags','1,248','Gilgal 1','Healthy'],['Y12 reinforcement steel','Steel','lengths','186','Gilgal 2','Low stock'],['River sand','Aggregates','tonnes','42.5','Church','Healthy'],['PVC conduit 25mm','Electrical','lengths','64','SNEP HQ','Low stock'],['Machine-cut stones','Masonry','pieces','3,420','Church','Healthy']].filter(row=>projectScope.includes(row[4] as ProjectName))
+  const transfers=[['TR-0063','Gilgal 1','Church','Y10 steel · 80 lengths','Awaiting receipt','3 days'],['TR-0065','SNEP HQ','Gilgal 2','PVC conduit · 40 lengths','In transit','4 hrs'],['TR-0066','Church','Gilgal 1','Timber · 32 pieces','Dispatched','1 hr']].filter(row=>projectScope.includes(row[1] as ProjectName)||projectScope.includes(row[2] as ProjectName))
   return <>
     <PageIntro title="Materials & stores" copy="Live balances, accountable movements, and dual-confirmed transfers." action={readOnly?'Export stock view':'Record movement'} icon={readOnly?'download':'swap'}/>
-    {readOnly&&<section className="role-guardrail owner-readonly-note"><Icon name="eye" size={17}/><p><b>Read-only movement view:</b> Storekeepers record receipts, issues and transfers. Managers and the CEO monitor custody and exceptions without altering stock.</p></section>}
+    {readOnly&&<section className="role-guardrail owner-readonly-note"><Icon name="eye" size={17}/><p><b>Read-only movement view:</b> Storekeepers record receipts, issues and transfers. Supervisors and the CEO monitor custody and exceptions without altering stock.</p></section>}
     <section className="metrics-grid compact">
-      <Metric label="Stock on hand" value="KES 12.84M" note="Across 4 site stores" icon="boxes" tone="navy"/>
-      <Metric label="Low-stock items" value="7 items" note="2 are project-critical" icon="alert" tone="orange"/>
-      <Metric label="In transit" value="3 transfers" note="KES 486,000 value" icon="truck" tone="green"/>
+      <Metric label="Assigned stores" value={`${projectScope.length} sites`} note={projectScopeLabel(projectScope)} icon="boxes" tone="navy"/>
+      <Metric label="Low-stock items" value={`${stock.filter(row=>row[5]==='Low stock').length} items`} note="Within assigned projects" icon="alert" tone="orange"/>
+      <Metric label="Visible transfers" value={`${transfers.length} transfers`} note="Involving an assigned site" icon="truck" tone="green"/>
       <Metric label="Unresolved variance" value="KES 94,600" note="Across 2 stock counts" icon="shield" tone="red"/>
     </section>
     <section className="inventory-layout">
@@ -1020,34 +1075,36 @@ function Inventory({readOnly=false}:{readOnly?:boolean}) {
       </div>
       <aside className="panel transfers">
         <PanelHead title="Transfers in motion" subtitle="Requires dual confirmation" action="View all"/>
-        {[['TR-0063','Gilgal 1','Church','Y10 steel · 80 lengths','Awaiting receipt','3 days'],['TR-0065','SNEP HQ','Gilgal 2','PVC conduit · 40 lengths','In transit','4 hrs'],['TR-0066','Church','Gilgal 1','Timber · 32 pieces','Dispatched','1 hr']].map(t=><div className="transfer" key={t[0]}><div className="transfer-top"><b className="mono">{t[0]}</b><Status>{t[4]}</Status></div><div className="route"><span>{t[1]}</span><i><Icon name="arrow" size={14}/></i><span>{t[2]}</span></div><p>{t[3]}</p><small><Icon name="clock" size={13}/>{t[5]} since dispatch</small></div>)}
+        {transfers.map(t=><div className="transfer" key={t[0]}><div className="transfer-top"><b className="mono">{t[0]}</b><Status>{t[4]}</Status></div><div className="route"><span>{t[1]}</span><i><Icon name="arrow" size={14}/></i><span>{t[2]}</span></div><p>{t[3]}</p><small><Icon name="clock" size={13}/>{t[5]} since dispatch</small></div>)}
       </aside>
     </section>
   </>
 }
 
-function ManagerBudget() {
-  const bars=[['Gilgal 1',48.2,31.4,5.7],['Gilgal 2',36.5,28.9,3.2],['SNEP HQ',72,20.6,9.8],['Church',25.8,8.3,2.1]]
+function SupervisorBudget({ projectScope }: { projectScope: ProjectName[] }) {
+  const bars=[['Gilgal 1',48.2,31.4,5.7],['Gilgal 2',36.5,28.9,3.2],['SNEP HQ',72,20.6,9.8],['Church',25.8,8.3,2.1]].filter(row=>projectScope.includes(row[0] as ProjectName))
+  const budget=bars.reduce((total,row)=>total+Number(row[1]),0)
+  const spent=bars.reduce((total,row)=>total+Number(row[2]),0)
+  const committed=bars.reduce((total,row)=>total+Number(row[3]),0)
+  const watchItems=[['high','HIGH','Gilgal 2 · Structural works','92% reserved while the structural stage is 78% complete.','KES 680,000 remains'],['medium','WATCH','SNEP HQ · Masonry','Cement price is trending 6% above the reference rate.','Review next requisition'],['low','GOOD','Church · Foundation','Work completed KES 240,000 below its allocated cost.','Funds remain in the cost code'],['low','GOOD','Gilgal 1 · Roof works','Spending and verified progress remain aligned.','No intervention required']].filter(row=>projectScope.some(project=>row[2].startsWith(project)))
   return <>
-    <PageIntro title="Project budget tracking" copy="Monitor spending and commitments without handling or authorising payments." action="Download report" icon="download"/>
-    <section className="role-guardrail manager-budget-note"><Icon name="eye" size={17}/><p><b>Read-only financial view:</b> managers can use this information to control site work. Invoice approval and payment execution remain separated.</p></section>
+    <PageIntro title="Project budget tracking" copy={`Read-only spending and commitments for ${projectScopeLabel(projectScope)}.`} action="Download report" icon="download"/>
+    <section className="role-guardrail supervisor-budget-note"><Icon name="eye" size={17}/><p><b>Read-only financial view:</b> supervisors use this information to control site work. Invoice approval and payment execution remain separated.</p></section>
     <section className="metrics-grid compact">
-      <Metric label="Approved project budgets" value="KES 182.5M" note="Across four active projects" icon="wallet" tone="navy"/>
-      <Metric label="Already spent" value="KES 89.2M" note="48.9% of total budget" icon="trend" tone="green"/>
-      <Metric label="Approved orders" value="KES 20.8M" note="Not paid yet" icon="file" tone="orange"/>
-      <Metric label="Available to plan" value="KES 72.5M" note="After open commitments" icon="check" tone="green"/>
+      <Metric label="Approved project budgets" value={`KES ${budget.toFixed(1)}M`} note={`${projectScope.length} assigned projects`} icon="wallet" tone="navy"/>
+      <Metric label="Already spent" value={`KES ${spent.toFixed(1)}M`} note={`${budget ? (spent/budget*100).toFixed(1) : '0.0'}% of assigned budget`} icon="trend" tone="green"/>
+      <Metric label="Approved orders" value={`KES ${committed.toFixed(1)}M`} note="Not paid yet" icon="file" tone="orange"/>
+      <Metric label="Available to plan" value={`KES ${(budget-spent-committed).toFixed(1)}M`} note="After open commitments" icon="check" tone="green"/>
     </section>
-    <section className="manager-budget-grid">
+    <section className="supervisor-budget-grid">
       <div className="panel">
         <PanelHead title="Cost position by project" subtitle="Paid and committed amounts against the approved budget"/>
         <div className="budget-bars">{bars.map(([n,b,s,c])=><div key={String(n)}><div><b>{n}</b><span><strong>KES {Number(s).toFixed(1)}M</strong> paid · KES {Number(c).toFixed(1)}M ordered</span><em>KES {Number(b).toFixed(1)}M budget</em></div><div className="stack-bar"><i style={{width:`${Number(s)/Number(b)*100}%`}}/><b style={{width:`${Number(c)/Number(b)*100}%`}}/></div></div>)}</div>
         <div className="legend"><span><i/>Already paid</span><span><i/>Approved orders</span><span><i/>Still available</span></div>
       </div>
       <aside className="panel budget-watch">
-        <PanelHead title="Manager’s budget watch" subtitle="Areas to manage before raising more requests"/>
-        <div><span className="severity high">HIGH</span><section><b>Gilgal 2 · Structural works</b><p>92% reserved while the structural stage is 78% complete.</p><small>KES 680,000 remains</small></section></div>
-        <div><span className="severity medium">WATCH</span><section><b>SNEP HQ · Masonry</b><p>Cement price is trending 6% above the reference rate.</p><small>Review next requisition</small></section></div>
-        <div><span className="severity low">GOOD</span><section><b>Church · Foundation</b><p>Work completed KES 240,000 below its allocated cost.</p><small>Funds remain in the cost code</small></section></div>
+        <PanelHead title="Supervisor’s budget watch" subtitle="Areas to manage before raising more requests"/>
+        {watchItems.map(row=><div key={row[2]}><span className={`severity ${row[0]}`}>{row[1]}</span><section><b>{row[2]}</b><p>{row[3]}</p><small>{row[4]}</small></section></div>)}
       </aside>
     </section>
   </>
@@ -1110,7 +1167,7 @@ function Finance() {
   const bars=[['Gilgal 1',48.2,31.4,5.7],['Gilgal 2',36.5,28.9,3.2],['SNEP HQ',72,20.6,9.8],['Church',25.8,8.3,2.1]]
   return <>
     <PageIntro title="Financial position" copy="See what is budgeted, committed and paid without entering routine finance operations." action="Download owner report" icon="download"/>
-    <section className="role-guardrail manager-budget-note"><Icon name="eye" size={17}/><p><b>Owner oversight:</b> Finance matches and authorises routine payments; the Cashier executes them. Only high-value or unresolved exceptions return to the CEO.</p></section>
+    <section className="role-guardrail supervisor-budget-note"><Icon name="eye" size={17}/><p><b>Owner oversight:</b> Finance matches and authorises routine payments; the Cashier executes them. Only high-value or unresolved exceptions return to the CEO.</p></section>
     <section className="finance-hero">
       <div><span>TOTAL PORTFOLIO BUDGET</span><strong>KES 182,500,000</strong><p><i/> All 4 project budgets are active</p></div>
       <div><span>ACTUAL SPEND</span><strong>KES 89.2M</strong><small>48.9%</small></div><div><span>OPEN COMMITMENTS</span><strong>KES 20.8M</strong><small>11.4%</small></div><div><span>AVAILABLE</span><strong>KES 72.5M</strong><small>39.7%</small></div>
@@ -1135,21 +1192,24 @@ function Finance() {
   </>
 }
 
-function Workforce({readOnly=false}:{readOnly?:boolean}) {
+function Workforce({readOnly=false,projectScope=[...allProjectNames]}:{readOnly?:boolean;projectScope?:ProjectName[]}) {
+  const rows=[['Gilgal 1','38','12 masons · 18 labourers · 8 skilled','Gilgal Sites Foreman','Confirmed'],['Gilgal 2','31','9 masons · 16 labourers · 6 skilled','Gilgal Sites Foreman','Confirmed'],['SNEP HQ','42','14 masons · 20 labourers · 8 skilled','Church & SNEP Foreman','Confirmed'],['Church','15','5 masons · 7 labourers · 3 skilled','Church & SNEP Foreman','Confirmed']].filter(row=>projectScope.includes(row[0] as ProjectName))
+  const headcount=rows.reduce((total,row)=>total+Number(row[1]),0)
   return <GenericOperations
     title="Workforce & labour" copy="Site attendance and subcontractor obligations, without phantom headcount." action={readOnly?'Download attendance':'Log attendance'} readOnly={readOnly}
-    metrics={[['On site today','126 people','Across 4 active sites','users','navy'],['Attendance logged','4 of 4 sites','Complete by 08:15','check','green'],['Active contracts','9 subcontractors','KES 18.4M remaining','file','orange'],['Pending payroll','KES 684,300','Due Friday, 31 July','clock','red']]}
+    metrics={[['On site today',`${headcount} people`,projectScopeLabel(projectScope),'users','navy'],['Attendance logged',`${rows.length} of ${projectScope.length} sites`,'Complete by 08:15','check','green'],['Assigned sites',`${projectScope.length} projects`,'User scope enforced','file','orange'],['Pending payroll','Controlled by Finance','Read-only here','clock','red']]}
     heading="Today’s site attendance"
-    rows={[['Gilgal 1','38','12 masons · 18 labourers · 8 skilled','Samuel Kariuki','Confirmed'],['Gilgal 2','31','9 masons · 16 labourers · 6 skilled','John Mwangi','Confirmed'],['SNEP HQ','42','14 masons · 20 labourers · 8 skilled','Daniel Otieno','Confirmed'],['Church','15','5 masons · 7 labourers · 3 skilled','Joseph Maina','Confirmed']]}
+    rows={rows}
   />
 }
 
-function Equipment({readOnly=false}:{readOnly?:boolean}) {
+function Equipment({readOnly=false,projectScope=[...allProjectNames]}:{readOnly?:boolean;projectScope?:ProjectName[]}) {
+  const rows=[['EQ-0038','Concrete mixer 400L · Gilgal 1','Plant','Gilgal Sites Foreman','In use'],['EQ-0071','Plate compactor · Church','Plant','Church & SNEP Foreman','Service due'],['TL-0244','Bosch rotary hammer · SNEP HQ','Power tool','Church & SNEP Foreman','In use'],['EQ-0018','Diesel generator 12kVA · Gilgal 2','Plant','Gilgal Sites Foreman','Available']].filter(row=>projectScope.some(project=>row[1].includes(project)))
   return <GenericOperations
     title="Equipment & tools" copy="Assignment history, condition reports and rental exposure by site." action={readOnly?'Export asset view':'Register equipment'} readOnly={readOnly}
-    metrics={[['Registered assets','184 items','KES 14.6M book value','tool','navy'],['Currently assigned','149 items','81% utilisation','check','green'],['Due for service','6 items','2 are overdue','clock','orange'],['Rental this month','KES 438,000','3 active rentals','wallet','red']]}
+    metrics={[['Visible assets',`${rows.length} demo records`,projectScopeLabel(projectScope),'tool','navy'],['Currently assigned',`${rows.filter(row=>row[4]==='In use').length} in use`,'Assigned project equipment','check','green'],['Due for service',`${rows.filter(row=>row[4]==='Service due').length} items`,'Within assigned sites','clock','orange'],['Project access',`${projectScope.length} sites`,'No cross-team records','wallet','red']]}
     heading="Equipment register"
-    rows={[['EQ-0038','Concrete mixer 400L · Gilgal 1','Plant','Peter Mwangi','In use'],['EQ-0071','Plate compactor · Church','Plant','Joseph Maina','Service due'],['TL-0244','Bosch rotary hammer · SNEP HQ','Power tool','Daniel Otieno','In use'],['EQ-0018','Diesel generator 12kVA · Gilgal 2','Plant','John Mwangi','Available']]}
+    rows={rows}
   />
 }
 
@@ -1190,9 +1250,12 @@ function Settings() {
   const [tab,setTab]=useState('People & roles')
   const people=[
     ['JC','Josephine Charles','CEO','All projects','Active'],
-    ['ST','Steven Kakai','Manager','All projects','Active'],
-    ['DO','Daniel Otieno','Engineer','All projects','Active'],
-    ['SK','Samuel Kariuki','Foreman','Gilgal 2','Active'],
+    ['S1','Gilgal Sites Supervisor','Supervisor','Gilgal 1 · Gilgal 2','Active'],
+    ['S2','Church & SNEP Supervisor','Supervisor','Church · SNEP HQ','Active'],
+    ['E1','Gilgal Sites Engineer','Engineer','Gilgal 1 · Gilgal 2','Active'],
+    ['E2','Church & SNEP Engineer','Engineer','Church · SNEP HQ','Active'],
+    ['F1','Gilgal Sites Foreman','Foreman','Gilgal 1 · Gilgal 2','Active'],
+    ['F2','Church & SNEP Foreman','Foreman','Church · SNEP HQ','Active'],
     ['EN','Eunice Ngumbi','Cashier','All projects','Active'],
     ['LN','Lucy Njeri','Storekeeper','All projects','Active'],
     ['PK','Paul Kimani','Procurement Officer','All projects','Active'],
@@ -1205,11 +1268,11 @@ function Settings() {
     {tab==='People & roles'?<section className="panel">
       <div className="table-tools"><div className="inline-search"><Icon name="search"/><input placeholder="Search people…"/></div><button><Icon name="filter"/>Role & site</button></div>
       <div className="people-table"><div className="people-row people-head"><span>PERSON</span><span>ROLE</span><span>PROJECT ACCESS</span><span>STATUS</span><span>LAST ACTIVE</span><span></span></div>
-        {people.map((p,i)=><div className="people-row" key={p[1]}><div className="person"><span>{p[0]}</span><div><b>{p[1]}</b><small>{p[1].toLowerCase().replace(' ','')}@snep.co.ke</small></div></div><span>{p[2]}</span><span>{p[3]}</span><Status>{p[4]}</Status><span>{i<2?'Today':i===2?'Yesterday':'23 Jul'}</span><button><Icon name="more"/></button></div>)}
+        {people.map((p,i)=><div className="people-row" key={p[1]}><div className="person"><span>{p[0]}</span><div><b>{p[1]}</b><small>{demoEmail(p[1])}</small></div></div><span>{p[2]}</span><span>{p[3]}</span><Status>{p[4]}</Status><span>{i<2?'Today':i===2?'Yesterday':'23 Jul'}</span><button><Icon name="more"/></button></div>)}
       </div>
     </section>:tab==='Approval policy'?<section className="settings-grid">
       <div className="panel"><PanelHead title="Spend and payment thresholds" subtitle="Purchase commitment stays separate from invoice authorisation"/>
-        <div className="policy-list">{[['Up to KES 100,000','Manager PO approval → Finance authorisation','CEO observes'],['KES 100,001 – 500,000','Manager PO approval → Finance authorisation','Two independent controls'],['Above KES 500,000','Finance review → CEO exception decision','Before the PO is issued']].map(p=><div key={p[0]}><div><b>{p[0]}</b><span>{p[2]}</span></div><strong>{p[1]}</strong><button><Icon name="settings" size={15}/>Edit</button></div>)}</div>
+        <div className="policy-list">{[['Up to KES 100,000','Supervisor PO approval → Finance authorisation','CEO observes'],['KES 100,001 – 500,000','Supervisor PO approval → Finance authorisation','Two independent controls'],['Above KES 500,000','Finance review → CEO exception decision','Before the PO is issued']].map(p=><div key={p[0]}><div><b>{p[0]}</b><span>{p[2]}</span></div><strong>{p[1]}</strong><button><Icon name="settings" size={15}/>Edit</button></div>)}</div>
       </div>
       <aside className="panel"><PanelHead title="Structural controls" subtitle="Mandatory safeguards"/>
         <div className="toggle-list">{[['Segregation of duties','Requester cannot approve, receive or pay'],['Three-way invoice match','PO, GRN and invoice must agree'],['Dual-confirmed transfers','Both stores must confirm quantity'],['Immutable transaction history','Changes create a superseding version']].map(t=><div key={t[0]}><div><b>{t[0]}</b><span>{t[1]}</span></div><i className="toggle on"><em/></i></div>)}</div>

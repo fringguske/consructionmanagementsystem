@@ -4,7 +4,7 @@ import './finance-workflow.css'
 type WorkflowRole =
   | 'CEO'
   | 'Foreman'
-  | 'Manager'
+  | 'Supervisor'
   | 'Procurement Officer'
   | 'Storekeeper'
   | 'Engineer'
@@ -39,11 +39,14 @@ export type TransactionChain = {
 }
 
 const actors = {
-  foreman: 'Samuel Kariuki',
-  manager: 'Steven Kakai',
+  foremanGilgal: 'Gilgal Sites Foreman',
+  foremanChurchHq: 'Church & SNEP Foreman',
+  supervisorGilgal: 'Gilgal Sites Supervisor',
+  supervisorChurchHq: 'Church & SNEP Supervisor',
   procurement: 'Paul Kimani',
   storekeeper: 'Lucy Njeri',
-  engineer: 'Daniel Otieno',
+  engineerGilgal: 'Gilgal Sites Engineer',
+  engineerChurchHq: 'Church & SNEP Engineer',
   finance: 'James Kamau',
   cashier: 'Eunice Ngumbi',
   auditor: 'Mary Atienza',
@@ -63,12 +66,12 @@ export const transactionChains: TransactionChain[] = [
     risk: 'No open exception',
     ceoActionRequired: false,
     steps: [
-      { role: 'Foreman', actor: actors.foreman, action: 'Raised the material need against the masonry cost code', reference: 'MR-0244', evidence: 'Site material plan · 1 file', timestamp: '22 Jul · 08:10', state: 'complete' },
-      { role: 'Manager', actor: actors.manager, action: 'Confirmed need, timing and available project budget', reference: 'APR-0438', evidence: 'Manager approval record', timestamp: '22 Jul · 08:42', state: 'complete' },
+      { role: 'Foreman', actor: actors.foremanChurchHq, action: 'Raised the material need against the masonry cost code', reference: 'MR-0244', evidence: 'Site material plan · 1 file', timestamp: '22 Jul · 08:10', state: 'complete' },
+      { role: 'Supervisor', actor: actors.supervisorChurchHq, action: 'Confirmed need, timing and available project budget', reference: 'APR-0438', evidence: 'Supervisor approval record', timestamp: '22 Jul · 08:42', state: 'complete' },
       { role: 'Procurement Officer', actor: actors.procurement, action: 'Compared three quotations and prepared the purchase order', reference: 'PO-0188', evidence: 'Quote comparison · Draft PO', timestamp: '22 Jul · 11:26', state: 'complete' },
-      { role: 'Manager', actor: actors.manager, action: 'Independently approved the PO within the delegated project limit', reference: 'POA-0188', evidence: 'PO approval record · order released', timestamp: '22 Jul · 12:04', state: 'complete' },
+      { role: 'Supervisor', actor: actors.supervisorChurchHq, action: 'Independently approved the PO within the delegated project limit', reference: 'POA-0188', evidence: 'PO approval record · order released', timestamp: '22 Jul · 12:04', state: 'complete' },
       { role: 'Storekeeper', actor: actors.storekeeper, action: 'Counted and accepted 180 undamaged bags independently', reference: 'GRN-0291', evidence: 'Delivery note · 2 photos', timestamp: '23 Jul · 09:14', state: 'complete' },
-      { role: 'Engineer', actor: actors.engineer, action: 'Validated specification and intended work location', reference: 'TEC-0137', evidence: 'Material inspection note', timestamp: '23 Jul · 10:03', state: 'complete' },
+      { role: 'Engineer', actor: actors.engineerChurchHq, action: 'Validated specification and intended work location', reference: 'TEC-0137', evidence: 'Material inspection note', timestamp: '23 Jul · 10:03', state: 'complete' },
       { role: 'Finance Officer', actor: actors.finance, action: 'Completed PO–GRN–invoice match and authorised payment', reference: 'FIN-0104', evidence: 'INV-7641 · KRA status · budget check', timestamp: '23 Jul · 14:36', state: 'complete' },
       { role: 'Cashier', actor: actors.cashier, action: 'Executed the locked payment and attached bank confirmation', reference: 'PAY-0418', evidence: 'Bank ref FT26206K1 · receipt', timestamp: '24 Jul · 09:18', state: 'complete' },
       { role: 'Auditor', actor: actors.auditor, action: 'Verified actor separation, references and evidence hashes', reference: 'AUD-0087', evidence: 'Audit sample · hash manifest', timestamp: '25 Jul · 15:22', state: 'complete' },
@@ -85,12 +88,12 @@ export const transactionChains: TransactionChain[] = [
     risk: 'Unit price 8.4% above reference',
     ceoActionRequired: false,
     steps: [
-      { role: 'Foreman', actor: actors.foreman, action: 'Raised the structural steel requirement', reference: 'MR-0248', evidence: 'Bar bending schedule · site plan', timestamp: '25 Jul · 09:42', state: 'complete' },
-      { role: 'Manager', actor: actors.manager, action: 'Confirmed site need and approved within delegated limit', reference: 'APR-0441', evidence: 'Budget availability check', timestamp: '25 Jul · 10:06', state: 'complete' },
+      { role: 'Foreman', actor: actors.foremanGilgal, action: 'Raised the structural steel requirement', reference: 'MR-0248', evidence: 'Bar bending schedule · site plan', timestamp: '25 Jul · 09:42', state: 'complete' },
+      { role: 'Supervisor', actor: actors.supervisorGilgal, action: 'Confirmed site need and approved within delegated limit', reference: 'APR-0441', evidence: 'Budget availability check', timestamp: '25 Jul · 10:06', state: 'complete' },
       { role: 'Procurement Officer', actor: actors.procurement, action: 'Compared quotes and prepared the purchase order', reference: 'PO-0192', evidence: 'QC-0068 · 3 quotations', timestamp: '25 Jul · 11:34', state: 'complete' },
-      { role: 'Manager', actor: actors.manager, action: 'Independently approved the PO within the delegated project limit', reference: 'POA-0192', evidence: 'PO approval record · order released', timestamp: '25 Jul · 12:02', state: 'complete' },
+      { role: 'Supervisor', actor: actors.supervisorGilgal, action: 'Independently approved the PO within the delegated project limit', reference: 'POA-0192', evidence: 'PO approval record · order released', timestamp: '25 Jul · 12:02', state: 'complete' },
       { role: 'Storekeeper', actor: actors.storekeeper, action: 'Received 240 lengths and recorded condition', reference: 'GRN-0296', evidence: 'Supplier note · 3 photos', timestamp: '26 Jul · 08:52', state: 'complete' },
-      { role: 'Engineer', actor: actors.engineer, action: 'Verified grade, diameter and delivery quantity', reference: 'TEC-0141', evidence: 'Steel inspection checklist', timestamp: '26 Jul · 09:28', state: 'complete' },
+      { role: 'Engineer', actor: actors.engineerGilgal, action: 'Verified grade, diameter and delivery quantity', reference: 'TEC-0141', evidence: 'Steel inspection checklist', timestamp: '26 Jul · 09:28', state: 'complete' },
       { role: 'Finance Officer', actor: actors.finance, action: 'Reviewing price variance, tax status and three-way match', reference: 'FIN-0108', evidence: 'INV-8831 · PO · GRN', timestamp: 'Today · 10:12', state: 'current' },
       { role: 'Cashier', actor: actors.cashier, action: 'Will execute only after Finance authorisation', reference: 'Not created', evidence: 'External payment proof required', timestamp: 'Waiting', state: 'pending' },
       { role: 'Auditor', actor: actors.auditor, action: 'Will receive the closed evidence chain read-only', reference: 'Not sampled', evidence: 'Automated control log', timestamp: 'After payment', state: 'pending' },
@@ -108,14 +111,14 @@ export const transactionChains: TransactionChain[] = [
     ceoActionRequired: true,
     ceoReason: 'The transaction exceeds the KES 500,000 owner threshold and carries an exceptional price variance. No PO may be issued and no delivery may be accepted until the owner decides.',
     steps: [
-      { role: 'Foreman', actor: actors.foreman, action: 'Raised the roof-stage material request', reference: 'MR-0251', evidence: 'Weekly work plan · quantity schedule', timestamp: '24 Jul · 08:18', state: 'complete' },
-      { role: 'Manager', actor: actors.manager, action: 'Approved the site need only and confirmed cost-code availability', reference: 'APR-0446', evidence: 'Church roofing budget check', timestamp: '24 Jul · 09:07', state: 'complete' },
+      { role: 'Foreman', actor: actors.foremanChurchHq, action: 'Raised the roof-stage material request', reference: 'MR-0251', evidence: 'Weekly work plan · quantity schedule', timestamp: '24 Jul · 08:18', state: 'complete' },
+      { role: 'Supervisor', actor: actors.supervisorChurchHq, action: 'Approved the site need only and confirmed cost-code availability', reference: 'APR-0446', evidence: 'Church roofing budget check', timestamp: '24 Jul · 09:07', state: 'complete' },
       { role: 'Procurement Officer', actor: actors.procurement, action: 'Captured three bids and prepared a draft PO without issuing it', reference: 'DPO-0197', evidence: 'QC-0072 · supplier due diligence', timestamp: '24 Jul · 14:40', state: 'complete' },
       { role: 'Finance Officer', actor: actors.finance, action: 'Performed pre-commitment budget, compliance and price checks; escalated the threshold exception', reference: 'FIN-0111', evidence: 'Draft PO · quote pack · budget check', timestamp: '25 Jul · 09:08', state: 'complete' },
       { role: 'CEO', actor: 'Josephine Charles', action: 'Decides only this high-value exception before any PO is issued or delivery occurs', reference: 'OWN-0007', evidence: 'Exception brief · Finance recommendation', timestamp: 'Awaiting decision', state: 'current' },
       { role: 'Procurement Officer', actor: actors.procurement, action: 'Will issue the approved PO only after the owner decision', reference: 'Not issued', evidence: 'Draft remains locked', timestamp: 'Pending', state: 'pending' },
       { role: 'Storekeeper', actor: actors.storekeeper, action: 'Will independently count and record any later delivery', reference: 'Not created', evidence: 'GRN and delivery photos required', timestamp: 'After delivery', state: 'pending' },
-      { role: 'Engineer', actor: actors.engineer, action: 'Will inspect fabrication quality and specification after receipt', reference: 'Not created', evidence: 'Technical inspection required', timestamp: 'After receipt', state: 'pending' },
+      { role: 'Engineer', actor: actors.engineerChurchHq, action: 'Will inspect fabrication quality and specification after receipt', reference: 'Not created', evidence: 'Technical inspection required', timestamp: 'After receipt', state: 'pending' },
       { role: 'Finance Officer', actor: actors.finance, action: 'Will complete the final PO–GRN–invoice match and authorise within the owner decision', reference: 'Not created', evidence: 'Final invoice and compliance pack required', timestamp: 'After inspection', state: 'pending' },
       { role: 'Cashier', actor: actors.cashier, action: 'Will execute only a locked, fully authorised payment instruction', reference: 'Not created', evidence: 'External payment proof required', timestamp: 'After authorisation', state: 'pending' },
       { role: 'Auditor', actor: actors.auditor, action: 'Will independently review the complete closed chain', reference: 'Not sampled', evidence: 'Owner exception decision included', timestamp: 'After payment', state: 'pending' },

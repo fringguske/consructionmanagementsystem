@@ -54,8 +54,8 @@ public class AppDbContext : DbContext
             new Role
             {
                 Id = 2,
-                RoleName = "Manager",
-                Description = "Coordinates projects and approves work within delegated limits",
+                RoleName = "Supervisor",
+                Description = "Coordinates assigned projects and approves work within delegated limits",
                 CreatedAt = seedDate
             },
             new Role
