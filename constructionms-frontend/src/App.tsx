@@ -202,7 +202,7 @@ const fieldRoleNav: Partial<Record<DemoRole, typeof nav>> = {
   Supervisor: [
     { to: '/', label: 'Overview', icon: 'grid' },
     { to: '/projects', label: 'Projects', icon: 'building' },
-    { to: '/procurement', label: 'Requests', icon: 'cart', badge: 2 },
+    { to: '/procurement', label: 'Material approvals', icon: 'cart', badge: 2 },
     { to: '/inventory', label: 'Materials', icon: 'boxes', badge: 1 },
     { to: '/finance', label: 'Budget', icon: 'wallet' },
     { to: '/workforce', label: 'Site reports', icon: 'users' },
@@ -300,7 +300,7 @@ function Shell() {
   const titles: Record<string, [string, string]> = {
     '/': roleHomeTitles[role],
     '/projects': role === 'CEO' ? ['Projects', 'Work done, money used and store stock for each project'] : role === 'Engineer' ? ['Progress & milestones', 'Verified construction progress across active sites'] : ['Projects', 'Portfolio health and site delivery'],
-    '/procurement': role === 'Foreman' ? ['My material requests', 'Request what the site needs and follow its approval'] : role === 'Procurement Officer' ? ['Approved sourcing queue', 'Source approved demand without changing it'] : ['Procurement', 'Requisitions, approvals and purchase orders'],
+    '/procurement': role === 'Foreman' ? ['My material requests', 'Request what the site needs and follow its approval'] : role === 'Supervisor' ? ['Material approvals', 'Approve or return requests raised by your foremen'] : role === 'Procurement Officer' ? ['Approved sourcing queue', 'Source approved demand without changing it'] : ['Procurement', 'Requisitions, approvals and purchase orders'],
     '/inventory': role === 'CEO' ? ['Stock & movement', 'What is inside each store, with site teams and moving'] : role === 'Foreman' ? ['Materials on site', 'Confirm receipt, record use and report wastage'] : role === 'Storekeeper' ? ['Stock ledger', 'Immutable balances across project stores'] : ['Inventory', 'Stock levels and material movement'],
     '/finance': role === 'Cashier'
       ? ['Payments & cash', 'Execute approved payments and reconcile site floats']
@@ -547,7 +547,7 @@ function SupervisorDashboard({ projectScope }: { projectScope: ProjectName[] }) 
   return <div className="simple-dashboard">
     <section className="simple-role-header">
       <div><span>SUPERVISOR</span><h2>{scope}</h2><p>Project progress and work that needs your action.</p></div>
-      <Button icon="plus" onClick={() => navigate('/procurement')}>New request</Button>
+      <Button icon="check" onClick={() => navigate('/procurement')}>Review material requests</Button>
     </section>
 
     <section className="simple-summary-grid three">
@@ -811,8 +811,8 @@ function PanelHead({ title, subtitle, action, onClick }: {title:string; subtitle
   return <div className="panel-head"><div><h3>{title}</h3><p>{subtitle}</p></div>{action && <button onClick={onClick}>{action}<Icon name="arrow" size={14}/></button>}</div>
 }
 
-function PageIntro({ title, copy, action, icon, onAction }: {title:string;copy:string;action:string;icon:IconName;onAction?:()=>void}) {
-  return <section className="page-intro"><div><h2>{title}</h2><p>{copy}</p></div><Button icon={icon} onClick={onAction}>{action}</Button></section>
+function PageIntro({ title, copy, action, icon, onAction }: {title:string;copy:string;action?:string;icon?:IconName;onAction?:()=>void}) {
+  return <section className="page-intro"><div><h2>{title}</h2><p>{copy}</p></div>{action && <Button icon={icon} onClick={onAction}>{action}</Button>}</section>
 }
 
 function CeoProjects({ visibleProjects }: { visibleProjects: typeof projects }) {
@@ -888,13 +888,14 @@ function ProjectModal({onClose}:{onClose:()=>void}) {
 
 function Procurement({readOnly=false,projectScope=[...allProjectNames]}:{readOnly?:boolean;projectScope?:ProjectName[]}) {
   const [tab,setTab]=useState('Requisitions')
-  const [modal,setModal]=useState(false)
   const [toast,setToast]=useState('')
   const visibleRequisitions=requisitions.filter(requisition=>projectScope.includes(requisition.site as ProjectName))
   const approve=(id:string)=>{setToast(`${id} approved and released to procurement`);setTimeout(()=>setToast(''),3000)}
+  const returnRequest=(id:string)=>{setToast(`${id} returned to the Foreman for correction`);setTimeout(()=>setToast(''),3000)}
   return <>
-    <PageIntro title={readOnly?'Procurement oversight':'Procurement control'} copy={readOnly?'Follow requests, orders and deliveries without entering the operational approval queue.':'Every purchase starts with an approved, traceable request.'} action={readOnly?'Export overview':'New requisition'} icon={readOnly?'download':'plus'} onAction={readOnly?undefined:()=>setModal(true)}/>
+    <PageIntro title={readOnly?'Procurement oversight':'Material request approvals'} copy={readOnly?'Follow requests, orders and deliveries without entering the operational approval queue.':'Foremen create material requests. Review the need, quantity and timing before Procurement can source them.'} action={readOnly?'Export overview':undefined} icon={readOnly?'download':undefined}/>
     {readOnly&&<section className="role-guardrail owner-readonly-note"><Icon name="eye" size={17}/><p><b>Observer mode:</b> routine requests are handled by the Supervisor and Procurement team. Only a high-value or unresolved exception returns to your CEO workspace.</p></section>}
+    {!readOnly&&<section className="role-guardrail"><Icon name="shield" size={17}/><p><b>Approval only:</b> you may approve or return requests raised by a Foreman. You cannot create and approve the same requisition.</p></section>}
     <div className="tabs">{['Requisitions','Purchase orders','Goods received','Suppliers'].map((t,i)=><button className={tab===t?'active':''} onClick={()=>setTab(t)} key={t}>{t}{i<3&&<span>{[12,7,4][i]}</span>}</button>)}</div>
     <section className="panel table-panel">
       <div className="table-tools"><div className="inline-search"><Icon name="search"/><input placeholder={`Search ${tab.toLowerCase()}…`}/></div><button><Icon name="filter"/>Filters <b>2</b></button><button><Icon name="download"/>Export</button></div>
@@ -904,12 +905,11 @@ function Procurement({readOnly=false,projectScope=[...allProjectNames]}:{readOnl
           <div><b className="mono">{r.id}</b><small>{r.date}</small></div>
           <div><strong>{r.item}</strong><small>{r.qty}{r.risk&&<em><Icon name="alert" size={11}/>{r.risk}</em>}</small></div>
           <span>{r.site}</span><span>{r.requester}</span><strong>{r.value}</strong><Status>{r.status}</Status>
-          <div className="row-actions">{r.status==='Needs approval'&&!readOnly?<><button className="approve" onClick={()=>approve(r.id)}><Icon name="check" size={15}/>Approve</button><button><Icon name="more"/></button></>:<button><Icon name="eye" size={16}/>View</button>}</div>
+          <div className="row-actions">{r.status==='Needs approval'&&!readOnly?<><button className="approve" onClick={()=>approve(r.id)}><Icon name="check" size={15}/>Approve</button><button onClick={()=>returnRequest(r.id)}>Return</button></>:<button><Icon name="eye" size={16}/>View</button>}</div>
         </div>)}
       </div> : <ModuleTable tab={tab} projectScope={projectScope}/>}
       <footer className="table-footer"><span>Showing 1–5 of {tab==='Suppliers'?28:12} records</span><div><button disabled>‹</button><button className="active">1</button><button>2</button><button>3</button><button>›</button></div></footer>
     </section>
-    {!readOnly&&modal&&<RequisitionModal projectOptions={projectScope} onClose={()=>setModal(false)} onSaved={()=>{setModal(false);setToast('MR-0249 submitted for approval')}}/>}
     {toast&&<div className="toast"><Icon name="check"/>{toast}</div>}
   </>
 }
