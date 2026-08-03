@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { BrowserRouter, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router'
 import './App.css'
 import {
@@ -140,11 +140,32 @@ type SiteTeamMaterialRecord = {
   holder: string
 }
 
+type MaterialTraceStep = {
+  title: string
+  actor: string
+  role: string
+  quantity: string
+  date: string
+  reference: string
+  note?: string
+}
+
+type MaterialTraceBranch = {
+  id: string
+  project: ProjectName
+  purpose: string
+  requested: number
+  released: number
+  used: number
+  remaining: number
+  steps: readonly MaterialTraceStep[]
+}
+
 const storeStockRecords: readonly StoreStockRecord[] = [
   { material: 'River sand', category: 'Aggregates', project: 'Gilgal 1', store: 'Gilgal 1 store', unit: 'tonnes', onHand: '42.5', reorderAt: '18', level: 'Healthy' },
   { material: 'Y12 reinforcement steel', category: 'Steel', project: 'Gilgal 2', store: 'Gilgal 2 store', unit: 'lengths', onHand: '186', reorderAt: '220', level: 'Low stock' },
-  { material: 'Bamburi cement', category: 'Cement', project: 'SNEP HQ', store: 'SNEP HQ store', unit: 'bags', onHand: '1,248', reorderAt: '320', level: 'Healthy' },
-  { material: 'PVC conduit 25mm', category: 'Electrical', project: 'SNEP HQ', store: 'SNEP HQ store', unit: 'lengths', onHand: '64', reorderAt: '100', level: 'Low stock' },
+  { material: 'Bamburi cement', category: 'Cement', project: 'SNEP HQ', store: 'Central store · SNEP HQ', unit: 'bags', onHand: '1,248', reorderAt: '320', level: 'Healthy' },
+  { material: 'PVC conduit 25mm', category: 'Electrical', project: 'SNEP HQ', store: 'Central store · SNEP HQ', unit: 'lengths', onHand: '64', reorderAt: '100', level: 'Low stock' },
   { material: 'Marine plywood 18mm', category: 'Formwork', project: 'Church', store: 'Church store', unit: 'sheets', onHand: '38', reorderAt: '30', level: 'Watch' },
 ]
 
@@ -159,6 +180,57 @@ const siteTeamMaterialRecords: readonly SiteTeamMaterialRecord[] = [
   { material: 'Bamburi cement', project: 'SNEP HQ', quantity: '124 bags', holder: 'Church & SNEP Foreman' },
   { material: 'Marine plywood 18mm', project: 'Church', quantity: '18 sheets', holder: 'Church & SNEP Foreman' },
 ]
+
+const cementMaterialTrace = {
+  material: 'Bamburi cement',
+  batch: 'Cement delivery · July 2026',
+  source: 'Central store · SNEP HQ',
+  supplier: 'Bamburi Cement PLC',
+  received: 2000,
+  inStore: 1248,
+  withForeman: 124,
+  used: 628,
+  entry: [
+    { title: 'Approved site needs were combined', actor: 'Foremen requested · Both supervisors approved', role: 'Request and approval', quantity: '2,000 bags including store reserve', date: '11 Jul, 15:40', reference: 'REQ-0108' },
+    { title: 'Procurement ordered the cement', actor: 'Paul Kimani', role: 'Procurement Officer', quantity: '2,000 bags', date: '12 Jul, 10:20', reference: 'PO-0149' },
+    { title: 'Storekeeper counted all bags', actor: 'Lucy Njeri', role: 'Storekeeper', quantity: '2,000 bags received', date: '15 Jul, 08:42', reference: 'GRN-0098' },
+  ] as const,
+  branches: [
+    {
+      id: 'snep-hq', project: 'SNEP HQ', purpose: 'Ground-floor masonry', requested: 180, released: 180, used: 56, remaining: 124,
+      steps: [
+        { title: 'Foreman requested cement', actor: 'Daniel Otieno', role: 'Foreman', quantity: '180 bags requested', date: '16 Jul, 08:16', reference: 'MR-0207' },
+        { title: 'Engineer checked the quantity', actor: 'Church & SNEP Engineer', role: 'Technical check', quantity: '180 bags confirmed', date: '16 Jul, 09:05', reference: 'TEC-0102', note: 'Checked because this was a structural-work request.' },
+        { title: 'Supervisor approved release', actor: 'Church & SNEP Supervisor', role: 'Supervisor', quantity: '180 bags approved', date: '16 Jul, 09:22', reference: 'APR-0361' },
+        { title: 'Central store released the bags', actor: 'Lucy Njeri', role: 'Storekeeper', quantity: '180 bags issued to the SNEP HQ team', date: '16 Jul, 10:10', reference: 'MIV-0069' },
+        { title: 'Foreman counted and confirmed', actor: 'Daniel Otieno', role: 'Foreman', quantity: '180 bags received', date: '16 Jul, 10:26', reference: 'ACK-0069' },
+        { title: 'Use was recorded', actor: 'Daniel Otieno', role: 'Foreman', quantity: '56 used · 124 still held', date: '25 Jul, 16:40', reference: 'USE-0148' },
+      ],
+    },
+    {
+      id: 'gilgal-1', project: 'Gilgal 1', purpose: 'Roof ring-beam concrete', requested: 340, released: 320, used: 320, remaining: 0,
+      steps: [
+        { title: 'Foreman requested cement', actor: 'Samuel Kariuki', role: 'Foreman', quantity: '340 bags requested', date: '17 Jul, 07:48', reference: 'MR-0208' },
+        { title: 'Engineer checked the quantity', actor: 'Gilgal Sites Engineer', role: 'Technical check', quantity: '320 bags confirmed', date: '17 Jul, 08:35', reference: 'TEC-0103', note: 'The technical check reduced the request by 20 bags.' },
+        { title: 'Supervisor approved release', actor: 'Gilgal Sites Supervisor', role: 'Supervisor', quantity: '320 bags approved', date: '17 Jul, 09:02', reference: 'APR-0362' },
+        { title: 'Central store dispatched the bags', actor: 'Lucy Njeri', role: 'Storekeeper', quantity: '320 bags sent directly to the Gilgal 1 team', date: '17 Jul, 10:18', reference: 'MIV-0070' },
+        { title: 'Foreman counted and confirmed', actor: 'Samuel Kariuki', role: 'Foreman', quantity: '320 bags received', date: '17 Jul, 12:06', reference: 'ACK-0070' },
+        { title: 'Use was recorded', actor: 'Samuel Kariuki', role: 'Foreman', quantity: '320 used · 0 remaining', date: '24 Jul, 17:12', reference: 'USE-0149' },
+      ],
+    },
+    {
+      id: 'church', project: 'Church', purpose: 'Column and foundation concrete', requested: 260, released: 252, used: 252, remaining: 0,
+      steps: [
+        { title: 'Foreman requested cement', actor: 'Daniel Otieno', role: 'Foreman', quantity: '260 bags requested', date: '18 Jul, 08:04', reference: 'MR-0209' },
+        { title: 'Engineer checked the quantity', actor: 'Church & SNEP Engineer', role: 'Technical check', quantity: '252 bags confirmed', date: '18 Jul, 08:44', reference: 'TEC-0104', note: 'The technical check reduced the request by 8 bags.' },
+        { title: 'Supervisor approved release', actor: 'Church & SNEP Supervisor', role: 'Supervisor', quantity: '252 bags approved', date: '18 Jul, 09:10', reference: 'APR-0363' },
+        { title: 'Central store dispatched the bags', actor: 'Lucy Njeri', role: 'Storekeeper', quantity: '252 bags sent directly to the Church team', date: '18 Jul, 10:32', reference: 'MIV-0071' },
+        { title: 'Foreman counted and confirmed', actor: 'Daniel Otieno', role: 'Foreman', quantity: '252 bags received', date: '18 Jul, 12:14', reference: 'ACK-0071' },
+        { title: 'Use was recorded', actor: 'Daniel Otieno', role: 'Foreman', quantity: '252 used · 0 remaining', date: '25 Jul, 16:18', reference: 'USE-0150' },
+      ],
+    },
+  ] as readonly MaterialTraceBranch[],
+} as const
 
 const requisitions = [
   { id: 'MR-0248', item: 'Y12 reinforcement steel', qty: '240 lengths', site: 'Gilgal 2', requester: 'Samuel K.', date: 'Today, 09:42', value: 'KES 412,800', status: 'Needs approval', risk: 'Price +8.4%' },
@@ -1120,18 +1192,106 @@ function AuditReports() {
   return <><PageIntro title="Audit reports & exports" copy="Independent outputs generated from immutable source events." action="Build custom report" icon="plus"/><section className="report-control-note"><Icon name="shield" size={17}/><span><b>Every export carries a verification manifest.</b><small>Recipients can confirm that records and attachments have not changed after export.</small></span></section><section className="audit-report-grid">{reports.map(report=><article className="panel" key={report[0]}><div><Icon name="file" size={22}/><Status>Ready</Status></div><h3>{report[0]}</h3><p>{report[1]}</p><span>{report[2]}</span><footer><small>{report[3]}</small><button><Icon name="download" size={14}/>Download</button></footer></article>)}</section><section className="panel scheduled-reports"><PanelHead title="Scheduled assurance reports" subtitle="Delivery does not grant transactional access"/><div>{[['CEO weekly exception brief','Every Monday, 07:00','Josephine Charles','Active'],['Month-end stock variance','Last day, 18:00','CEO + Auditor','Active'],['High-value payment alert','On every payment > KES 500K','CEO + Auditor','Active']].map(row=><div key={row[0]}><strong>{row[0]}</strong><span>{row[1]}</span><span>{row[2]}</span><Status>{row[3]}</Status><button><Icon name="eye" size={14}/>View rule</button></div>)}</div></section></>
 }
 
+function MaterialTraceDrawer({ onClose }: { onClose: () => void }) {
+  const [selectedId, setSelectedId] = useState(cementMaterialTrace.branches[0].id)
+  const [proofOpen, setProofOpen] = useState(false)
+  const closeButtonRef = useRef<HTMLButtonElement>(null)
+  const selected = cementMaterialTrace.branches.find(branch => branch.id === selectedId) ?? cementMaterialTrace.branches[0]
+  const unexplained = cementMaterialTrace.received - cementMaterialTrace.inStore - cementMaterialTrace.withForeman - cementMaterialTrace.used
+  const bags = (value: number) => value.toLocaleString('en-KE')
+
+  useEffect(() => {
+    closeButtonRef.current?.focus()
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose()
+    }
+    document.addEventListener('keydown', closeOnEscape)
+    return () => document.removeEventListener('keydown', closeOnEscape)
+  }, [onClose])
+
+  return <div className="material-trace-wrap" role="dialog" aria-modal="true" aria-labelledby="material-trace-title">
+    <button className="material-trace-backdrop" type="button" onClick={onClose} aria-label="Close material journey"/>
+    <aside className="material-trace-drawer">
+      <header className="material-trace-head">
+        <div><span><Icon name="lock" size={12}/> CEO ONLY · MATERIAL PATH</span><h2 id="material-trace-title">Where the 2,000 cement bags went</h2><p>{cementMaterialTrace.batch} · {cementMaterialTrace.source}</p></div>
+        <button ref={closeButtonRef} type="button" onClick={onClose} aria-label="Close"><Icon name="close"/></button>
+      </header>
+
+      <div className="material-trace-body">
+        <section className="material-balance">
+          <div><span>Still in store</span><strong>{bags(cementMaterialTrace.inStore)}</strong><small>bags</small></div>
+          <div><span>With foreman</span><strong>{bags(cementMaterialTrace.withForeman)}</strong><small>bags</small></div>
+          <div><span>Used in work</span><strong>{bags(cementMaterialTrace.used)}</strong><small>bags</small></div>
+          <div><span>Not explained</span><strong>{bags(unexplained)}</strong><small>bags</small></div>
+        </section>
+        <div className="material-balance-proof"><Icon name="check" size={17}/><div><strong>All 2,000 bags are accounted for</strong><span>1,248 in store + 124 with foreman + 628 used = 2,000</span></div></div>
+
+        <section className="material-entry-card">
+          <div className="material-trace-section-title"><h3>How they entered the store</h3><p>The need was approved before Procurement ordered.</p></div>
+          <div>
+            {cementMaterialTrace.entry.map((step,index) => <article key={step.reference}>
+              <i><Icon name="check" size={13}/></i>
+              <div><strong>{step.title}</strong><span>{step.actor} · {step.role}</span><small>{step.quantity} · {step.date}{proofOpen && <code> · {step.reference}</code>}</small></div>
+              {index === cementMaterialTrace.entry.length - 1 && <Status tone="accepted">In store</Status>}
+            </article>)}
+          </div>
+        </section>
+
+        <section className="material-distribution">
+          <div className="material-trace-section-title"><h3>Where they went</h3><p>Choose one project to see every person and approval.</p></div>
+          <div className="material-branch-tabs">
+            {cementMaterialTrace.branches.map(branch => <button className={branch.id === selected.id ? 'active' : ''} type="button" aria-pressed={branch.id === selected.id} onClick={() => setSelectedId(branch.id)} key={branch.id}>
+              <span>{branch.project}</span><strong>{branch.released} bags</strong>
+            </button>)}
+          </div>
+
+          <article className="material-branch-summary">
+            <div><span>Work</span><strong>{selected.purpose}</strong></div>
+            <div><span>Requested</span><strong>{selected.requested} bags</strong></div>
+            <div><span>Released</span><strong>{selected.released} bags</strong></div>
+            <div><span>Now</span><strong>{selected.used} used{selected.remaining ? ` · ${selected.remaining} held` : ''}</strong></div>
+          </article>
+
+          <div className="material-step-list">
+            {selected.steps.map((step,index) => <article key={step.reference}>
+              <i><Icon name="check" size={13}/></i>
+              <div><strong>{step.title}</strong><span>{step.actor} · {step.role}</span><small>{step.quantity} · {step.date}{proofOpen && <code> · {step.reference}</code>}</small>{step.note && <em>{step.note}</em>}</div>
+              <b>{index + 1}</b>
+            </article>)}
+          </div>
+        </section>
+      </div>
+
+      <footer className="material-trace-actions"><span><Icon name="lock" size={14}/>Other roles see only their own step</span><button className="material-proof-toggle" type="button" aria-pressed={proofOpen} onClick={() => setProofOpen(!proofOpen)}><Icon name="shield" size={14}/>{proofOpen ? 'Hide proof' : 'Show proof'}</button><Button variant="secondary" onClick={onClose}>Close</Button></footer>
+    </aside>
+  </div>
+}
+
 function CeoStock({ stock, transfers }: { stock: readonly StoreStockRecord[]; transfers: readonly StoreTransferRecord[] }) {
+  const [traceOpen, setTraceOpen] = useState(false)
+  const journeyButtonRef = useRef<HTMLButtonElement>(null)
   const stores = Array.from(new Set(stock.map(item => item.store))).map(store => ({
     name: store,
     items: stock.filter(item => item.store === store),
   }))
   const movingTransfers = transfers.filter(transfer => transfer.status !== 'Ready to dispatch')
+  const closeTrace = () => {
+    setTraceOpen(false)
+    requestAnimationFrame(() => journeyButtonRef.current?.focus())
+  }
 
   return <div className="ceo-view ceo-stock-view">
     <section className="simple-summary-grid three ceo-stock-summary">
       <SimpleStat label="Stores reporting" value={`${stores.length}`} note="All project stores" tone="good"/>
       <SimpleStat label="Low in stores" value={`${stock.filter(item => item.level === 'Low stock').length} materials`} tone="danger"/>
       <SimpleStat label="Moving now" value={`${movingTransfers.length} transfers`} note="1 arrival is late" tone="warning"/>
+    </section>
+
+    <section className="ceo-material-follow">
+      <i><Icon name="boxes" size={20}/></i>
+      <div><span>CEO ONLY</span><strong>Follow the 2,000 cement bags</strong><small>See who requested, checked, approved, released and used them.</small></div>
+      <div className="ceo-material-accounted"><Icon name="check" size={16}/><span><strong>2,000 of 2,000</strong><small>accounted for</small></span></div>
+      <button ref={journeyButtonRef} className="button secondary" type="button" onClick={() => setTraceOpen(true)}><Icon name="eye" size={16}/>See journey</button>
     </section>
 
     <section className="ceo-stock-layout">
@@ -1181,6 +1341,7 @@ function CeoStock({ stock, transfers }: { stock: readonly StoreStockRecord[]; tr
         </div>
       </div>
     </section>
+    {traceOpen && <MaterialTraceDrawer onClose={closeTrace}/>}
   </div>
 }
 
