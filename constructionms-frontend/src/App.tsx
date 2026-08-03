@@ -144,6 +144,20 @@ const roleNavigation: Record<DemoRole, string[]> = {
 }
 
 const fieldRoleNav: Partial<Record<DemoRole, typeof nav>> = {
+  CEO: [
+    { to: '/', label: 'Overview', icon: 'grid' },
+    { to: '/projects', label: 'Projects', icon: 'building' },
+    { to: '/finance', label: 'Money', icon: 'wallet' },
+    { to: '/audit', label: 'Records & audit', icon: 'shield' },
+  ],
+  Supervisor: [
+    { to: '/', label: 'Overview', icon: 'grid' },
+    { to: '/projects', label: 'Projects', icon: 'building' },
+    { to: '/procurement', label: 'Requests', icon: 'cart', badge: 2 },
+    { to: '/inventory', label: 'Materials', icon: 'boxes', badge: 1 },
+    { to: '/finance', label: 'Budget', icon: 'wallet' },
+    { to: '/workforce', label: 'Site reports', icon: 'users' },
+  ],
   Engineer: [
     { to: '/', label: 'Technical overview', icon: 'grid' },
     { to: '/projects', label: 'Progress & milestones', icon: 'building' },
@@ -224,11 +238,11 @@ function Shell() {
   }))
   const visibleNav = fieldRoleNav[role] ?? standardNav
   const roleHomeTitles: Record<DemoRole, [string, string]> = {
-    CEO: ['Portfolio overview', 'Saturday, 25 July 2026'],
-    Supervisor: ['Site operations', `Work requiring attention across ${scopeLabel}`],
+    CEO: ['Project overview', 'Progress, money and decisions across all projects'],
+    Supervisor: ['Supervisor overview', `Projects and actions across ${scopeLabel}`],
     Engineer: ['Technical overview', `Progress, quality and compliance across ${scopeLabel}`],
-    Foreman: [`Today · ${scopeLabel}`, 'Work, people and materials under your supervision'],
-    Cashier: ['Payments desk', 'Approved payments and accountable site cash'],
+    Foreman: [`Today · ${scopeLabel}`, 'Work and material records'],
+    Cashier: ['Payments', 'Approved payments ready to execute'],
     Storekeeper: ['Stores overview', 'Deliveries, issues and stock custody requiring action'],
     'Procurement Officer': ['Procurement overview', 'Source approved needs and control purchase orders'],
     'Finance Officer': ['Financial control', 'Match evidence, authorise payments and protect project budgets'],
@@ -360,7 +374,7 @@ function Shell() {
 }
 
 function RoleDashboard({ role, profile, projectScope }: { role: DemoRole; profile: DemoProfile; projectScope: ProjectName[] }) {
-  if (role === 'Supervisor') return <SupervisorDashboard profile={profile} projectScope={projectScope}/>
+  if (role === 'Supervisor') return <SupervisorDashboard projectScope={projectScope}/>
   if (role === 'Engineer') return <EngineerDashboard profile={profile} projectScope={projectScope}/>
   if (role === 'Foreman') return <ForemanDashboard profile={profile} projectScope={projectScope}/>
   if (role === 'Cashier') return <CashierDashboard/>
@@ -390,6 +404,14 @@ function Metric({ label, value, note, icon, tone, bar }: { label: string; value:
   </article>
 }
 
+function SimpleStat({ label, value, note, tone = 'neutral' }: { label: string; value: string; note?: string; tone?: 'neutral' | 'good' | 'warning' | 'danger' }) {
+  return <article className={`simple-stat ${tone}`}>
+    <span>{label}</span>
+    <strong>{value}</strong>
+    {note && <small>{note}</small>}
+  </article>
+}
+
 function Dashboard() {
   const navigate = useNavigate()
   const [selectedChain, setSelectedChain] = useState<TransactionChain | null>(null)
@@ -397,100 +419,65 @@ function Dashboard() {
     ...project,
     moneyUsed: Math.round((project.spent / project.budget) * 100),
     expected: ['18 Dec 2026', '30 Sep 2026', '28 Feb 2027', '15 Apr 2027'][index],
-    ownerStatus: index === 1 ? 'Needs attention' : 'Doing well',
-    ownerNote: [
-      'Construction and spending are moving at a similar pace.',
-      'Most of the budget is already used or reserved.',
-      'Construction is ahead of the money spent.',
-      'Early works are progressing as planned.',
-    ][index],
+    ownerStatus: index === 1 ? 'Attention' : 'On track',
   }))
 
-  return <>
-    <section className="owner-welcome">
-      <div>
-        <span className="owner-eyebrow">YOUR PROJECTS AT A GLANCE</span>
-        <h2>Good morning, Josephine.</h2>
-        <p>Three projects are doing well. <strong>Gilgal 2 needs your attention.</strong></p>
-      </div>
+  return <div className="simple-dashboard">
+    <section className="simple-role-header">
+      <div><span>CEO OVERVIEW</span><h2>All projects</h2><p>Progress, money and items that need your decision.</p></div>
+      <Button variant="secondary" icon="shield" onClick={() => navigate('/audit')}>View records</Button>
     </section>
 
-    <section className="owner-money">
-      <div><span>Total budget</span><strong>KES 182.5M</strong><small>Approved for all projects</small></div>
-      <div><span>Already paid</span><strong>KES 89.2M</strong><small>Money that has left the business</small></div>
-      <div><span>Approved orders</span><strong>KES 20.8M</strong><small>Promised, but not paid yet</small></div>
-      <div className="money-remaining"><span>Money remaining</span><strong>KES 72.5M</strong><small>39.7% of the total budget</small></div>
+    <section className="simple-summary-grid four">
+      <SimpleStat label="Total budget" value="KES 182.5M"/>
+      <SimpleStat label="Paid" value="KES 89.2M" note="Money sent"/>
+      <SimpleStat label="Orders placed" value="KES 20.8M" note="Not paid yet" tone="warning"/>
+      <SimpleStat label="Remaining" value="KES 72.5M" tone="good"/>
     </section>
 
-    <section className="panel owner-project-panel">
-      <PanelHead title="How each project is doing" subtitle="Compare construction completed with money already paid" action="See full project details" onClick={() => navigate('/projects')}/>
-      <div className="owner-project-list">
-        {ownerProjects.map(project => <article className={`owner-project ${project.ownerStatus === 'Needs attention' ? 'watch' : ''}`} key={project.name}>
-          <div className="owner-project-identity">
-            <b style={{background:project.color}}>{project.code}</b>
-            <div><h3>{project.name}</h3><span>{project.location}</span></div>
-          </div>
-          <div className="plain-status">
-            <i><Icon name={project.ownerStatus === 'Needs attention' ? 'alert' : 'check'} size={14}/></i>
-            <div><strong>{project.ownerStatus}</strong><span>{project.ownerNote}</span></div>
-          </div>
-          <div className="owner-comparison">
-            <div><span>Construction complete</span><b>{project.progress}%</b></div>
-            <div className="owner-bar construction"><i style={{width:`${project.progress}%`}}/></div>
-            <div><span>Money already paid</span><b>{project.moneyUsed}%</b></div>
-            <div className="owner-bar money"><i style={{width:`${project.moneyUsed}%`}}/></div>
-          </div>
-          <div className="owner-project-date"><span>Expected finish</span><strong>{project.expected}</strong><small>KES {(project.budget-project.spent-project.committed).toFixed(1)}M not yet used</small></div>
-          <button aria-label={`Open ${project.name}`} onClick={() => navigate('/projects')}><Icon name="chevron" size={17}/></button>
+    <section className="panel simple-project-panel">
+      <PanelHead title="Projects" subtitle="Construction completed compared with money paid" action="Open projects" onClick={() => navigate('/projects')}/>
+      <div className="simple-project-list">
+        {ownerProjects.map(project => <article className={project.ownerStatus === 'Attention' ? 'attention' : ''} key={project.name}>
+          <div className="simple-project-name"><b style={{background:project.color}}>{project.code}</b><strong>{project.name}</strong></div>
+          <div className="simple-value"><span>Built</span><strong>{project.progress}%</strong></div>
+          <div className="simple-value"><span>Paid</span><strong>{project.moneyUsed}%</strong></div>
+          <div className="simple-value"><span>Finish</span><strong>{project.expected}</strong></div>
+          <Status tone={project.ownerStatus === 'Attention' ? 'at-risk' : 'accepted'}>{project.ownerStatus}</Status>
         </article>)}
       </div>
     </section>
 
-    <section className="panel owner-chain-panel">
-      <div className="owner-chain-head">
-        <div><span>DEMONSTRATION WORKFLOW</span><h3>See the complete paper trail</h3><p>Open any movement to see who requested, approved, bought, received, checked, authorised, paid and audited it.</p></div>
-      </div>
-      <div className="owner-chain-list">
-        {transactionChains.map(chain => <article className={chain.ceoActionRequired ? 'requires-owner' : ''} key={chain.id}>
-          <div className="owner-chain-state"><i><Icon name={chain.ceoActionRequired ? 'alert' : chain.status === 'Paid & audited' ? 'check' : 'clock'} size={15}/></i><span><b>{chain.ceoActionRequired ? 'Your decision is required' : 'Visible for transparency'}</b><small>{chain.ceoActionRequired ? 'Owner threshold reached' : 'No routine action for you'}</small></span></div>
-          <div className="owner-chain-subject"><b>{chain.item}</b><span>{chain.project} · {chain.supplier}</span></div>
-          <div className="owner-chain-value"><span>Transaction value</span><b>KES {chain.amount.toLocaleString('en-KE')}</b></div>
-          <div className="owner-chain-progress"><span>{chain.currentStage}</span><small>{chain.steps.filter(step => step.state === 'complete').length} of {chain.steps.length} accountable stages complete</small></div>
-          <Button variant="secondary" onClick={() => setSelectedChain(chain)}>See complete chain</Button>
-        </article>)}
-      </div>
-    </section>
-
-    <section className="owner-bottom-grid">
-      <div className="panel owner-decisions">
-        <PanelHead title="Your decisions" subtitle="Only high-value or exceptional items reach the CEO"/>
-        <div className="decision-list">
+    <section className="simple-two-column owner-simple-bottom">
+      <div className="panel">
+        <PanelHead title="Needs your decision" subtitle="2 items"/>
+        <div className="simple-action-list">
           <article>
-            <div className="decision-number">1</div>
-            <div><span>HIGH-VALUE PURCHASE</span><h3>Approve Church roof trusses</h3><p>The Supervisor and Finance Officer have completed their checks. It reaches you only because it exceeds the KES 500,000 owner threshold.</p><small><b>KES 784,500</b> · Complete evidence chain attached</small></div>
-            <Button variant="secondary" onClick={() => setSelectedChain(transactionChains[2])}>Review chain</Button>
+            <div className="simple-action-icon danger"><Icon name="alert" size={17}/></div>
+            <div><span>CHURCH · P2P-0251</span><h3>Roof trusses above approval limit</h3><p>KES 784,500 · Checks completed</p></div>
+            <Button variant="secondary" onClick={() => setSelectedChain(transactionChains[2])}>Review proof</Button>
           </article>
           <article>
-            <div className="decision-number">2</div>
-            <div><span>BUDGET EXCEPTION</span><h3>Decide on Gilgal 2’s structural variation</h3><p>A KES 1.2M budget movement needs owner approval. Routine budget monitoring remains with the Supervisor and Finance Officer.</p></div>
+            <div className="simple-action-icon warning"><Icon name="wallet" size={17}/></div>
+            <div><span>GILGAL 2 · BUDGET CHANGE</span><h3>Structural variation</h3><p>KES 1.2M requested</p></div>
             <Button variant="secondary" onClick={() => navigate('/finance')}>Review</Button>
           </article>
         </div>
       </div>
-      <div className="panel owner-updates">
-        <PanelHead title="Important updates" subtitle="What changed across your sites"/>
-        <div className="owner-update-list">
-          <article className="positive"><i><Icon name="check" size={15}/></i><div><h3>Church foundation work is complete</h3><p>The site can now move to the next stage.</p><span>Today · Church</span></div></article>
-          <article className="warning"><i><Icon name="alert" size={15}/></i><div><h3>SNEP HQ received 40 fewer cement bags</h3><p>The storekeeper has raised the issue with the supplier.</p><span>Today · SNEP HQ</span></div></article>
-          <article><i><Icon name="calendar" size={15}/></i><div><h3>Gilgal 1 remains on schedule</h3><p>No delay is expected at the current pace.</p><span>Yesterday · Gilgal 1</span></div></article>
+      <div className="panel">
+        <PanelHead title="Recent records" subtitle="Latest payment and material entries" action="Audit trail" onClick={() => navigate('/audit')}/>
+        <div className="simple-record-list">
+          <article><i className="warning"><Icon name="alert" size={16}/></i><div><strong>40 stones missing from delivery</strong><span>GRN-0303 · Gilgal 1 · Storekeeper</span></div><time>Today</time></article>
+          <article><i><Icon name="check" size={16}/></i><div><strong>KES 684,000 payment recorded</strong><span>PAY-0418 · SNEP HQ · Cashier</span></div><time>09:18</time></article>
+          <article><i><Icon name="truck" size={16}/></i><div><strong>240 steel lengths received</strong><span>GRN-0296 · Gilgal 2 · Storekeeper</span></div><time>08:52</time></article>
         </div>
       </div>
     </section>
     <TransactionChainDrawer chain={selectedChain} onClose={() => setSelectedChain(null)} viewer="CEO"/>
-  </>
+  </div>
 }
 
-function SupervisorDashboard({ profile, projectScope }: { profile: DemoProfile; projectScope: ProjectName[] }) {
+function SupervisorDashboard({ projectScope }: { projectScope: ProjectName[] }) {
   const navigate = useNavigate()
   const milestones = [
     { project: 'Gilgal 1', code: 'G1', progress: 68, money: 65, next: 'Roof ring beam', date: '31 Jul', tone: '#1c5d52', status: 'On schedule' },
@@ -505,56 +492,43 @@ function SupervisorDashboard({ profile, projectScope }: { profile: DemoProfile; 
     { project: 'Church', kind: 'APPROVAL', title: 'Review the column-work request', copy: 'The site needs approval before the next activity is committed.', action: 'Review request', route: '/procurement' },
   ].filter(item => projectScope.includes(item.project as ProjectName))
   const scope = projectScopeLabel(projectScope)
-  const movingWell = milestones.filter(project => project.status === 'On schedule').length
-  return <>
-    <section className="role-welcome supervisor-welcome">
-      <div><span>SUPERVISOR WORKSPACE</span><h2>{scope}</h2><p>{profile.projects ? 'Only your two assigned projects are shown.' : 'Project operations requiring attention today.'}</p></div>
-      <Button icon="plus" onClick={() => navigate('/procurement')}>New requisition</Button>
+  return <div className="simple-dashboard">
+    <section className="simple-role-header">
+      <div><span>SUPERVISOR</span><h2>{scope}</h2><p>Project progress and work that needs your action.</p></div>
+      <Button icon="plus" onClick={() => navigate('/procurement')}>New request</Button>
     </section>
-    <section className="role-guardrail"><Icon name="shield" size={17}/><p><b>Your responsibility:</b> keep projects moving, approve valid site needs, and monitor budget and materials. Payment execution remains with the Cashier.</p></section>
-    <section className="metrics-grid role-metrics">
-      <Metric label="Projects moving well" value={`${movingWell} of ${milestones.length}`} note={`${scope} only`} icon="building" tone="green"/>
-      <Metric label="Waiting on you" value={`${priorities.length} items`} note="Ranked by programme impact" icon="clock" tone="orange"/>
-      <Metric label="Assigned sites" value={`${projectScope.length} projects`} note="Scope enforced by user assignment" icon="users" tone="navy"/>
-      <Metric label="Material exceptions" value={`${priorities.filter(item => item.kind === 'DELIVERY').length} open`} note="Based on recorded store events" icon="alert" tone="red"/>
+
+    <section className="simple-summary-grid three">
+      <SimpleStat label="Actions waiting" value={`${priorities.length}`} tone={priorities.length ? 'warning' : 'good'}/>
+      <SimpleStat label="Budget issues" value={`${priorities.filter(item => item.kind === 'BUDGET').length}`} tone={priorities.some(item => item.kind === 'BUDGET') ? 'danger' : 'good'}/>
+      <SimpleStat label="Material issues" value={`${priorities.filter(item => item.kind === 'DELIVERY').length}`} tone={priorities.some(item => item.kind === 'DELIVERY') ? 'danger' : 'good'}/>
     </section>
-    <section className="supervisor-grid">
-      <div className="panel supervisor-projects">
-        <PanelHead title="Project execution" subtitle="Physical progress, spending pace and the next site milestone" action="Open projects" onClick={() => navigate('/projects')}/>
-        <div className="supervisor-project-list">
+
+    <section className="simple-two-column supervisor-simple-grid">
+      <div className="panel">
+        <PanelHead title="Your projects" subtitle="Built, paid and next milestone" action="Open projects" onClick={() => navigate('/projects')}/>
+        <div className="simple-project-list supervisor-simple-projects">
           {milestones.map(project => <article key={project.project}>
-            <div className="supervisor-project-name"><b style={{background:project.tone}}>{project.code}</b><div><strong>{project.project}</strong><Status>{project.status}</Status></div></div>
-            <div className="supervisor-progress-pair">
-              <div><span>Built</span><div><i style={{width:`${project.progress}%`}}/></div><b>{project.progress}%</b></div>
-              <div><span>Paid</span><div><i style={{width:`${project.money}%`}}/></div><b>{project.money}%</b></div>
-            </div>
-            <div className="next-milestone"><span>NEXT MILESTONE</span><b>{project.next}</b><small>Due {project.date}</small></div>
-            <button onClick={() => navigate('/projects')}><Icon name="chevron" size={16}/></button>
+            <div className="simple-project-name"><b style={{background:project.tone}}>{project.code}</b><strong>{project.project}</strong></div>
+            <div className="simple-value"><span>Built</span><strong>{project.progress}%</strong></div>
+            <div className="simple-value"><span>Paid</span><strong>{project.money}%</strong></div>
+            <div className="simple-value wide"><span>Next</span><strong>{project.next}</strong><small>Due {project.date}</small></div>
+            <Status tone={project.status === 'Watch budget' ? 'at-risk' : 'accepted'}>{project.status}</Status>
           </article>)}
         </div>
       </div>
-      <aside className="panel supervisor-priorities">
-        <PanelHead title="Your priorities" subtitle="Ordered by what may delay work"/>
-        <div className="supervisor-priority-list">
-          {priorities.map((item, index) => <article className={index === 0 ? 'high' : ''} key={`${item.project}-${item.kind}`}><i>{index + 1}</i><div><span>{item.kind} · {item.project.toUpperCase()}</span><h3>{item.title}</h3><p>{item.copy}</p><button onClick={() => navigate(item.route)}>{item.action} <Icon name="arrow" size={13}/></button></div></article>)}
+      <aside className="panel">
+        <PanelHead title="Needs action" subtitle={`${priorities.length} items`}/>
+        <div className="simple-action-list supervisor-simple-actions">
+          {priorities.map(item => <article key={`${item.project}-${item.kind}`}>
+            <div className={`simple-action-icon ${item.kind === 'BUDGET' || item.kind === 'DELIVERY' ? 'warning' : ''}`}><Icon name={item.kind === 'DELIVERY' ? 'truck' : item.kind === 'BUDGET' ? 'wallet' : item.kind === 'APPROVAL' ? 'check' : 'calendar'} size={17}/></div>
+            <div><span>{item.project.toUpperCase()} · {item.kind}</span><h3>{item.title}</h3><p>{item.copy}</p></div>
+            <Button variant="secondary" onClick={() => navigate(item.route)}>{item.action}</Button>
+          </article>)}
         </div>
       </aside>
-      <div className="panel supervisor-materials">
-        <PanelHead title="Material movement today" subtitle="What entered, left or moved between sites" action="Open inventory" onClick={() => navigate('/inventory')}/>
-        <div className="movement-summary">
-          <div><i className="received"><Icon name="truck" size={17}/></i><span><b>3 deliveries received</b><small>282 units recorded into stores</small></span></div>
-          <div><i className="issued"><Icon name="arrow" size={17}/></i><span><b>5 site issues completed</b><small>All acknowledged by foremen</small></span></div>
-          <div><i className="moving"><Icon name="swap" size={17}/></i><span><b>3 transfers in motion</b><small>1 receipt is overdue</small></span></div>
-        </div>
-      </div>
-      <div className="panel supervisor-team">
-        <PanelHead title="Site reporting" subtitle="Today’s required field records"/>
-        <div className="reporting-list">
-          {[['Attendance',`${projectScope.length} of ${projectScope.length} sites`,'Complete'],['Daily progress',`${projectScope.length} of ${projectScope.length} sites`,'Complete'],['Material usage',`${projectScope.length} of ${projectScope.length} sites`,'Complete'],['Safety briefing',`${projectScope.length} of ${projectScope.length} sites`,'Complete']].map(row => <div key={row[0]}><span>{row[0]}<small>{row[2]}</small></span><b>{row[1]}</b><Status>{row[2] === 'Complete' ? 'Complete' : 'Pending'}</Status></div>)}
-        </div>
-      </div>
     </section>
-  </>
+  </div>
 }
 
 function EngineerDashboard({ profile, projectScope }: { profile: DemoProfile; projectScope: ProjectName[] }) {
@@ -611,41 +585,64 @@ function ForemanDashboard({ profile, projectScope }: { profile: DemoProfile; pro
   const scope = projectScopeLabel(projectScope)
   const isGilgalTeam = profile.id === 'foreman-gilgal'
   const workPlan = isGilgalTeam
-    ? [['01','Fix Y12 slab reinforcement','Steel fixing team · 9 people','65%','In progress'],['02','Complete roof ring-beam formwork','Carpentry team · 6 people','40%','In progress'],['03','Place electrical conduits','Electrical team · 4 people','0%','Starts 13:00']]
-    : [['01','Continue Church column work','Concrete team · 8 people','55%','In progress'],['02','Build SNEP HQ ground-floor walls','Masonry team · 12 people','45%','In progress'],['03','Set out electrical conduits','Electrical team · 4 people','0%','Starts 13:00']]
+    ? [
+      { project: 'Gilgal 2', task: 'Fix slab reinforcement', crew: '9 people', progress: '65%', status: 'In progress' },
+      { project: 'Gilgal 1', task: 'Complete roof ring-beam formwork', crew: '6 people', progress: '40%', status: 'In progress' },
+      { project: 'Gilgal 2', task: 'Place electrical conduits', crew: '4 people', progress: '0%', status: 'Starts 13:00' },
+    ]
+    : [
+      { project: 'Church', task: 'Continue column work', crew: '8 people', progress: '55%', status: 'In progress' },
+      { project: 'SNEP HQ', task: 'Build ground-floor walls', crew: '12 people', progress: '45%', status: 'In progress' },
+      { project: 'SNEP HQ', task: 'Set out electrical conduits', crew: '4 people', progress: '0%', status: 'Starts 13:00' },
+    ]
   const handover = isGilgalTeam
     ? ['MIV-0087 · Y12 reinforcement steel','80 lengths issued by Lucy Njeri at 09:12','80 lengths']
     : ['MIV-0091 · Bamburi cement','140 bags issued by Lucy Njeri at 09:35','140 bags']
-  return <>
-    <section className="role-welcome foreman-welcome"><div><span>FOREMAN WORKSPACE</span><h2>{scope}</h2><p>Today’s work, crew and material position for your assigned projects.</p></div><Button icon="plus" onClick={()=>navigate('/procurement')}>Request materials</Button></section>
-    <section className="foreman-site-band"><div><Icon name="pin" size={17}/><span><b>{scope}</b><small>You can only record activity for these assigned projects.</small></span></div><div><span>Today’s shift</span><b>07:00–17:00</b></div><Status>Sites active</Status></section>
-    <section className="foreman-quick-actions">
-      <button onClick={()=>navigate('/workforce')}><i><Icon name="users"/></i><span><b>Daily site log</b><small>Record crew and completed work</small></span><Icon name="chevron" size={15}/></button>
-      <button onClick={()=>navigate('/inventory')}><i><Icon name="boxes"/></i><span><b>Log material use</b><small>Record what the crew consumed</small></span><Icon name="chevron" size={15}/></button>
-      <button onClick={()=>navigate('/inventory')}><i><Icon name="truck"/></i><span><b>Confirm handover</b><small>1 issue voucher is waiting</small></span><Icon name="chevron" size={15}/></button>
-      <button onClick={()=>navigate('/equipment')}><i><Icon name="tool"/></i><span><b>Report a problem</b><small>Tool damage, delay or safety issue</small></span><Icon name="chevron" size={15}/></button>
+  return <div className="simple-dashboard">
+    <section className="simple-role-header">
+      <div><span>FOREMAN</span><h2>{scope}</h2><p>Today’s work and material records.</p></div>
+      <Button icon="plus" onClick={()=>navigate('/procurement')}>Request materials</Button>
     </section>
-    <section className="metrics-grid role-metrics">
-      <Metric label="Crew on site" value={isGilgalTeam ? '61 people' : '65 people'} note={`Across ${projectScope.length} assigned projects`} icon="users" tone="navy"/>
-      <Metric label="Today’s work" value="3 activities" note={scope} icon="building" tone="green"/>
-      <Metric label="Material requests" value="2 open" note="1 approved, 1 awaiting supervisor" icon="cart" tone="orange"/>
-      <Metric label="Handover waiting" value="1 voucher" note="Confirm only what you physically receive" icon="truck" tone="red"/>
+
+    <section className="simple-quick-actions">
+      <button onClick={()=>navigate('/workforce')}><i><Icon name="users"/></i><span><b>Record daily work</b><small>Crew and work completed</small></span><Icon name="chevron" size={17}/></button>
+      <button onClick={()=>navigate('/inventory')}><i><Icon name="boxes"/></i><span><b>Record material use</b><small>What the crew used</small></span><Icon name="chevron" size={17}/></button>
+      <button onClick={()=>navigate('/inventory')}><i><Icon name="truck"/></i><span><b>Confirm material receipt</b><small>1 voucher waiting</small></span><Icon name="chevron" size={17}/></button>
     </section>
-    <section className="foreman-grid">
-      <div className="panel today-work"><PanelHead title="Today’s work plan" subtitle="Agreed with the Supervisor and Engineer"/>
-        <div className="work-plan-list">{workPlan.map(row=><article key={row[0]}><i>{row[0]}</i><div><b>{row[1]}</b><span>{row[2]}</span></div><div className="work-progress"><span>{row[3]}</span><div><i style={{width:row[3]}}/></div></div><Status tone={row[4]==='In progress'?'issued':'at-risk'}>{row[4]}</Status></article>)}</div>
+
+    <section className="simple-two-column foreman-simple-grid">
+      <div className="panel">
+        <PanelHead title="Today’s work" subtitle="3 activities"/>
+        <div className="simple-work-list">
+          {workPlan.map(item => <article key={`${item.project}-${item.task}`}>
+            <div><span>{item.project.toUpperCase()}</span><h3>{item.task}</h3><p>{item.crew}</p></div>
+            <div className="simple-work-progress"><strong>{item.progress}</strong><span>complete</span></div>
+            <Status tone={item.status === 'In progress' ? 'issued' : 'at-risk'}>{item.status}</Status>
+          </article>)}
+        </div>
       </div>
-      <aside className="panel foreman-material-watch"><PanelHead title="Material watch" subtitle="What could stop today’s work"/>
-        <div className="field-material-list"><div className="warning"><Icon name="alert" size={16}/><span><b>{isGilgalTeam ? 'Y12 steel may run short' : 'Cement delivery has a shortfall'}</b><small>{isGilgalTeam ? '38 lengths left · about 1 day of work' : '40 bags still due from the supplier'}</small></span></div><div><Icon name="check" size={16}/><span><b>{isGilgalTeam ? 'Cement is sufficient' : 'Column steel is sufficient'}</b><small>Available for today’s planned work</small></span></div><div><Icon name="clock" size={16}/><span><b>PVC conduit requested</b><small>Supervisor approval is still pending</small></span></div></div>
+      <aside className="panel">
+        <PanelHead title="Needs attention" subtitle="3 items" action="Report a problem" onClick={()=>navigate('/equipment')}/>
+        <div className="simple-action-list foreman-attention-list">
+          <article>
+            <div className="simple-action-icon warning"><Icon name="alert" size={17}/></div>
+            <div><span>MATERIAL</span><h3>{isGilgalTeam ? 'Y12 steel is running low' : 'Cement delivery is short'}</h3><p>{isGilgalTeam ? '38 lengths left' : '40 bags still due'}</p></div>
+            <Button variant="secondary" onClick={()=>navigate('/procurement')}>Request</Button>
+          </article>
+          <article>
+            <div className="simple-action-icon"><Icon name="truck" size={17}/></div>
+            <div><span>RECEIPT TO CONFIRM</span><h3>{handover[0]}</h3><p>{handover[1]}</p></div>
+            <Button variant="secondary" onClick={()=>navigate('/inventory')}>Confirm</Button>
+          </article>
+          <article>
+            <div className="simple-action-icon"><Icon name="clock" size={17}/></div>
+            <div><span>SITE RECORD</span><h3>Daily work log</h3><p>Due at 16:45</p></div>
+            <Button variant="secondary" onClick={()=>navigate('/workforce')}>Open log</Button>
+          </article>
+        </div>
       </aside>
-      <div className="panel site-handover"><PanelHead title="Material handovers" subtitle="Store issues that require your physical confirmation" action="Open materials" onClick={()=>navigate('/inventory')}/>
-        <div className="handover-row"><div className="voucher-icon"><Icon name="file" size={18}/></div><div><b>{handover[0]}</b><span>{handover[1]}</span></div><strong>{handover[2]}</strong><Status>Confirm receipt</Status></div>
-      </div>
-      <div className="panel field-reporting"><PanelHead title="End-of-day records" subtitle="Complete before leaving site"/>
-        <div className="field-report-list"><div><Icon name="check" size={14}/><span>Morning attendance</span><Status>Complete</Status></div><div><Icon name="clock" size={14}/><span>Material usage</span><Status tone="at-risk">Due 16:30</Status></div><div><Icon name="clock" size={14}/><span>Work progress & blockers</span><Status tone="at-risk">Due 16:45</Status></div></div>
-      </div>
     </section>
-  </>
+  </div>
 }
 
 function StorekeeperDashboard() {
@@ -700,52 +697,42 @@ function CashierDashboard() {
     { reference: 'PAY-0420', supplier: 'Mavoko Aggregates', invoice: 'INV-1072', project: 'Gilgal 1', amount: '63,000', method: 'M-Pesa' },
     { reference: 'PAY-0419', supplier: 'Musa Electrical Works', invoice: 'INV-2044', project: 'SNEP HQ', amount: '179,000', method: 'Bank transfer' },
   ]
-  return <>
-    <section className="role-welcome cashier-welcome">
-      <div><span>CASHIER WORKSPACE</span><h2>Good morning, Eunice.</h2><p>Three approved payments are ready for you to execute.</p></div>
+  const unpaidPayments = readyPayments.filter(payment => !paid.includes(payment.reference))
+  const paidThisSession = readyPayments
+    .filter(payment => paid.includes(payment.reference))
+    .reduce((total, payment) => total + Number(payment.amount.replaceAll(',', '')), 0)
+  const readyTotal = unpaidPayments.reduce((total, payment) => total + Number(payment.amount.replaceAll(',', '')), 0)
+  return <div className="simple-dashboard">
+    <section className="simple-role-header">
+      <div><span>CASHIER</span><h2>Payments</h2><p>Execute payments approved by Finance.</p></div>
       <Button icon="receipt" onClick={() => navigate('/finance')}>Open payments desk</Button>
     </section>
-    <section className="cashier-guardrail"><Icon name="lock" size={18}/><div><b>You execute; you do not approve.</b><span>Every payment below already has an approved invoice, purchase order, and delivery record. Amounts cannot be edited here.</span></div></section>
-    <section className="metrics-grid role-metrics">
-      <Metric label="Ready to pay" value="KES 654,800" note="3 fully approved payments" icon="wallet" tone="orange"/>
-      <Metric label="Paid today" value="KES 684,000" note="1 payment successfully recorded" icon="check" tone="green"/>
-      <Metric label="Site cash available" value="KES 684,250" note="Across 4 reconciled floats" icon="receipt" tone="navy"/>
-      <Metric label="Blocked payments" value="2 invoices" note="Missing approval or delivery proof" icon="lock" tone="red"/>
+
+    <section className="simple-rule"><Icon name="lock" size={17}/><span><b>Only approved payments can be paid.</b> Amount and beneficiary are locked.</span></section>
+
+    <section className="simple-summary-grid three">
+      <SimpleStat label="Ready to pay" value={`KES ${readyTotal.toLocaleString('en-KE')}`} note={`${unpaidPayments.length} payments`} tone={unpaidPayments.length ? 'warning' : 'good'}/>
+      <SimpleStat label="Paid today" value={`KES ${(684000 + paidThisSession).toLocaleString('en-KE')}`} note={`${1 + paid.length} payments`} tone="good"/>
+      <SimpleStat label="Blocked" value="2 invoices" note="Missing proof" tone="danger"/>
     </section>
-    <section className="cashier-grid">
-      <div className="panel cashier-payment-panel">
-        <PanelHead title="Approved payments ready to execute" subtitle="All control checks have passed" action="See full payments desk" onClick={() => navigate('/finance')}/>
-        <div className="cashier-payment-list">
-          {readyPayments.map(payment => {
-            const isPaid = paid.includes(payment.reference)
-            return <article key={payment.reference} className={isPaid ? 'completed' : ''}>
-              <div className="payment-party"><span>{payment.supplier[0]}</span><div><b>{payment.supplier}</b><small>{payment.invoice} · {payment.project}</small></div></div>
-              <div className="payment-method"><span>PAY USING</span><b>{payment.method}</b></div>
-              <div className="payment-amount"><span>AMOUNT</span><strong>KES {payment.amount}</strong></div>
-              {isPaid ? <Status>Paid</Status> : <button onClick={() => setSelectedPayment(payment)}>Execute payment <Icon name="arrow" size={14}/></button>}
-            </article>
-          })}
-        </div>
-      </div>
-      <aside className="panel cashier-checks">
-        <PanelHead title="Before money moves" subtitle="Built-in payment controls"/>
-        <div className="cashier-check-list">
-          <div><Icon name="check" size={15}/><span><b>Purchase was approved</b><small>A different user approved it</small></span></div>
-          <div><Icon name="check" size={15}/><span><b>Delivery was confirmed</b><small>Storekeeper recorded the goods</small></span></div>
-          <div><Icon name="check" size={15}/><span><b>Invoice matches</b><small>Quantity and price agree</small></span></div>
-          <div><Icon name="shield" size={15}/><span><b>Your action is logged</b><small>Reference and payment proof are required</small></span></div>
-        </div>
-      </aside>
-      <div className="panel cashier-floats">
-        <PanelHead title="Site cash floats" subtitle="Available cash after the latest reconciliation" action="Manage cash" onClick={() => navigate('/finance')}/>
-        <div className="float-grid">
-          {[['Gilgal 1','182,400','Reconciled today'],['Gilgal 2','94,850','Reconciled today'],['SNEP HQ','287,000','Reconciled yesterday'],['Church','120,000','Reconciled today']].map(row => <div key={row[0]}><span>{row[0]}</span><strong>KES {row[1]}</strong><small><i/>{row[2]}</small></div>)}
-        </div>
+
+    <section className="panel simple-payment-panel">
+      <PanelHead title="Ready to pay" subtitle="Purchase order, delivery and invoice checked" action="Full payments desk" onClick={() => navigate('/finance')}/>
+      <div className="simple-payment-list">
+        {readyPayments.map(payment => {
+          const isPaid = paid.includes(payment.reference)
+          return <article key={payment.reference} className={isPaid ? 'completed' : ''}>
+            <div className="simple-payment-party"><span>{payment.supplier[0]}</span><div><strong>{payment.supplier}</strong><small>{payment.reference} · {payment.invoice} · {payment.project}</small></div></div>
+            <div className="simple-payment-amount"><strong>KES {payment.amount}</strong><span>{payment.method}</span></div>
+            <div className="simple-proof"><Icon name="check" size={14}/>Checks passed</div>
+            {isPaid ? <Status tone="paid">Paid</Status> : <Button onClick={() => setSelectedPayment(payment)}>Pay</Button>}
+          </article>
+        })}
       </div>
     </section>
     {selectedPayment && <PaymentExecutionModal payment={selectedPayment} onClose={() => setSelectedPayment(null)} onComplete={() => executePayment(selectedPayment)}/>}
     {toast && <div className="toast"><Icon name="check"/>{toast}</div>}
-  </>
+  </div>
 }
 
 function PaymentExecutionModal({payment,onClose,onComplete}:{payment:PaymentCandidate;onClose:()=>void;onComplete:()=>void}) {
