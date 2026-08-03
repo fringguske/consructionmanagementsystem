@@ -112,6 +112,54 @@ const projects = [
   { name: 'Church', location: 'Vota, Machakos', supervisor: 'Church & SNEP Supervisor', budget: 25.8, spent: 8.3, committed: 2.1, progress: 31, status: 'On track', code: 'CH', color: '#765b8e' },
 ]
 
+type StoreStockRecord = {
+  material: string
+  category: string
+  project: ProjectName
+  store: string
+  unit: string
+  onHand: string
+  reorderAt: string
+  level: 'Healthy' | 'Low stock' | 'Watch'
+}
+
+type StoreTransferRecord = {
+  reference: string
+  fromProject: ProjectName
+  toProject: ProjectName
+  material: string
+  quantity: string
+  status: 'Awaiting receipt' | 'In transit' | 'Ready to dispatch'
+  age: string
+}
+
+type SiteTeamMaterialRecord = {
+  material: string
+  project: ProjectName
+  quantity: string
+  holder: string
+}
+
+const storeStockRecords: readonly StoreStockRecord[] = [
+  { material: 'River sand', category: 'Aggregates', project: 'Gilgal 1', store: 'Gilgal 1 store', unit: 'tonnes', onHand: '42.5', reorderAt: '18', level: 'Healthy' },
+  { material: 'Y12 reinforcement steel', category: 'Steel', project: 'Gilgal 2', store: 'Gilgal 2 store', unit: 'lengths', onHand: '186', reorderAt: '220', level: 'Low stock' },
+  { material: 'Bamburi cement', category: 'Cement', project: 'SNEP HQ', store: 'SNEP HQ store', unit: 'bags', onHand: '1,248', reorderAt: '320', level: 'Healthy' },
+  { material: 'PVC conduit 25mm', category: 'Electrical', project: 'SNEP HQ', store: 'SNEP HQ store', unit: 'lengths', onHand: '64', reorderAt: '100', level: 'Low stock' },
+  { material: 'Marine plywood 18mm', category: 'Formwork', project: 'Church', store: 'Church store', unit: 'sheets', onHand: '38', reorderAt: '30', level: 'Watch' },
+]
+
+const storeTransferRecords: readonly StoreTransferRecord[] = [
+  { reference: 'TR-0063', fromProject: 'Gilgal 1', toProject: 'Church', material: 'Timber', quantity: '32 pieces', status: 'Awaiting receipt', age: '3 days overdue' },
+  { reference: 'TR-0065', fromProject: 'SNEP HQ', toProject: 'Gilgal 2', material: 'PVC conduit', quantity: '40 lengths', status: 'In transit', age: '4 hours' },
+  { reference: 'TR-0066', fromProject: 'Church', toProject: 'Gilgal 1', material: 'Binding wire', quantity: '6 rolls', status: 'Ready to dispatch', age: 'Not dispatched' },
+]
+
+const siteTeamMaterialRecords: readonly SiteTeamMaterialRecord[] = [
+  { material: 'Y12 reinforcement steel', project: 'Gilgal 2', quantity: '38 lengths', holder: 'Gilgal Sites Foreman' },
+  { material: 'Bamburi cement', project: 'SNEP HQ', quantity: '124 bags', holder: 'Church & SNEP Foreman' },
+  { material: 'Marine plywood 18mm', project: 'Church', quantity: '18 sheets', holder: 'Church & SNEP Foreman' },
+]
+
 const requisitions = [
   { id: 'MR-0248', item: 'Y12 reinforcement steel', qty: '240 lengths', site: 'Gilgal 2', requester: 'Samuel K.', date: 'Today, 09:42', value: 'KES 412,800', status: 'Needs approval', risk: 'Price +8.4%' },
   { id: 'MR-0247', item: 'Bamburi cement', qty: '180 bags', site: 'SNEP HQ', requester: 'Daniel O.', date: 'Today, 08:16', value: 'KES 171,000', status: 'Needs approval', risk: '' },
@@ -239,7 +287,7 @@ function Shell() {
   }))
   const visibleNav = fieldRoleNav[role] ?? standardNav
   const roleHomeTitles: Record<DemoRole, [string, string]> = {
-    CEO: ['Overview', 'Your projects, money and materials'],
+    CEO: ['Overview', 'Your projects, money and stores'],
     Supervisor: ['Supervisor overview', `Projects and actions across ${scopeLabel}`],
     Engineer: ['Technical overview', `Progress, quality and compliance across ${scopeLabel}`],
     Foreman: [`Today · ${scopeLabel}`, 'Work and material records'],
@@ -251,9 +299,9 @@ function Shell() {
   }
   const titles: Record<string, [string, string]> = {
     '/': roleHomeTitles[role],
-    '/projects': role === 'CEO' ? ['Projects', 'Work done, money used and materials for each project'] : role === 'Engineer' ? ['Progress & milestones', 'Verified construction progress across active sites'] : ['Projects', 'Portfolio health and site delivery'],
+    '/projects': role === 'CEO' ? ['Projects', 'Work done, money used and store stock for each project'] : role === 'Engineer' ? ['Progress & milestones', 'Verified construction progress across active sites'] : ['Projects', 'Portfolio health and site delivery'],
     '/procurement': role === 'Foreman' ? ['My material requests', 'Request what the site needs and follow its approval'] : role === 'Procurement Officer' ? ['Approved sourcing queue', 'Source approved demand without changing it'] : ['Procurement', 'Requisitions, approvals and purchase orders'],
-    '/inventory': role === 'CEO' ? ['Stock & movement', 'What is in stock and what is moving between sites'] : role === 'Foreman' ? ['Materials on site', 'Confirm receipt, record use and report wastage'] : role === 'Storekeeper' ? ['Stock ledger', 'Immutable balances across project stores'] : ['Inventory', 'Stock levels and material movement'],
+    '/inventory': role === 'CEO' ? ['Stock & movement', 'What is inside each store, with site teams and moving'] : role === 'Foreman' ? ['Materials on site', 'Confirm receipt, record use and report wastage'] : role === 'Storekeeper' ? ['Stock ledger', 'Immutable balances across project stores'] : ['Inventory', 'Stock levels and material movement'],
     '/finance': role === 'Cashier'
       ? ['Payments & cash', 'Execute approved payments and reconcile site floats']
       : role === 'Supervisor'
@@ -428,7 +476,7 @@ function Dashboard() {
     <section className="simple-summary-grid three ceo-home-summary">
       <SimpleStat label="Projects" value="4" note="1 needs attention" tone="warning"/>
       <SimpleStat label="Money left" value="KES 72.5M" tone="good"/>
-      <SimpleStat label="Materials running low" value="2 items" tone="danger"/>
+      <SimpleStat label="Low in stores" value="2 items" tone="danger"/>
     </section>
 
     <section className="panel ceo-attention-panel">
@@ -461,18 +509,19 @@ function Dashboard() {
 
     <section className="ceo-home-material-grid">
       <div className="panel">
-        <PanelHead title="Stock now" subtitle="Key materials currently available" action="See all stock" onClick={() => navigate('/inventory')}/>
+        <PanelHead title="Inside the stores" subtitle="Still held by the storekeeper" action="See all stores" onClick={() => navigate('/inventory')}/>
         <div className="ceo-stock-preview">
-          <article><div><strong>Cement</strong><span>Gilgal 1</span></div><b>1,248 bags</b><Status tone="accepted">Enough</Status></article>
-          <article><div><strong>Y12 steel</strong><span>Gilgal 2</span></div><b>186 lengths</b><Status tone="at-risk">Refill soon</Status></article>
-          <article><div><strong>PVC conduit</strong><span>SNEP HQ</span></div><b>64 lengths</b><Status tone="at-risk">Refill soon</Status></article>
+          <article><div><strong>Gilgal 1 store</strong><span>River sand</span></div><b>42.5 tonnes</b><Status tone="accepted">Enough</Status></article>
+          <article><div><strong>Gilgal 2 store</strong><span>Y12 steel</span></div><b>186 lengths</b><Status tone="at-risk">Refill soon</Status></article>
+          <article><div><strong>SNEP HQ store</strong><span>Cement · 1,248 bags</span></div><b>PVC · 64 lengths</b><Status tone="at-risk">1 low</Status></article>
+          <article><div><strong>Church store</strong><span>Marine plywood</span></div><b>38 sheets</b><Status tone="at-risk">Watch</Status></article>
         </div>
       </div>
       <div className="panel">
-        <PanelHead title="Materials moving" subtitle="Latest movement between sites" action="See all movement" onClick={() => navigate('/inventory')}/>
+        <PanelHead title="Materials moving" subtitle="Dispatched from one store to another" action="See all movement" onClick={() => navigate('/inventory')}/>
         <div className="ceo-movement-preview">
-          <article><i><Icon name="truck" size={18}/></i><div><strong>80 steel lengths</strong><span>Gilgal 1 → Church</span></div><Status tone="at-risk">Waiting at Church</Status></article>
-          <article><i><Icon name="swap" size={18}/></i><div><strong>40 PVC lengths</strong><span>SNEP HQ → Gilgal 2</span></div><Status tone="issued">On the way</Status></article>
+          <article><i><Icon name="truck" size={18}/></i><div><strong>Timber · 32 pieces</strong><span>Gilgal 1 store → Church store</span></div><Status tone="at-risk">Arrival late</Status></article>
+          <article><i><Icon name="swap" size={18}/></i><div><strong>PVC conduit · 40 lengths</strong><span>SNEP HQ store → Gilgal 2 store</span></div><Status tone="issued">On the way</Status></article>
         </div>
       </div>
     </section>
@@ -768,10 +817,10 @@ function PageIntro({ title, copy, action, icon, onAction }: {title:string;copy:s
 
 function CeoProjects({ visibleProjects }: { visibleProjects: typeof projects }) {
   const materialPosition: Record<ProjectName, string> = {
-    'Gilgal 1': 'Enough',
-    'Gilgal 2': 'Steel is low',
-    'SNEP HQ': 'PVC is low',
-    Church: 'Enough',
+    'Gilgal 1': 'Enough in store',
+    'Gilgal 2': 'Steel low in store',
+    'SNEP HQ': 'PVC low in store',
+    Church: 'Plywood needs watching',
   }
   return <div className="ceo-view ceo-projects-view">
     <section className="ceo-project-grid">
@@ -788,7 +837,7 @@ function CeoProjects({ visibleProjects }: { visibleProjects: typeof projects }) 
             <div><span>Work done</span><strong>{project.progress}%</strong><div><i style={{width:`${project.progress}%`,background:project.color}}/></div></div>
             <div><span>Money used</span><strong>{moneyUsed}%</strong><div><i style={{width:`${moneyUsed}%`}}/></div></div>
           </div>
-          <footer className={materials === 'Enough' ? '' : 'warning'}><Icon name="boxes" size={20}/><span>Materials</span><strong>{materials}</strong></footer>
+          <footer className={materials === 'Enough in store' ? '' : 'warning'}><Icon name="boxes" size={20}/><span>Store stock</span><strong>{materials}</strong></footer>
         </article>
       })}
     </section>
@@ -996,8 +1045,7 @@ function EngineerDrawings({ projectScope }: { projectScope: ProjectName[] }) {
 }
 
 function StorekeeperLedger() {
-  const stock=[['Bamburi cement','SNEP HQ','bags','1,248','320','Healthy'],['Y12 reinforcement steel','Gilgal 2','lengths','186','220','Low stock'],['River sand','Gilgal 1','tonnes','42.5','18','Healthy'],['PVC conduit 25mm','SNEP HQ','lengths','64','100','Low stock'],['Marine plywood 18mm','Church','sheets','38','30','Watch']]
-  return <><PageIntro title="Immutable stock ledger" copy="Current balances derived from received, issued, transferred and adjusted events." action="Export ledger" icon="download"/><section className="storekeeper-guardrail"><Icon name="lock" size={16}/><p><b>No direct balance editing.</b> Every change must originate from a GRN, issue voucher, confirmed transfer, approved wastage adjustment or stock-count variance.</p></section><section className="metrics-grid compact"><Metric label="Stock value" value="KES 12.84M" note="Across four project stores" icon="boxes" tone="navy"/><Metric label="Ledger events today" value="18" note="6 receipts · 9 issues · 3 transfers" icon="file" tone="green"/><Metric label="Low stock" value="7 items" note="2 project-critical" icon="alert" tone="orange"/><Metric label="Unresolved variance" value="KES 94,600" note="Two submitted count records" icon="shield" tone="red"/></section><section className="panel store-ledger-panel"><div className="table-tools"><div className="inline-search"><Icon name="search"/><input placeholder="Search material, SKU or store…"/></div><button><Icon name="filter"/>Store & level</button><button><Icon name="download"/>Export</button></div><div className="store-ledger-table"><div className="store-ledger-row store-ledger-head"><span>MATERIAL</span><span>STORE</span><span>UNIT</span><span>ON HAND</span><span>REORDER AT</span><span>LEVEL</span><span></span></div>{stock.map(row=><div className="store-ledger-row" key={row[0]}><strong>{row[0]}</strong><span>{row[1]}</span><span>{row[2]}</span><b>{row[3]}</b><span>{row[4]}</span><Status tone={row[5]==='Healthy'?'healthy':'low-stock'}>{row[5]}</Status><button><Icon name="eye" size={14}/>History</button></div>)}</div></section></>
+  return <><PageIntro title="Immutable stock ledger" copy="Current balances derived from received, issued, transferred and adjusted events." action="Export ledger" icon="download"/><section className="storekeeper-guardrail"><Icon name="lock" size={16}/><p><b>No direct balance editing.</b> Every change must originate from a GRN, issue voucher, confirmed transfer, approved wastage adjustment or stock-count variance.</p></section><section className="metrics-grid compact"><Metric label="Stock value" value="KES 12.84M" note="Across four project stores" icon="boxes" tone="navy"/><Metric label="Ledger events today" value="18" note="6 receipts · 9 issues · 3 transfers" icon="file" tone="green"/><Metric label="Low stock" value="7 items" note="2 project-critical" icon="alert" tone="orange"/><Metric label="Unresolved variance" value="KES 94,600" note="Two submitted count records" icon="shield" tone="red"/></section><section className="panel store-ledger-panel"><div className="table-tools"><div className="inline-search"><Icon name="search"/><input placeholder="Search material, SKU or store…"/></div><button><Icon name="filter"/>Store & level</button><button><Icon name="download"/>Export</button></div><div className="store-ledger-table"><div className="store-ledger-row store-ledger-head"><span>MATERIAL</span><span>STORE</span><span>UNIT</span><span>ON HAND</span><span>REORDER AT</span><span>LEVEL</span><span></span></div>{storeStockRecords.map(item=><div className="store-ledger-row" key={`${item.store}-${item.material}`}><strong>{item.material}</strong><span>{item.store}</span><span>{item.unit}</span><b>{item.onHand}</b><span>{item.reorderAt}</span><Status tone={item.level==='Healthy'?'healthy':'low-stock'}>{item.level}</Status><button><Icon name="eye" size={14}/>History</button></div>)}</div></section></>
 }
 
 function StorekeeperReceiving() {
@@ -1026,8 +1074,8 @@ function MaterialIssueModal({request,onClose,onComplete}:{request:string[];onClo
 
 function StorekeeperTransfers() {
   const [confirmed,setConfirmed]=useState<string[]>([])
-  const transfers=[['TR-0063','Gilgal 1','Church','Timber','32 pieces','Inbound · 3 days overdue'],['TR-0065','SNEP HQ','Gilgal 2','PVC conduit','40 lengths','In transit · 4 hours'],['TR-0066','Church','Gilgal 1','Binding wire','6 rolls','Ready to dispatch']]
-  return <><PageIntro title="Inter-site transfers" copy="Separate dispatch and receipt records expose anything lost in transit." action="New transfer request" icon="plus"/><section className="storekeeper-guardrail"><Icon name="swap" size={16}/><p><b>No single person confirms both ends.</b> The sending store records dispatch; an independently assigned receiving storekeeper records the physical arrival.</p></section><section className="transfer-workspace">{transfers.map(row=><article className="panel" key={row[0]}><div><b className="mono">{row[0]}</b><Status tone={row[5].includes('overdue')?'at-risk':'issued'}>{confirmed.includes(row[0])?'Received':row[5]}</Status></div><div className="transfer-route-large"><span>{row[1]}</span><i><Icon name="arrow" size={15}/></i><span>{row[2]}</span></div><h3>{row[3]} · {row[4]}</h3><p>{row[5].startsWith('Inbound')?'Count actual received quantity and record any variance.':'Movement is visible to both site stores.'}</p><button onClick={()=>setConfirmed(current=>[...current,row[0]])} disabled={confirmed.includes(row[0])}>{confirmed.includes(row[0])?<><Icon name="check" size={14}/>Confirmation recorded</>:row[5].startsWith('Inbound')?'Confirm physical receipt':'Open transfer'}</button></article>)}</section></>
+  const statusLabel = (transfer: StoreTransferRecord) => transfer.status === 'Awaiting receipt' ? `Inbound · ${transfer.age}` : transfer.status === 'In transit' ? `In transit · ${transfer.age}` : transfer.status
+  return <><PageIntro title="Inter-site transfers" copy="Separate dispatch and receipt records expose anything lost in transit." action="New transfer request" icon="plus"/><section className="storekeeper-guardrail"><Icon name="swap" size={16}/><p><b>No single person confirms both ends.</b> The sending store records dispatch; an independently assigned receiving storekeeper records the physical arrival.</p></section><section className="transfer-workspace">{storeTransferRecords.map(transfer=><article className="panel" key={transfer.reference}><div><b className="mono">{transfer.reference}</b><Status tone={transfer.status==='Awaiting receipt'?'at-risk':'issued'}>{confirmed.includes(transfer.reference)?'Received':statusLabel(transfer)}</Status></div><div className="transfer-route-large"><span>{transfer.fromProject}</span><i><Icon name="arrow" size={15}/></i><span>{transfer.toProject}</span></div><h3>{transfer.material} · {transfer.quantity}</h3><p>{transfer.status==='Awaiting receipt'?'Count actual received quantity and record any variance.':'Movement is visible to both site stores.'}</p><button onClick={()=>setConfirmed(current=>[...current,transfer.reference])} disabled={confirmed.includes(transfer.reference)}>{confirmed.includes(transfer.reference)?<><Icon name="check" size={14}/>Confirmation recorded</>:transfer.status==='Awaiting receipt'?'Confirm physical receipt':'Open transfer'}</button></article>)}</section></>
 }
 
 function StorekeeperCounts() {
@@ -1072,39 +1120,64 @@ function AuditReports() {
   return <><PageIntro title="Audit reports & exports" copy="Independent outputs generated from immutable source events." action="Build custom report" icon="plus"/><section className="report-control-note"><Icon name="shield" size={17}/><span><b>Every export carries a verification manifest.</b><small>Recipients can confirm that records and attachments have not changed after export.</small></span></section><section className="audit-report-grid">{reports.map(report=><article className="panel" key={report[0]}><div><Icon name="file" size={22}/><Status>Ready</Status></div><h3>{report[0]}</h3><p>{report[1]}</p><span>{report[2]}</span><footer><small>{report[3]}</small><button><Icon name="download" size={14}/>Download</button></footer></article>)}</section><section className="panel scheduled-reports"><PanelHead title="Scheduled assurance reports" subtitle="Delivery does not grant transactional access"/><div>{[['CEO weekly exception brief','Every Monday, 07:00','Josephine Charles','Active'],['Month-end stock variance','Last day, 18:00','CEO + Auditor','Active'],['High-value payment alert','On every payment > KES 500K','CEO + Auditor','Active']].map(row=><div key={row[0]}><strong>{row[0]}</strong><span>{row[1]}</span><span>{row[2]}</span><Status>{row[3]}</Status><button><Icon name="eye" size={14}/>View rule</button></div>)}</div></section></>
 }
 
-function CeoStock({ stock, transfers }: { stock: string[][]; transfers: string[][] }) {
+function CeoStock({ stock, transfers }: { stock: readonly StoreStockRecord[]; transfers: readonly StoreTransferRecord[] }) {
+  const stores = Array.from(new Set(stock.map(item => item.store))).map(store => ({
+    name: store,
+    items: stock.filter(item => item.store === store),
+  }))
+  const movingTransfers = transfers.filter(transfer => transfer.status !== 'Ready to dispatch')
+
   return <div className="ceo-view ceo-stock-view">
     <section className="simple-summary-grid three ceo-stock-summary">
-      <SimpleStat label="Need restocking" value={`${stock.filter(row => row[5] === 'Low stock').length} items`} tone="danger"/>
-      <SimpleStat label="Moving now" value={`${transfers.length} transfers`} tone="warning"/>
-      <SimpleStat label="Waiting for arrival" value={`${transfers.filter(row => row[4] === 'Awaiting receipt').length}`} tone="warning"/>
+      <SimpleStat label="Stores reporting" value={`${stores.length}`} note="All project stores" tone="good"/>
+      <SimpleStat label="Low in stores" value={`${stock.filter(item => item.level === 'Low stock').length} materials`} tone="danger"/>
+      <SimpleStat label="Moving now" value={`${movingTransfers.length} transfers`} note="1 arrival is late" tone="warning"/>
     </section>
 
     <section className="ceo-stock-layout">
       <div className="panel">
-        <PanelHead title="What is in stock" subtitle="Materials currently recorded at each site"/>
-        <div className="ceo-stock-list">
-          {stock.map(row => <article key={row[0]}>
-            <div><strong>{row[0]}</strong><span>{row[4]}</span></div>
-            <b>{row[3]} {row[2]}</b>
-            <Status tone={row[5] === 'Low stock' ? 'at-risk' : 'accepted'}>{row[5] === 'Low stock' ? 'Refill soon' : 'Enough'}</Status>
-          </article>)}
-        </div>
-      </div>
-      <div className="panel">
-        <PanelHead title="Moving between sites" subtitle="Follow each material until the receiving site confirms it"/>
-        <div className="ceo-transfer-list">
-          {transfers.map(transfer => {
-            const state = transfer[4]
-            const plainStatus = state === 'Awaiting receipt' ? `Waiting for ${transfer[2]}` : state === 'In transit' ? 'On the way' : 'Sent'
-            const stages = state === 'Awaiting receipt' ? ['done','done','current'] : state === 'In transit' ? ['done','current','pending'] : ['done','pending','pending']
-            return <article key={transfer[0]}>
-              <header><div><strong>{transfer[3]}</strong><span>{transfer[1]} → {transfer[2]}</span></div><Status tone={state === 'Awaiting receipt' ? 'at-risk' : 'issued'}>{plainStatus}</Status></header>
-              <div className="ceo-transfer-journey">
-                {['Sent','On the way','Received'].map((label,index) => <span className={stages[index]} key={label}><i>{stages[index] === 'done' ? <Icon name="check" size={13}/> : index + 1}</i><b>{label}</b></span>)}
+        <PanelHead title="Inside the stores" subtitle="Still under storekeeper control"/>
+        <div className="ceo-store-groups">
+          {stores.map(store => {
+            const lowItems = store.items.filter(item => item.level === 'Low stock').length
+            const watchItems = store.items.filter(item => item.level === 'Watch').length
+            return <article className="ceo-store-group" key={store.name}>
+              <header><div><Icon name="boxes" size={17}/><span><strong>{store.name}</strong><small>{store.items.length} material {store.items.length === 1 ? 'type' : 'types'}</small></span></div><Status tone={lowItems || watchItems ? 'at-risk' : 'accepted'}>{lowItems ? `${lowItems} low` : watchItems ? 'Watch' : 'Okay'}</Status></header>
+              <div>
+                {store.items.map(item => <div className="ceo-store-item" key={`${item.store}-${item.material}`}>
+                  <span><strong>{item.material}</strong><small>{item.category}</small></span>
+                  <b>{item.onHand} {item.unit}</b>
+                  <Status tone={item.level === 'Healthy' ? 'accepted' : 'at-risk'}>{item.level === 'Low stock' ? 'Refill soon' : item.level === 'Watch' ? 'Watch' : 'Enough'}</Status>
+                </div>)}
               </div>
             </article>
           })}
+        </div>
+      </div>
+      <div className="ceo-stock-side">
+        <div className="panel">
+          <PanelHead title="With site teams" subtitle="Issued from a store and held by a foreman"/>
+          <div className="ceo-site-team-stock">
+            {siteTeamMaterialRecords.map(item => <article key={`${item.project}-${item.material}`}>
+              <div><strong>{item.material}</strong><span>{item.project} · {item.holder}</span></div>
+              <b>{item.quantity}</b>
+            </article>)}
+          </div>
+        </div>
+        <div className="panel">
+          <PanelHead title="Moving between stores" subtitle="The receiving store must confirm arrival"/>
+          <div className="ceo-transfer-list">
+            {movingTransfers.map(transfer => {
+              const plainStatus = transfer.status === 'Awaiting receipt' ? 'Arrival late' : 'On the way'
+              const stages = transfer.status === 'Awaiting receipt' ? ['done','done','current'] : ['done','current','pending']
+              return <article key={transfer.reference}>
+                <header><div><strong>{transfer.material} · {transfer.quantity}</strong><span>{transfer.fromProject} store → {transfer.toProject} store</span></div><Status tone={transfer.status === 'Awaiting receipt' ? 'at-risk' : 'issued'}>{plainStatus}</Status></header>
+                <div className="ceo-transfer-journey">
+                  {['Sent','On the way','Received'].map((label,index) => <span className={stages[index]} key={label}><i>{stages[index] === 'done' ? <Icon name="check" size={13}/> : index + 1}</i><b>{label}</b></span>)}
+                </div>
+              </article>
+            })}
+          </div>
         </div>
       </div>
     </section>
@@ -1112,9 +1185,11 @@ function CeoStock({ stock, transfers }: { stock: string[][]; transfers: string[]
 }
 
 function Inventory({readOnly=false,ownerView=false,projectScope=[...allProjectNames]}:{readOnly?:boolean;ownerView?:boolean;projectScope?:ProjectName[]}) {
-  const stock=[['Bamburi Powermax cement','Cement','bags','1,248','Gilgal 1','Healthy'],['Y12 reinforcement steel','Steel','lengths','186','Gilgal 2','Low stock'],['River sand','Aggregates','tonnes','42.5','Church','Healthy'],['PVC conduit 25mm','Electrical','lengths','64','SNEP HQ','Low stock'],['Machine-cut stones','Masonry','pieces','3,420','Church','Healthy']].filter(row=>projectScope.includes(row[4] as ProjectName))
-  const transfers=[['TR-0063','Gilgal 1','Church','Y10 steel · 80 lengths','Awaiting receipt','3 days'],['TR-0065','SNEP HQ','Gilgal 2','PVC conduit · 40 lengths','In transit','4 hrs'],['TR-0066','Church','Gilgal 1','Timber · 32 pieces','Dispatched','1 hr']].filter(row=>projectScope.includes(row[1] as ProjectName)||projectScope.includes(row[2] as ProjectName))
-  if (ownerView) return <CeoStock stock={stock} transfers={transfers}/>
+  const visibleStoreStock = storeStockRecords.filter(item => projectScope.includes(item.project))
+  const visibleStoreTransfers = storeTransferRecords.filter(transfer => projectScope.includes(transfer.fromProject) || projectScope.includes(transfer.toProject))
+  const stock = visibleStoreStock.map(item => [item.material,item.category,item.unit,item.onHand,item.store,item.level])
+  const transfers = visibleStoreTransfers.filter(transfer => transfer.status !== 'Ready to dispatch').map(transfer => [transfer.reference,transfer.fromProject,transfer.toProject,`${transfer.material} · ${transfer.quantity}`,transfer.status,transfer.age])
+  if (ownerView) return <CeoStock stock={visibleStoreStock} transfers={visibleStoreTransfers}/>
   return <>
     <PageIntro title="Materials & stores" copy="Live balances, accountable movements, and dual-confirmed transfers." action={readOnly?'Export stock view':'Record movement'} icon={readOnly?'download':'swap'}/>
     {readOnly&&<section className="role-guardrail owner-readonly-note"><Icon name="eye" size={17}/><p><b>Read-only movement view:</b> Storekeepers record receipts, issues and transfers. Supervisors and the CEO monitor custody and exceptions without altering stock.</p></section>}
@@ -1311,7 +1386,7 @@ function CeoRecords() {
       <div className="ceo-record-attention-list">
         <article><i className="danger"><Icon name="lock" size={18}/></i><div><strong>A self-approval was stopped</strong><span>The same person tried to request and approve a purchase. No money moved.</span></div><Status tone="accepted">Stopped</Status></article>
         <article><i className="warning"><Icon name="alert" size={18}/></i><div><strong>Steel price is higher than usual</strong><span>Gilgal 2 · KES 412,800 · Finance is checking it</span></div><Button variant="secondary" onClick={() => setSelectedChain(transactionChains[1])}>See steps</Button></article>
-        <article><i className="warning"><Icon name="truck" size={18}/></i><div><strong>Church has not confirmed a material transfer</strong><span>80 steel lengths sent from Gilgal 1</span></div><Button variant="secondary" onClick={() => navigate('/inventory')}>Open movement</Button></article>
+        <article><i className="warning"><Icon name="truck" size={18}/></i><div><strong>Church store has not confirmed a transfer</strong><span>32 timber pieces sent from Gilgal 1 store</span></div><Button variant="secondary" onClick={() => navigate('/inventory')}>Open movement</Button></article>
       </div>
     </section>
 
