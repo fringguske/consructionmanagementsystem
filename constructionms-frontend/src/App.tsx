@@ -148,7 +148,8 @@ const fieldRoleNav: Partial<Record<DemoRole, typeof nav>> = {
     { to: '/', label: 'Overview', icon: 'grid' },
     { to: '/projects', label: 'Projects', icon: 'building' },
     { to: '/finance', label: 'Money', icon: 'wallet' },
-    { to: '/audit', label: 'Records & audit', icon: 'shield' },
+    { to: '/inventory', label: 'Stock & movement', icon: 'boxes' },
+    { to: '/audit', label: 'Records', icon: 'shield' },
   ],
   Supervisor: [
     { to: '/', label: 'Overview', icon: 'grid' },
@@ -238,7 +239,7 @@ function Shell() {
   }))
   const visibleNav = fieldRoleNav[role] ?? standardNav
   const roleHomeTitles: Record<DemoRole, [string, string]> = {
-    CEO: ['Project overview', 'Progress, money and decisions across all projects'],
+    CEO: ['Overview', 'Your projects, money and materials'],
     Supervisor: ['Supervisor overview', `Projects and actions across ${scopeLabel}`],
     Engineer: ['Technical overview', `Progress, quality and compliance across ${scopeLabel}`],
     Foreman: [`Today · ${scopeLabel}`, 'Work and material records'],
@@ -250,16 +251,18 @@ function Shell() {
   }
   const titles: Record<string, [string, string]> = {
     '/': roleHomeTitles[role],
-    '/projects': role === 'Engineer' ? ['Progress & milestones', 'Verified construction progress across active sites'] : ['Projects', 'Portfolio health and site delivery'],
+    '/projects': role === 'CEO' ? ['Projects', 'Work done, money used and materials for each project'] : role === 'Engineer' ? ['Progress & milestones', 'Verified construction progress across active sites'] : ['Projects', 'Portfolio health and site delivery'],
     '/procurement': role === 'Foreman' ? ['My material requests', 'Request what the site needs and follow its approval'] : role === 'Procurement Officer' ? ['Approved sourcing queue', 'Source approved demand without changing it'] : ['Procurement', 'Requisitions, approvals and purchase orders'],
-    '/inventory': role === 'Foreman' ? ['Materials on site', 'Confirm receipt, record use and report wastage'] : role === 'Storekeeper' ? ['Stock ledger', 'Immutable balances across project stores'] : ['Inventory', 'Stock levels and material movement'],
+    '/inventory': role === 'CEO' ? ['Stock & movement', 'What is in stock and what is moving between sites'] : role === 'Foreman' ? ['Materials on site', 'Confirm receipt, record use and report wastage'] : role === 'Storekeeper' ? ['Stock ledger', 'Immutable balances across project stores'] : ['Inventory', 'Stock levels and material movement'],
     '/finance': role === 'Cashier'
       ? ['Payments & cash', 'Execute approved payments and reconcile site floats']
       : role === 'Supervisor'
         ? ['Budget tracking', 'Read-only cost position across projects']
         : role === 'Finance Officer'
           ? ['Budgets & payables', 'Control commitments, invoices and available project funds']
-        : ['Finance', 'Budget, commitments and payments'],
+        : role === 'CEO'
+          ? ['Money', 'Budget, paid, ordered and money left']
+          : ['Finance', 'Budget, commitments and payments'],
     '/workforce': role === 'Foreman' ? ['Daily site log', `People, work completed and blockers across ${scopeLabel}`] : ['Workforce', 'Attendance, labour and subcontractors'],
     '/equipment': role === 'Foreman' ? ['Tools issued to me', `Custody and condition across ${scopeLabel}`] : ['Equipment', 'Assignments, condition and rental costs'],
     '/quality': ['Quality inspections', 'Technical checks, defects and corrective work'],
@@ -275,7 +278,7 @@ function Shell() {
     '/finance-reconciliation': ['Reconciliation', 'Prove that ledgers, statements and project cash agree'],
     '/audit-samples': ['Evidence review', 'Trace selected transactions from request to final movement'],
     '/audit-reports': ['Reports & exports', 'Independent read-only audit outputs'],
-    '/audit': ['Audit & controls', 'Exceptions, compliance and activity'],
+    '/audit': role === 'CEO' ? ['Records', 'Important problems and traceable purchase records'] : ['Audit & controls', 'Exceptions, compliance and activity'],
     '/settings': ['Settings', 'People, roles and control configuration'],
   }
   const [title, subtitle] = titles[location.pathname] || titles['/']
@@ -311,7 +314,7 @@ function Shell() {
       </div>
     </aside>
     {navOpen && <div className="scrim" onClick={() => setNavOpen(false)}/>}
-    <main className="main">
+    <main className={`main ${role === 'CEO' ? 'ceo-shell' : ''}`}>
       <header className="topbar">
         <button className="menu-button" onClick={() => setNavOpen(true)} aria-label="Open navigation"><Icon name="menu"/></button>
         <div className="page-title"><h1>{title}</h1><p>{subtitle}</p></div>
@@ -347,7 +350,7 @@ function Shell() {
           <Route path="/" element={<RoleDashboard role={role} profile={profile} projectScope={projectScope}/>}/>
           <Route path="/projects" element={canAccess('/projects') ? role === 'Engineer' ? <EngineerProgress projectScope={projectScope}/> : <Projects readOnly={role === 'CEO'} projectScope={projectScope}/> : <AccessRestricted role={role}/>}/>
           <Route path="/procurement" element={canAccess('/procurement') ? role === 'Foreman' ? <ForemanRequests projectScope={projectScope}/> : role === 'Procurement Officer' ? <ProcurementApprovedRequests/> : <Procurement readOnly={role === 'CEO'} projectScope={projectScope}/> : <AccessRestricted role={role}/>}/>
-          <Route path="/inventory" element={canAccess('/inventory') ? role === 'Foreman' ? <ForemanMaterials projectScope={projectScope}/> : role === 'Storekeeper' ? <StorekeeperLedger/> : <Inventory readOnly={role === 'CEO' || role === 'Supervisor'} projectScope={projectScope}/> : <AccessRestricted role={role}/>}/>
+          <Route path="/inventory" element={canAccess('/inventory') ? role === 'Foreman' ? <ForemanMaterials projectScope={projectScope}/> : role === 'Storekeeper' ? <StorekeeperLedger/> : <Inventory readOnly={role === 'CEO' || role === 'Supervisor'} ownerView={role === 'CEO'} projectScope={projectScope}/> : <AccessRestricted role={role}/>}/>
           <Route path="/finance" element={canAccess('/finance') ? role === 'Cashier' ? <CashierFinance/> : role === 'Supervisor' ? <SupervisorBudget projectScope={projectScope}/> : role === 'Finance Officer' ? <FinanceControl/> : <Finance/> : <AccessRestricted role={role}/>}/>
           <Route path="/workforce" element={canAccess('/workforce') ? role === 'Foreman' ? <ForemanDailyLog projectScope={projectScope}/> : <Workforce readOnly={role === 'CEO' || role === 'Supervisor'} projectScope={projectScope}/> : <AccessRestricted role={role}/>}/>
           <Route path="/equipment" element={canAccess('/equipment') ? role === 'Foreman' ? <ForemanTools projectScope={projectScope}/> : <Equipment readOnly={role === 'CEO' || role === 'Supervisor'} projectScope={projectScope}/> : <AccessRestricted role={role}/>}/>
@@ -418,58 +421,58 @@ function Dashboard() {
   const ownerProjects = projects.map((project, index) => ({
     ...project,
     moneyUsed: Math.round((project.spent / project.budget) * 100),
-    expected: ['18 Dec 2026', '30 Sep 2026', '28 Feb 2027', '15 Apr 2027'][index],
-    ownerStatus: index === 1 ? 'Attention' : 'On track',
+    ownerStatus: index === 1 ? 'Check spending' : 'Okay',
   }))
 
-  return <div className="simple-dashboard">
-    <section className="simple-role-header">
-      <div><span>CEO OVERVIEW</span><h2>All projects</h2><p>Progress, money and items that need your decision.</p></div>
-      <Button variant="secondary" icon="shield" onClick={() => navigate('/audit')}>View records</Button>
+  return <div className="ceo-view ceo-overview">
+    <section className="simple-summary-grid three ceo-home-summary">
+      <SimpleStat label="Projects" value="4" note="1 needs attention" tone="warning"/>
+      <SimpleStat label="Money left" value="KES 72.5M" tone="good"/>
+      <SimpleStat label="Materials running low" value="2 items" tone="danger"/>
     </section>
 
-    <section className="simple-summary-grid four">
-      <SimpleStat label="Total budget" value="KES 182.5M"/>
-      <SimpleStat label="Paid" value="KES 89.2M" note="Money sent"/>
-      <SimpleStat label="Orders placed" value="KES 20.8M" note="Not paid yet" tone="warning"/>
-      <SimpleStat label="Remaining" value="KES 72.5M" tone="good"/>
+    <section className="panel ceo-attention-panel">
+      <PanelHead title="Needs your attention" subtitle="2 items"/>
+      <div className="simple-action-list ceo-attention-list">
+        <article>
+          <div className="simple-action-icon danger"><Icon name="alert" size={18}/></div>
+          <div><h3>Church roof purchase needs your decision</h3><p>KES 784,500 · Finance checks are complete</p></div>
+          <Button variant="secondary" onClick={() => setSelectedChain(transactionChains[2])}>Review</Button>
+        </article>
+        <article>
+          <div className="simple-action-icon warning"><Icon name="wallet" size={18}/></div>
+          <div><h3>Gilgal 2 is using money faster than planned</h3><p>Work done 74% · Money used 79%</p></div>
+          <Button variant="secondary" onClick={() => navigate('/finance')}>See money</Button>
+        </article>
+      </div>
     </section>
 
-    <section className="panel simple-project-panel">
-      <PanelHead title="Projects" subtitle="Construction completed compared with money paid" action="Open projects" onClick={() => navigate('/projects')}/>
-      <div className="simple-project-list">
-        {ownerProjects.map(project => <article className={project.ownerStatus === 'Attention' ? 'attention' : ''} key={project.name}>
+    <section className="panel ceo-home-projects">
+      <PanelHead title="Projects" subtitle="Work done compared with money used" action="See all projects" onClick={() => navigate('/projects')}/>
+      <div className="ceo-home-project-list">
+        {ownerProjects.map(project => <article className={project.ownerStatus !== 'Okay' ? 'attention' : ''} key={project.name}>
           <div className="simple-project-name"><b style={{background:project.color}}>{project.code}</b><strong>{project.name}</strong></div>
-          <div className="simple-value"><span>Built</span><strong>{project.progress}%</strong></div>
-          <div className="simple-value"><span>Paid</span><strong>{project.moneyUsed}%</strong></div>
-          <div className="simple-value"><span>Finish</span><strong>{project.expected}</strong></div>
-          <Status tone={project.ownerStatus === 'Attention' ? 'at-risk' : 'accepted'}>{project.ownerStatus}</Status>
+          <div><span>Work done</span><strong>{project.progress}%</strong></div>
+          <div><span>Money used</span><strong>{project.moneyUsed}%</strong></div>
+          <Status tone={project.ownerStatus === 'Okay' ? 'accepted' : 'at-risk'}>{project.ownerStatus}</Status>
         </article>)}
       </div>
     </section>
 
-    <section className="simple-two-column owner-simple-bottom">
+    <section className="ceo-home-material-grid">
       <div className="panel">
-        <PanelHead title="Needs your decision" subtitle="2 items"/>
-        <div className="simple-action-list">
-          <article>
-            <div className="simple-action-icon danger"><Icon name="alert" size={17}/></div>
-            <div><span>CHURCH · P2P-0251</span><h3>Roof trusses above approval limit</h3><p>KES 784,500 · Checks completed</p></div>
-            <Button variant="secondary" onClick={() => setSelectedChain(transactionChains[2])}>Review proof</Button>
-          </article>
-          <article>
-            <div className="simple-action-icon warning"><Icon name="wallet" size={17}/></div>
-            <div><span>GILGAL 2 · BUDGET CHANGE</span><h3>Structural variation</h3><p>KES 1.2M requested</p></div>
-            <Button variant="secondary" onClick={() => navigate('/finance')}>Review</Button>
-          </article>
+        <PanelHead title="Stock now" subtitle="Key materials currently available" action="See all stock" onClick={() => navigate('/inventory')}/>
+        <div className="ceo-stock-preview">
+          <article><div><strong>Cement</strong><span>Gilgal 1</span></div><b>1,248 bags</b><Status tone="accepted">Enough</Status></article>
+          <article><div><strong>Y12 steel</strong><span>Gilgal 2</span></div><b>186 lengths</b><Status tone="at-risk">Refill soon</Status></article>
+          <article><div><strong>PVC conduit</strong><span>SNEP HQ</span></div><b>64 lengths</b><Status tone="at-risk">Refill soon</Status></article>
         </div>
       </div>
       <div className="panel">
-        <PanelHead title="Recent records" subtitle="Latest payment and material entries" action="Audit trail" onClick={() => navigate('/audit')}/>
-        <div className="simple-record-list">
-          <article><i className="warning"><Icon name="alert" size={16}/></i><div><strong>40 stones missing from delivery</strong><span>GRN-0303 · Gilgal 1 · Storekeeper</span></div><time>Today</time></article>
-          <article><i><Icon name="check" size={16}/></i><div><strong>KES 684,000 payment recorded</strong><span>PAY-0418 · SNEP HQ · Cashier</span></div><time>09:18</time></article>
-          <article><i><Icon name="truck" size={16}/></i><div><strong>240 steel lengths received</strong><span>GRN-0296 · Gilgal 2 · Storekeeper</span></div><time>08:52</time></article>
+        <PanelHead title="Materials moving" subtitle="Latest movement between sites" action="See all movement" onClick={() => navigate('/inventory')}/>
+        <div className="ceo-movement-preview">
+          <article><i><Icon name="truck" size={18}/></i><div><strong>80 steel lengths</strong><span>Gilgal 1 → Church</span></div><Status tone="at-risk">Waiting at Church</Status></article>
+          <article><i><Icon name="swap" size={18}/></i><div><strong>40 PVC lengths</strong><span>SNEP HQ → Gilgal 2</span></div><Status tone="issued">On the way</Status></article>
         </div>
       </div>
     </section>
@@ -763,15 +766,44 @@ function PageIntro({ title, copy, action, icon, onAction }: {title:string;copy:s
   return <section className="page-intro"><div><h2>{title}</h2><p>{copy}</p></div><Button icon={icon} onClick={onAction}>{action}</Button></section>
 }
 
+function CeoProjects({ visibleProjects }: { visibleProjects: typeof projects }) {
+  const materialPosition: Record<ProjectName, string> = {
+    'Gilgal 1': 'Enough',
+    'Gilgal 2': 'Steel is low',
+    'SNEP HQ': 'PVC is low',
+    Church: 'Enough',
+  }
+  return <div className="ceo-view ceo-projects-view">
+    <section className="ceo-project-grid">
+      {visibleProjects.map(project => {
+        const moneyUsed = Math.round(project.spent / project.budget * 100)
+        const needsAttention = project.name === 'Gilgal 2'
+        const materials = materialPosition[project.name as ProjectName]
+        return <article className={`panel ceo-project-card ${needsAttention ? 'attention' : ''}`} key={project.name}>
+          <header>
+            <div className="simple-project-name"><b style={{background:project.color}}>{project.code}</b><strong>{project.name}</strong></div>
+            <Status tone={needsAttention ? 'at-risk' : 'accepted'}>{needsAttention ? 'Needs attention' : 'Okay'}</Status>
+          </header>
+          <div className="ceo-project-measures">
+            <div><span>Work done</span><strong>{project.progress}%</strong><div><i style={{width:`${project.progress}%`,background:project.color}}/></div></div>
+            <div><span>Money used</span><strong>{moneyUsed}%</strong><div><i style={{width:`${moneyUsed}%`}}/></div></div>
+          </div>
+          <footer className={materials === 'Enough' ? '' : 'warning'}><Icon name="boxes" size={20}/><span>Materials</span><strong>{materials}</strong></footer>
+        </article>
+      })}
+    </section>
+  </div>
+}
+
 function Projects({readOnly=false, projectScope=[...allProjectNames]}:{readOnly?:boolean; projectScope?:ProjectName[]}) {
   const [modal, setModal] = useState(false)
   const visibleProjects = projects.filter(project => projectScope.includes(project.name as ProjectName))
+  if (readOnly) return <CeoProjects visibleProjects={visibleProjects}/>
   const budget = visibleProjects.reduce((total, project) => total + project.budget, 0)
   const spent = visibleProjects.reduce((total, project) => total + project.spent, 0)
   const committed = visibleProjects.reduce((total, project) => total + project.committed, 0)
   return <>
-    <PageIntro title="Project portfolio" copy="A single view of delivery, budgets and site responsibility." action={readOnly?'Download portfolio':'Add project'} icon={readOnly?'download':'plus'} onAction={readOnly?undefined:() => setModal(true)}/>
-    {readOnly&&<section className="role-guardrail owner-readonly-note"><Icon name="eye" size={17}/><p><b>Owner oversight:</b> project teams maintain operational records. You can inspect progress and financial exposure without changing their source data.</p></section>}
+    <PageIntro title="Project portfolio" copy="A single view of delivery, budgets and site responsibility." action="Add project" icon="plus" onAction={() => setModal(true)}/>
     <section className="portfolio-strip">
       <div><span>Assigned budget</span><strong>KES {budget.toFixed(1)}M</strong></div>
       <div><span>Actual spend</span><strong>KES {spent.toFixed(1)}M</strong><small>{budget ? (spent / budget * 100).toFixed(1) : '0.0'}% of budget</small></div>
@@ -780,7 +812,7 @@ function Projects({readOnly=false, projectScope=[...allProjectNames]}:{readOnly?
     </section>
     <section className="project-cards">
       {visibleProjects.map(p => <article className="project-card" key={p.name}>
-        <div className="project-card-top"><div className="project-badge" style={{background:p.color}}>{p.code}</div><Status>{p.status}</Status>{!readOnly&&<button aria-label="More options"><Icon name="more"/></button>}</div>
+        <div className="project-card-top"><div className="project-badge" style={{background:p.color}}>{p.code}</div><Status>{p.status}</Status><button aria-label="More options"><Icon name="more"/></button></div>
         <h3>{p.name}</h3><p><Icon name="pin" size={15}/>{p.location}</p>
         <div className="site-progress"><div><span>Site completion</span><b>{p.progress}%</b></div><div className="progress large"><i style={{width:`${p.progress}%`, background:p.color}}/></div></div>
         <div className="card-stats"><div><span>Approved budget</span><strong>KES {p.budget.toFixed(1)}M</strong></div><div><span>Remaining</span><strong>KES {(p.budget-p.spent-p.committed).toFixed(1)}M</strong></div></div>
@@ -788,7 +820,7 @@ function Projects({readOnly=false, projectScope=[...allProjectNames]}:{readOnly?
         <footer><div className="supervisor-avatar">{p.supervisor.split(' ').map(word => word[0]).join('').slice(0, 2)}</div><div><span>Site supervisor</span><b>{p.supervisor}</b></div><button>Open project <Icon name="arrow" size={14}/></button></footer>
       </article>)}
     </section>
-    {!readOnly && modal && <ProjectModal onClose={() => setModal(false)}/>}
+    {modal && <ProjectModal onClose={() => setModal(false)}/>}
   </>
 }
 
@@ -1040,9 +1072,49 @@ function AuditReports() {
   return <><PageIntro title="Audit reports & exports" copy="Independent outputs generated from immutable source events." action="Build custom report" icon="plus"/><section className="report-control-note"><Icon name="shield" size={17}/><span><b>Every export carries a verification manifest.</b><small>Recipients can confirm that records and attachments have not changed after export.</small></span></section><section className="audit-report-grid">{reports.map(report=><article className="panel" key={report[0]}><div><Icon name="file" size={22}/><Status>Ready</Status></div><h3>{report[0]}</h3><p>{report[1]}</p><span>{report[2]}</span><footer><small>{report[3]}</small><button><Icon name="download" size={14}/>Download</button></footer></article>)}</section><section className="panel scheduled-reports"><PanelHead title="Scheduled assurance reports" subtitle="Delivery does not grant transactional access"/><div>{[['CEO weekly exception brief','Every Monday, 07:00','Josephine Charles','Active'],['Month-end stock variance','Last day, 18:00','CEO + Auditor','Active'],['High-value payment alert','On every payment > KES 500K','CEO + Auditor','Active']].map(row=><div key={row[0]}><strong>{row[0]}</strong><span>{row[1]}</span><span>{row[2]}</span><Status>{row[3]}</Status><button><Icon name="eye" size={14}/>View rule</button></div>)}</div></section></>
 }
 
-function Inventory({readOnly=false,projectScope=[...allProjectNames]}:{readOnly?:boolean;projectScope?:ProjectName[]}) {
+function CeoStock({ stock, transfers }: { stock: string[][]; transfers: string[][] }) {
+  return <div className="ceo-view ceo-stock-view">
+    <section className="simple-summary-grid three ceo-stock-summary">
+      <SimpleStat label="Need restocking" value={`${stock.filter(row => row[5] === 'Low stock').length} items`} tone="danger"/>
+      <SimpleStat label="Moving now" value={`${transfers.length} transfers`} tone="warning"/>
+      <SimpleStat label="Waiting for arrival" value={`${transfers.filter(row => row[4] === 'Awaiting receipt').length}`} tone="warning"/>
+    </section>
+
+    <section className="ceo-stock-layout">
+      <div className="panel">
+        <PanelHead title="What is in stock" subtitle="Materials currently recorded at each site"/>
+        <div className="ceo-stock-list">
+          {stock.map(row => <article key={row[0]}>
+            <div><strong>{row[0]}</strong><span>{row[4]}</span></div>
+            <b>{row[3]} {row[2]}</b>
+            <Status tone={row[5] === 'Low stock' ? 'at-risk' : 'accepted'}>{row[5] === 'Low stock' ? 'Refill soon' : 'Enough'}</Status>
+          </article>)}
+        </div>
+      </div>
+      <div className="panel">
+        <PanelHead title="Moving between sites" subtitle="Follow each material until the receiving site confirms it"/>
+        <div className="ceo-transfer-list">
+          {transfers.map(transfer => {
+            const state = transfer[4]
+            const plainStatus = state === 'Awaiting receipt' ? `Waiting for ${transfer[2]}` : state === 'In transit' ? 'On the way' : 'Sent'
+            const stages = state === 'Awaiting receipt' ? ['done','done','current'] : state === 'In transit' ? ['done','current','pending'] : ['done','pending','pending']
+            return <article key={transfer[0]}>
+              <header><div><strong>{transfer[3]}</strong><span>{transfer[1]} → {transfer[2]}</span></div><Status tone={state === 'Awaiting receipt' ? 'at-risk' : 'issued'}>{plainStatus}</Status></header>
+              <div className="ceo-transfer-journey">
+                {['Sent','On the way','Received'].map((label,index) => <span className={stages[index]} key={label}><i>{stages[index] === 'done' ? <Icon name="check" size={13}/> : index + 1}</i><b>{label}</b></span>)}
+              </div>
+            </article>
+          })}
+        </div>
+      </div>
+    </section>
+  </div>
+}
+
+function Inventory({readOnly=false,ownerView=false,projectScope=[...allProjectNames]}:{readOnly?:boolean;ownerView?:boolean;projectScope?:ProjectName[]}) {
   const stock=[['Bamburi Powermax cement','Cement','bags','1,248','Gilgal 1','Healthy'],['Y12 reinforcement steel','Steel','lengths','186','Gilgal 2','Low stock'],['River sand','Aggregates','tonnes','42.5','Church','Healthy'],['PVC conduit 25mm','Electrical','lengths','64','SNEP HQ','Low stock'],['Machine-cut stones','Masonry','pieces','3,420','Church','Healthy']].filter(row=>projectScope.includes(row[4] as ProjectName))
   const transfers=[['TR-0063','Gilgal 1','Church','Y10 steel · 80 lengths','Awaiting receipt','3 days'],['TR-0065','SNEP HQ','Gilgal 2','PVC conduit · 40 lengths','In transit','4 hrs'],['TR-0066','Church','Gilgal 1','Timber · 32 pieces','Dispatched','1 hr']].filter(row=>projectScope.includes(row[1] as ProjectName)||projectScope.includes(row[2] as ProjectName))
+  if (ownerView) return <CeoStock stock={stock} transfers={transfers}/>
   return <>
     <PageIntro title="Materials & stores" copy="Live balances, accountable movements, and dual-confirmed transfers." action={readOnly?'Export stock view':'Record movement'} icon={readOnly?'download':'swap'}/>
     {readOnly&&<section className="role-guardrail owner-readonly-note"><Icon name="eye" size={17}/><p><b>Read-only movement view:</b> Storekeepers record receipts, issues and transfers. Supervisors and the CEO monitor custody and exceptions without altering stock.</p></section>}
@@ -1152,31 +1224,48 @@ function CashierFinance() {
 
 function Finance() {
   const bars=[['Gilgal 1',48.2,31.4,5.7],['Gilgal 2',36.5,28.9,3.2],['SNEP HQ',72,20.6,9.8],['Church',25.8,8.3,2.1]]
-  return <>
-    <PageIntro title="Financial position" copy="See what is budgeted, committed and paid without entering routine finance operations." action="Download owner report" icon="download"/>
-    <section className="role-guardrail supervisor-budget-note"><Icon name="eye" size={17}/><p><b>Owner oversight:</b> Finance matches and authorises routine payments; the Cashier executes them. Only high-value or unresolved exceptions return to the CEO.</p></section>
-    <section className="finance-hero">
-      <div><span>TOTAL PORTFOLIO BUDGET</span><strong>KES 182,500,000</strong><p><i/> All 4 project budgets are active</p></div>
-      <div><span>ACTUAL SPEND</span><strong>KES 89.2M</strong><small>48.9%</small></div><div><span>OPEN COMMITMENTS</span><strong>KES 20.8M</strong><small>11.4%</small></div><div><span>AVAILABLE</span><strong>KES 72.5M</strong><small>39.7%</small></div>
+  const [selectedChain, setSelectedChain] = useState<TransactionChain | null>(null)
+  return <div className="ceo-view ceo-money-view">
+    <section className="simple-summary-grid four ceo-money-summary">
+      <SimpleStat label="Budget" value="KES 182.5M"/>
+      <SimpleStat label="Paid" value="KES 89.2M" note="Money already sent"/>
+      <SimpleStat label="Ordered, not yet paid" value="KES 20.8M" tone="warning"/>
+      <SimpleStat label="Money left" value="KES 72.5M" tone="good"/>
     </section>
-    <section className="finance-grid">
-      <div className="panel">
-        <PanelHead title="Budget position by project" subtitle="Actual plus committed cost against approved budget" action="Detailed report"/>
-        <div className="budget-bars">{bars.map(([n,b,s,c])=><div key={String(n)}><div><b>{n}</b><span><strong>KES {Number(s).toFixed(1)}M</strong> spent · KES {Number(c).toFixed(1)}M committed</span><em>KES {Number(b).toFixed(1)}M</em></div><div className="stack-bar"><i style={{width:`${Number(s)/Number(b)*100}%`}}/><b style={{width:`${Number(c)/Number(b)*100}%`}}/></div></div>)}</div>
-        <div className="legend"><span><i/>Actual spend</span><span><i/>Committed</span><span><i/>Available</span></div>
-      </div>
-      <div className="panel payment-queue">
-        <PanelHead title="Where payments stand" subtitle="Read-only owner view of controlled payment stages"/>
-        {[['INV-8831','Apex Steel Ltd','412,800','Finance review','at-risk'],['INV-2149','Bamburi Cement','171,000','Finance authorised','approved'],['INV-1072','Mavoko Aggregates','63,000','Cashier execution','issued']].map(p=><div key={p[0]}><div className="supplier-letter">{p[1][0]}</div><span><b>{p[1]}</b><small>{p[0]} · Routine responsibility remains assigned</small></span><strong>KES {p[2]}</strong><Status tone={p[4]}>{p[3]}</Status></div>)}
-      </div>
-      <div className="panel span-full">
-        <PanelHead title="Recent financial activity" subtitle="Payments, contributions and petty-cash movements" action="Export ledger"/>
-        <div className="activity-table">
-          {[['24 Jul 2026','PAY-0418','Supplier payment','Bamburi Cement PLC','SNEP HQ','− KES 684,000','Paid'],['24 Jul 2026','PC-0191','Petty cash expense','Site transport & fuel','Gilgal 1','− KES 18,500','Reconciled'],['23 Jul 2026','CON-0036','Client contribution','Project funding tranche','Church','+ KES 2,500,000','Cleared'],['23 Jul 2026','PAY-0417','Subcontractor payment','Musa Electrical Works','Gilgal 2','− KES 420,000','Paid']].map(r=><div key={r[1]}>{r.map((c,i)=>i===6?<Status key={c}>{c}</Status>:<span className={i===1?'mono':i===5?(c.startsWith('+')?'credit':'debit'):''} key={c}>{c}</span>)}</div>)}
-        </div>
+
+    <section className="panel ceo-money-projects">
+      <PanelHead title="Money by project" subtitle="Paid, ordered and still available"/>
+      <div className="ceo-money-project-list">
+        {bars.map(([name,budget,spent,ordered]) => {
+          const left = Number(budget) - Number(spent) - Number(ordered)
+          const attention = name === 'Gilgal 2'
+          return <article className={attention ? 'attention' : ''} key={String(name)}>
+            <strong>{name}</strong>
+            <div><b>KES {Number(spent).toFixed(1)}M paid</b><span>of KES {Number(budget).toFixed(1)}M budget</span></div>
+            <div><b>KES {Number(ordered).toFixed(1)}M ordered</b><span>KES {left.toFixed(1)}M left</span></div>
+            <Status tone={attention ? 'at-risk' : 'accepted'}>{attention ? 'Watch' : 'Okay'}</Status>
+          </article>
+        })}
       </div>
     </section>
-  </>
+
+    <section className="panel ceo-money-movement">
+      <PanelHead title="Latest money movement" subtitle="Open an item only when you want to see its steps"/>
+      <div className="ceo-money-movement-list">
+        {transactionChains.map(chain => {
+          const plainStatus = chain.status === 'Paid & audited' ? 'Paid' : chain.status === 'Finance review' ? 'Being checked' : 'Needs your decision'
+          const tone = chain.status === 'Paid & audited' ? 'accepted' : chain.status === 'Finance review' ? 'issued' : 'at-risk'
+          return <article key={chain.id}>
+            <div><strong>{chain.item}</strong><span>{chain.project} · {chain.supplier}</span></div>
+            <b>KES {chain.amount.toLocaleString('en-KE')}</b>
+            <Status tone={tone}>{plainStatus}</Status>
+            <Button variant="secondary" onClick={() => setSelectedChain(chain)}>{chain.ceoActionRequired ? 'Review' : 'See steps'}</Button>
+          </article>
+        })}
+      </div>
+    </section>
+    <TransactionChainDrawer chain={selectedChain} onClose={() => setSelectedChain(null)} viewer="CEO"/>
+  </div>
 }
 
 function Workforce({readOnly=false,projectScope=[...allProjectNames]}:{readOnly?:boolean;projectScope?:ProjectName[]}) {
@@ -1211,7 +1300,42 @@ function GenericOperations({title,copy,action,metrics,heading,rows,readOnly=fals
   </>
 }
 
+function CeoRecords() {
+  const navigate = useNavigate()
+  const [selectedChain, setSelectedChain] = useState<TransactionChain | null>(null)
+  return <div className="ceo-view ceo-records-view">
+    <section className="ceo-record-protection"><i><Icon name="shield" size={22}/></i><div><strong>Records are protected</strong><span>No recent record has been changed or removed.</span></div><Status tone="accepted">Protected</Status></section>
+
+    <section className="panel ceo-record-attention">
+      <PanelHead title="Needs attention" subtitle="3 items"/>
+      <div className="ceo-record-attention-list">
+        <article><i className="danger"><Icon name="lock" size={18}/></i><div><strong>A self-approval was stopped</strong><span>The same person tried to request and approve a purchase. No money moved.</span></div><Status tone="accepted">Stopped</Status></article>
+        <article><i className="warning"><Icon name="alert" size={18}/></i><div><strong>Steel price is higher than usual</strong><span>Gilgal 2 · KES 412,800 · Finance is checking it</span></div><Button variant="secondary" onClick={() => setSelectedChain(transactionChains[1])}>See steps</Button></article>
+        <article><i className="warning"><Icon name="truck" size={18}/></i><div><strong>Church has not confirmed a material transfer</strong><span>80 steel lengths sent from Gilgal 1</span></div><Button variant="secondary" onClick={() => navigate('/inventory')}>Open movement</Button></article>
+      </div>
+    </section>
+
+    <section className="panel ceo-purchase-trace">
+      <PanelHead title="Trace a purchase" subtitle="See the five main steps from request to payment"/>
+      <div className="ceo-purchase-trace-list">
+        {transactionChains.map(chain => {
+          const plainStatus = chain.status === 'Paid & audited' ? 'Complete' : chain.status === 'Finance review' ? 'Being checked' : 'Needs your decision'
+          const tone = chain.status === 'Paid & audited' ? 'accepted' : chain.status === 'Finance review' ? 'issued' : 'at-risk'
+          return <article key={chain.id}>
+            <div><strong>{chain.item}</strong><span>{chain.project}</span></div>
+            <b>KES {chain.amount.toLocaleString('en-KE')}</b>
+            <Status tone={tone}>{plainStatus}</Status>
+            <Button variant="secondary" onClick={() => setSelectedChain(chain)}>See steps</Button>
+          </article>
+        })}
+      </div>
+    </section>
+    <TransactionChainDrawer chain={selectedChain} onClose={() => setSelectedChain(null)} viewer="CEO"/>
+  </div>
+}
+
 function Audit({readOnly=false,ownerView=false}:{readOnly?:boolean;ownerView?:boolean}) {
+  if (ownerView) return <CeoRecords/>
   const events=[['10:42:18','Steven Kakai','APPROVED','Purchase order PO-0192','KES 412,800 · Gilgal 2','197.232.44.18'],['10:18:04','Lucy Njeri','CREATED','GRN-0112','Short delivery: 40 bags · SNEP HQ','41.90.64.202'],['09:57:36','James Kamau','APPROVED','Payment PAY-0419','KES 171,000 · Bamburi Cement','102.68.78.11'],['09:42:12','Samuel Kariuki','CREATED','Requisition MR-0248','240 lengths Y12 steel · Gilgal 2','105.163.2.84'],['08:16:50','Daniel Otieno','CREATED','Requisition MR-0247','180 bags cement · SNEP HQ','41.90.64.199']]
   return <>
     <PageIntro title="Audit & control centre" copy="Immutable activity history and automated fraud-control exceptions." action="Export audit report" icon="download"/>

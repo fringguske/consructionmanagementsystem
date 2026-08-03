@@ -230,6 +230,56 @@ export function TransactionChainDrawer({ chain, onClose, viewer = 'Finance Offic
     onDecision?.(chain, next)
   }
 
+  if (viewer === 'CEO') {
+    const ceoStages: { label: string; role: WorkflowRole }[] = [
+      { label: 'Material requested', role: 'Foreman' },
+      { label: 'Site approved', role: 'Supervisor' },
+      { label: 'Supplier chosen', role: 'Procurement Officer' },
+      { label: 'Materials received', role: 'Storekeeper' },
+      { label: 'Payment sent', role: 'Cashier' },
+    ]
+    return <div className="fw-drawer-wrap" role="dialog" aria-modal="true" aria-labelledby="fw-ceo-chain-title">
+      <button className="fw-drawer-backdrop" onClick={onClose} aria-label="Close purchase steps" />
+      <aside className="fw-drawer fw-ceo-drawer">
+        <header className="fw-drawer-head fw-ceo-drawer-head">
+          <div><span>PURCHASE STEPS</span><h2 id="fw-ceo-chain-title">{chain.item}</h2><p>{chain.project}</p></div>
+          <button type="button" onClick={onClose} aria-label="Close"><WorkflowIcon name="close"/></button>
+        </header>
+        <div className="fw-drawer-body">
+          <section className="fw-ceo-chain-summary">
+            <div><span>Amount</span><strong>{kes(chain.amount)}</strong></div>
+            <div><span>Supplier</span><strong>{chain.supplier}</strong></div>
+            <div><span>Status</span><strong>{chain.status === 'Paid & audited' ? 'Complete' : chain.status === 'Finance review' ? 'Being checked' : 'Needs your decision'}</strong></div>
+          </section>
+
+          {chain.ceoActionRequired && !decision && <section className="fw-ceo-decision-note"><WorkflowIcon name="alert" size={20}/><div><strong>Your decision is needed</strong><span>This purchase is above KES 500,000. Finance has completed its checks.</span></div></section>}
+          {decision && <section className={`fw-ceo-decision-note ${decision}`}><WorkflowIcon name={decision === 'approved' ? 'check' : 'arrow'} size={20}/><div><strong>{decision === 'approved' ? 'Purchase approved' : 'Purchase returned'}</strong><span>Your decision has been recorded in this demonstration.</span></div></section>}
+
+          <section className="fw-ceo-steps">
+            {ceoStages.map((stage, index) => {
+              const step = chain.steps.find(item => item.role === stage.role)
+              if (!step) return null
+              const stateLabel = step.state === 'complete' ? 'Done' : step.state === 'current' ? 'In progress' : step.state === 'blocked' ? 'Stopped' : 'Waiting'
+              const tone = step.state === 'complete' ? 'good' : step.state === 'current' ? 'warning' : step.state === 'blocked' ? 'danger' : 'neutral'
+              return <article className={`fw-ceo-step fw-ceo-step-${step.state}`} key={`${chain.id}-${stage.role}`}>
+                <i>{step.state === 'complete' ? <WorkflowIcon name="check" size={16}/> : index + 1}</i>
+                <div><strong>{stage.label}</strong><span>{stage.role} · {step.timestamp}</span></div>
+                <StatusPill tone={tone}>{stateLabel}</StatusPill>
+              </article>
+            })}
+          </section>
+        </div>
+        <footer className="fw-drawer-actions fw-ceo-drawer-actions">
+          <button className="fw-button fw-button-secondary" type="button" onClick={onClose}>Close</button>
+          {chain.ceoActionRequired && !decision && <>
+            <button className="fw-button fw-button-secondary fw-return" type="button" onClick={() => decide('returned')}>Return</button>
+            <button className="fw-button fw-button-primary" type="button" onClick={() => decide('approved')}>Approve</button>
+          </>}
+        </footer>
+      </aside>
+    </div>
+  }
+
   return <div className="fw-drawer-wrap" role="dialog" aria-modal="true" aria-labelledby="fw-chain-title">
     <button className="fw-drawer-backdrop" onClick={onClose} aria-label="Close transaction chain" />
     <aside className="fw-drawer">
@@ -253,7 +303,7 @@ export function TransactionChainDrawer({ chain, onClose, viewer = 'Finance Offic
             <b>{chain.ceoActionRequired ? 'Exception decision required' : 'Visible without entering the routine chain'}</b>
             <p>{chain.ceoActionRequired ? chain.ceoReason : 'The CEO can inspect every actor, reference and evidence item. Operational responsibility remains with the assigned roles.'}</p>
           </div>
-          {chain.ceoActionRequired && viewer !== 'CEO' && <StatusPill tone="locked">Awaiting CEO</StatusPill>}
+          {chain.ceoActionRequired && <StatusPill tone="locked">Awaiting CEO</StatusPill>}
         </section>
 
         {decision && <div className={`fw-decision-result ${decision}`}><WorkflowIcon name={decision === 'approved' ? 'check' : 'arrow'} size={17}/><div><b>Exception {decision === 'approved' ? 'approved' : 'returned'}</b><span>This demonstration records the owner outcome locally; Finance remains responsible for the next control step.</span></div></div>}
@@ -276,10 +326,6 @@ export function TransactionChainDrawer({ chain, onClose, viewer = 'Finance Offic
       <footer className="fw-drawer-actions">
         <span><WorkflowIcon name="lock" size={14}/> Evidence remains read-only in this view</span>
         <button className="fw-button fw-button-secondary" type="button" onClick={onClose}>Close</button>
-        {chain.ceoActionRequired && viewer === 'CEO' && !decision && <>
-          <button className="fw-button fw-button-secondary fw-return" type="button" onClick={() => decide('returned')}>Return exception</button>
-          <button className="fw-button fw-button-primary" type="button" onClick={() => decide('approved')}>Approve exception</button>
-        </>}
       </footer>
     </aside>
   </div>
