@@ -1,6 +1,13 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState, type FormEvent } from 'react'
 import { BrowserRouter, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router'
 import './App.css'
+import {
+  ApiError,
+  authApi,
+  isLiveApiMode,
+  type ConstructionRole,
+  type CurrentUser,
+} from './api'
 import {
   FinanceApprovals,
   FinanceControl,
@@ -11,6 +18,22 @@ import {
   transactionChains,
   type TransactionChain,
 } from './FinanceWorkflow'
+import type { LiveDestination } from './LiveApiViews'
+
+const LiveDashboardView = lazy(() => import('./LiveApiViews').then(module => ({ default: module.LiveDashboardView })))
+const LiveLoginView = lazy(() => import('./LiveApiViews').then(module => ({ default: module.LiveLoginView })))
+const LiveProjectsView = lazy(() => import('./LiveApiViews').then(module => ({ default: module.LiveProjectsView })))
+const LiveRequisitionsView = lazy(() => import('./LiveApiViews').then(module => ({ default: module.LiveRequisitionsView })))
+const LiveProcurementView = lazy(() => import('./LivePurchaseViews').then(module => ({ default: module.LiveProcurementView })))
+const LivePurchaseOrdersView = lazy(() => import('./LivePurchaseViews').then(module => ({ default: module.LivePurchaseOrdersView })))
+const LiveAccessView = lazy(() => import('./LiveAccessView').then(module => ({ default: module.LiveAccessView })))
+
+const liveDestinationPaths: Record<LiveDestination, string> = {
+  projects: '/projects',
+  requisitions: '/requisitions',
+  sourcing: '/sourcing',
+  'purchase-orders': '/purchase-orders',
+}
 
 type IconName =
   | 'grid' | 'building' | 'cart' | 'boxes' | 'wallet' | 'users' | 'tool'
@@ -19,8 +42,8 @@ type IconName =
   | 'truck' | 'file' | 'close' | 'menu' | 'trend' | 'pin' | 'calendar'
   | 'swap' | 'eye' | 'lock' | 'receipt'
 
-type DemoRole = 'CEO' | 'Supervisor' | 'Engineer' | 'Foreman' | 'Cashier' | 'Storekeeper' | 'Procurement Officer' | 'Finance Officer' | 'Auditor'
-type ProjectName = 'Gilgal 1' | 'Gilgal 2' | 'SNEP HQ' | 'Church'
+type DemoRole = ConstructionRole
+type ProjectName = string
 
 type DemoProfile = {
   id: string
@@ -333,7 +356,61 @@ function Button({ children, variant = 'primary', icon, onClick, type = 'button' 
   return <button type={type} className={`button ${variant}`} onClick={onClick}>{icon && <Icon name={icon} size={16} />}{children}</button>
 }
 
-function Shell() {
+type ShellProps = {
+  authenticatedUser?: CurrentUser
+  onLogout?: () => Promise<void> | void
+}
+
+const liveRoleNavigation: Record<ConstructionRole, readonly { to: string; label: string; icon: IconName; badge?: number }[]> = {
+  CEO: [
+    { to: '/', label: 'Overview', icon: 'grid' },
+    { to: '/projects', label: 'Projects', icon: 'building' },
+    { to: '/requisitions', label: 'Material requests', icon: 'cart' },
+    { to: '/sourcing', label: 'Supplier sourcing', icon: 'users' },
+    { to: '/purchase-orders', label: 'Purchase orders', icon: 'file' },
+    { to: '/access', label: 'People & access', icon: 'settings' },
+  ],
+  Supervisor: [
+    { to: '/', label: 'Overview', icon: 'grid' },
+    { to: '/projects', label: 'Projects', icon: 'building' },
+    { to: '/requisitions', label: 'Material approvals', icon: 'cart' },
+    { to: '/sourcing', label: 'Sourcing exceptions', icon: 'users' },
+    { to: '/purchase-orders', label: 'Purchase orders', icon: 'file' },
+  ],
+  Engineer: [
+    { to: '/', label: 'Overview', icon: 'grid' },
+    { to: '/projects', label: 'Project progress', icon: 'building' },
+    { to: '/requisitions', label: 'Technical checks', icon: 'check' },
+  ],
+  Foreman: [
+    { to: '/', label: 'Overview', icon: 'grid' },
+    { to: '/requisitions', label: 'My material requests', icon: 'cart' },
+  ],
+  Cashier: [{ to: '/', label: 'Overview', icon: 'grid' }],
+  Storekeeper: [
+    { to: '/', label: 'Overview', icon: 'grid' },
+    { to: '/purchase-orders', label: 'Issued orders', icon: 'truck' },
+  ],
+  'Procurement Officer': [
+    { to: '/', label: 'Overview', icon: 'grid' },
+    { to: '/sourcing', label: 'Sourcing', icon: 'cart' },
+    { to: '/purchase-orders', label: 'Purchase orders', icon: 'file' },
+  ],
+  'Finance Officer': [
+    { to: '/', label: 'Overview', icon: 'grid' },
+    { to: '/projects', label: 'Project budgets', icon: 'wallet' },
+    { to: '/purchase-orders', label: 'Purchase orders', icon: 'file' },
+  ],
+  Auditor: [
+    { to: '/', label: 'Overview', icon: 'grid' },
+    { to: '/projects', label: 'Projects', icon: 'building' },
+    { to: '/requisitions', label: 'Request trail', icon: 'shield' },
+    { to: '/sourcing', label: 'Sourcing trail', icon: 'users' },
+    { to: '/purchase-orders', label: 'Order trail', icon: 'file' },
+  ],
+}
+
+function Shell({ authenticatedUser, onLogout }: ShellProps = {}) {
   const [navOpen, setNavOpen] = useState(false)
   const [site, setSite] = useState('All projects')
   const [searchOpen, setSearchOpen] = useState(false)
@@ -341,11 +418,30 @@ function Shell() {
   const [activeProfileId, setActiveProfileId] = useState('ceo')
   const location = useLocation()
   const navigate = useNavigate()
-  const profile = demoProfiles.find(candidate => candidate.id === activeProfileId) ?? demoProfiles[0]
+  const liveMode = Boolean(authenticatedUser)
+  const assignedProjectNames = authenticatedUser?.projects.map(project => project.name) ?? []
+  const liveInitials = authenticatedUser?.fullName
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map(part => part[0]?.toUpperCase())
+    .join('') || 'U'
+  const profile: DemoProfile = authenticatedUser
+    ? {
+        id: String(authenticatedUser.id),
+        role: authenticatedUser.role,
+        name: authenticatedUser.fullName,
+        initials: liveInitials,
+        workspace: `${authenticatedUser.role} workspace`,
+        subtitle: authenticatedUser.role,
+        description: assignedProjectNames.length > 0 ? projectScopeLabel(assignedProjectNames) : 'Organisation access',
+        projects: assignedProjectNames.length > 0 ? assignedProjectNames : null,
+      }
+    : demoProfiles.find(candidate => candidate.id === activeProfileId) ?? demoProfiles[0]
   const role = profile.role
   const availableProjects = profile.projects ?? allProjectNames
   const aggregateSiteLabel = profile.projects ? 'Assigned projects' : 'All projects'
-  const projectScope = site === aggregateSiteLabel || !allProjectNames.includes(site as ProjectName)
+  const projectScope = site === aggregateSiteLabel || !availableProjects.includes(site as ProjectName)
     ? [...availableProjects]
     : [site as ProjectName]
   const scopeLabel = projectScopeLabel(projectScope)
@@ -357,7 +453,7 @@ function Shell() {
         ? 'Budget tracking'
         : item.label,
   }))
-  const visibleNav = fieldRoleNav[role] ?? standardNav
+  const visibleNav = liveMode ? liveRoleNavigation[role] : fieldRoleNav[role] ?? standardNav
   const roleHomeTitles: Record<DemoRole, [string, string]> = {
     CEO: ['Overview', 'Your projects, money and stores'],
     Supervisor: ['Supervisor overview', `Projects and actions across ${scopeLabel}`],
@@ -373,6 +469,9 @@ function Shell() {
     '/': roleHomeTitles[role],
     '/projects': role === 'CEO' ? ['Projects', 'Work done, money used and store stock for each project'] : role === 'Engineer' ? ['Progress & milestones', 'Verified construction progress across active sites'] : ['Projects', 'Portfolio health and site delivery'],
     '/procurement': role === 'Foreman' ? ['My material requests', 'Request what the site needs and follow its approval'] : role === 'Supervisor' ? ['Material approvals', 'Approve or return requests raised by your foremen'] : role === 'Procurement Officer' ? ['Approved sourcing queue', 'Source approved demand without changing it'] : ['Procurement', 'Requisitions, approvals and purchase orders'],
+    '/requisitions': role === 'Foreman' ? ['My material requests', 'Request what the site needs and follow its approval'] : role === 'Engineer' ? ['Technical checks', 'Verify the site need before a supervisor decides'] : role === 'Supervisor' ? ['Material approvals', 'Decide only after an engineer has checked the request'] : ['Material requests', 'The controlled path from site request to approval'],
+    '/sourcing': ['Supplier sourcing', 'Quotes and supplier selection for approved material needs'],
+    '/access': ['People & access', 'Assign the right projects without changing transaction history'],
     '/inventory': role === 'CEO' ? ['Stock & movement', 'What is inside each store, with site teams and moving'] : role === 'Foreman' ? ['Materials on site', 'Confirm receipt, record use and report wastage'] : role === 'Storekeeper' ? ['Stock ledger', 'Immutable balances across project stores'] : ['Inventory', 'Stock levels and material movement'],
     '/finance': role === 'Cashier'
       ? ['Payments & cash', 'Execute approved payments and reconcile site floats']
@@ -408,7 +507,9 @@ function Shell() {
     setSite(nextProfile.projects ? 'Assigned projects' : 'All projects')
     navigate('/')
   }
-  const canAccess = (path: string) => roleNavigation[role].includes(path)
+  const canAccess = (path: string) => liveMode
+    ? liveRoleNavigation[role].some(item => item.to === path)
+    : roleNavigation[role].includes(path)
 
   return <div className="app-shell">
     <aside className={`sidebar ${navOpen ? 'open' : ''}`}>
@@ -429,7 +530,7 @@ function Shell() {
         </NavLink>)}
       </nav>
       <div className="sidebar-bottom">
-        {role === 'CEO' && <NavLink to="/settings"><Icon name="settings"/><span>Settings</span></NavLink>}
+        {!liveMode && role === 'CEO' && <NavLink to="/settings"><Icon name="settings"/><span>Settings</span></NavLink>}
         <div className="control-note"><Icon name="lock" size={16}/><div><b>Controls active</b><span>All transactions are logged</span></div></div>
       </div>
     </aside>
@@ -439,14 +540,18 @@ function Shell() {
         <button className="menu-button" onClick={() => setNavOpen(true)} aria-label="Open navigation"><Icon name="menu"/></button>
         <div className="page-title"><h1>{title}</h1><p>{subtitle}</p></div>
         <div className="top-actions">
-          <label className={`site-picker ${profile.projects ? 'assigned-site' : ''}`}><Icon name="building" size={16}/><select value={site} onChange={e => setSite(e.target.value)}><option>{aggregateSiteLabel}</option>{projects.filter(project => availableProjects.includes(project.name as ProjectName)).map(project => <option key={project.name}>{project.name}</option>)}</select><span>{profile.projects ? <Icon name="lock" size={12}/> : '⌄'}</span></label>
-          <button className="icon-button" onClick={() => setSearchOpen(!searchOpen)} aria-label="Search"><Icon name="search"/></button>
-          <button className="icon-button notification" aria-label="Notifications"><Icon name="bell"/><i>5</i></button>
+          <label className={`site-picker ${profile.projects ? 'assigned-site' : ''}`}><Icon name="building" size={16}/><select value={site} onChange={e => setSite(e.target.value)}><option>{aggregateSiteLabel}</option>{liveMode ? authenticatedUser?.projects.map(project => <option key={project.id}>{project.name}</option>) : projects.filter(project => availableProjects.includes(project.name as ProjectName)).map(project => <option key={project.name}>{project.name}</option>)}</select><span>{profile.projects ? <Icon name="lock" size={12}/> : '⌄'}</span></label>
+          {!liveMode && <button className="icon-button" onClick={() => setSearchOpen(!searchOpen)} aria-label="Search"><Icon name="search"/></button>}
+          {!liveMode && <button className="icon-button notification" aria-label="Notifications"><Icon name="bell"/><i>5</i></button>}
           <div className="role-switcher">
             <button className="profile" onClick={() => setRoleMenuOpen(!roleMenuOpen)} aria-expanded={roleMenuOpen}>
-              <span className="avatar">{profile.initials}</span><div><b>{profile.name}</b><small>{profile.subtitle} · Demo user</small></div><span>⌄</span>
+              <span className="avatar">{profile.initials}</span><div><b>{profile.name}</b><small>{profile.subtitle}{liveMode ? '' : ' · Demo user'}</small></div><span>⌄</span>
             </button>
-            {roleMenuOpen && <div className="role-menu">
+            {roleMenuOpen && liveMode && <div className="role-menu live-account-menu">
+              <div className="role-menu-head"><div><span>SIGNED IN</span><b>{authenticatedUser?.email}</b></div><button onClick={() => setRoleMenuOpen(false)} aria-label="Close account menu"><Icon name="close" size={16}/></button></div>
+              <button className="live-logout" onClick={() => void onLogout?.()}><Icon name="lock" size={15}/>Sign out</button>
+            </div>}
+            {roleMenuOpen && !liveMode && <div className="role-menu">
               <div className="role-menu-head"><div><span>DEMO AS A USER</span><b>Choose a workspace</b></div><button onClick={() => setRoleMenuOpen(false)} aria-label="Close role menu"><Icon name="close" size={16}/></button></div>
               <div className="role-menu-list">
                 {demoProfiles.map(option => <button
@@ -464,9 +569,20 @@ function Shell() {
           </div>
         </div>
       </header>
-      {searchOpen && <div className="search-panel"><Icon name="search"/><input autoFocus placeholder="Search requisitions, suppliers, sites or payments…"/><kbd>ESC</kbd></div>}
+      {searchOpen && !liveMode && <div className="search-panel"><Icon name="search"/><input autoFocus placeholder="Search requisitions, suppliers, sites or payments…"/><kbd>ESC</kbd></div>}
       <div className="page-content">
         <Routes>
+          {liveMode && <>
+            <Route path="/" element={<LiveDashboardView currentUser={authenticatedUser!} onNavigate={destination => navigate(liveDestinationPaths[destination])}/>}/>
+            <Route path="/projects" element={canAccess('/projects') ? <LiveProjectsView currentUser={authenticatedUser!}/> : <AccessRestricted role={role}/>}/>
+            <Route path="/requisitions" element={canAccess('/requisitions') ? <LiveRequisitionsView currentUser={authenticatedUser!}/> : <AccessRestricted role={role}/>}/>
+            <Route path="/procurement" element={canAccess('/requisitions') ? <LiveRequisitionsView currentUser={authenticatedUser!}/> : canAccess('/sourcing') ? <LiveProcurementView currentUser={authenticatedUser!}/> : <AccessRestricted role={role}/>}/>
+            <Route path="/sourcing" element={canAccess('/sourcing') ? <LiveProcurementView currentUser={authenticatedUser!}/> : <AccessRestricted role={role}/>}/>
+            <Route path="/purchase-orders" element={canAccess('/purchase-orders') ? <LivePurchaseOrdersView currentUser={authenticatedUser!}/> : <AccessRestricted role={role}/>}/>
+            <Route path="/access" element={canAccess('/access') ? <LiveAccessView currentUser={authenticatedUser!}/> : <AccessRestricted role={role}/>}/>
+            <Route path="*" element={<LiveDashboardView currentUser={authenticatedUser!}/>}/>
+          </>}
+          {!liveMode && <>
           <Route path="/" element={<RoleDashboard role={role} profile={profile} projectScope={projectScope}/>}/>
           <Route path="/projects" element={canAccess('/projects') ? role === 'Engineer' ? <EngineerProgress projectScope={projectScope}/> : <Projects readOnly={role === 'CEO'} projectScope={projectScope}/> : <AccessRestricted role={role}/>}/>
           <Route path="/procurement" element={canAccess('/procurement') ? role === 'Foreman' ? <ForemanRequests projectScope={projectScope}/> : role === 'Procurement Officer' ? <ProcurementApprovedRequests/> : <Procurement readOnly={role === 'CEO'} projectScope={projectScope}/> : <AccessRestricted role={role}/>}/>
@@ -490,6 +606,7 @@ function Shell() {
           <Route path="/audit" element={canAccess('/audit') ? <Audit readOnly={role === 'Auditor' || role === 'CEO'} ownerView={role === 'CEO'}/> : <AccessRestricted role={role}/>}/>
           <Route path="/settings" element={role === 'CEO' ? <Settings/> : <AccessRestricted role={role}/>}/>
           <Route path="*" element={<RoleDashboard role={role} profile={profile} projectScope={projectScope}/>}/>
+          </>}
         </Routes>
       </div>
     </main>
@@ -1628,6 +1745,56 @@ function Settings() {
   </>
 }
 
+function LiveSession() {
+  const [currentUser, setCurrentUser] = useState<CurrentUser | null>()
+  const [sessionError, setSessionError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const controller = new AbortController()
+
+    authApi.me(controller.signal)
+      .then(user => {
+        setCurrentUser(user)
+        setSessionError(null)
+      })
+      .catch(error => {
+        if (error instanceof DOMException && error.name === 'AbortError') return
+        setCurrentUser(null)
+        if (!(error instanceof ApiError && error.status === 401)) {
+          setSessionError(error instanceof Error ? error.message : 'The server could not be reached.')
+        }
+      })
+
+    return () => controller.abort()
+  }, [])
+
+  if (currentUser === undefined) {
+    return <main className="lav-session-state" role="status"><span/><p>Opening your workspace…</p></main>
+  }
+
+  if (currentUser === null) {
+    return <>
+      {sessionError && <div className="lav-bootstrap-notice" role="alert">{sessionError}</div>}
+      <LiveLoginView onAuthenticated={user => {
+        setCurrentUser(user)
+        setSessionError(null)
+      }}/>
+    </>
+  }
+
+  const logout = async () => {
+    try {
+      await authApi.logout()
+    } finally {
+      setCurrentUser(null)
+    }
+  }
+
+  return <BrowserRouter><Shell authenticatedUser={currentUser} onLogout={logout}/></BrowserRouter>
+}
+
 export default function App() {
-  return <BrowserRouter><Shell/></BrowserRouter>
+  return <Suspense fallback={<main className="lav-session-state" role="status"><span/><p>Opening your workspace…</p></main>}>
+    {isLiveApiMode ? <LiveSession/> : <BrowserRouter><Shell/></BrowserRouter>}
+  </Suspense>
 }

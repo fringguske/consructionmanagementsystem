@@ -3,6 +3,7 @@ using ConstructionMS.Application.DTOs.Roles;
 using ConstructionMS.Application.Services.Roles;
 using ConstructionMS.Api.Common;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 using System.ComponentModel.DataAnnotations;
 
 namespace ConstructionMS.Api.Controllers;
@@ -12,6 +13,8 @@ namespace ConstructionMS.Api.Controllers;
 /// through the API because they form part of the authorization model.
 /// </summary>
 [ApiController]
+[Authorize]
+[Route("api/v1/roles")]
 [Route("api/[controller]")]
 [Produces("application/json")]
 public class RolesController : ControllerBase

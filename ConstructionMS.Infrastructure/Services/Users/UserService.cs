@@ -110,6 +110,26 @@ public class UserService : IUserService
             throw new ArgumentException("The selected role does not exist.", nameof(dto.RoleId));
         }
 
+        if (user.RoleId != dto.RoleId)
+        {
+            var currentRole = await _db.Roles
+                .Where(role => role.Id == user.RoleId)
+                .Select(role => role.RoleName)
+                .SingleAsync();
+            var nextRole = await _db.Roles
+                .Where(role => role.Id == dto.RoleId)
+                .Select(role => role.RoleName)
+                .SingleAsync();
+            if (currentRole == "CEO"
+                && nextRole != "CEO"
+                && user.IsActive
+                && await CountActiveCeoUsersAsync() <= 1)
+            {
+                throw new InvalidOperationException(
+                    "The final active CEO cannot be moved to another role.");
+            }
+        }
+
         user.FullName = InputNormalizer.RequiredText(dto.FullName, nameof(dto.FullName), 2, 150);
         user.Email = email;
         user.PhoneNumber = InputNormalizer.RequiredText(
@@ -129,10 +149,25 @@ public class UserService : IUserService
         var user = await _db.Users.FindAsync(id);
         if (user is null) return false;
 
+        if (!isActive && user.IsActive)
+        {
+            var isCeo = await _db.Roles
+                .AnyAsync(role => role.Id == user.RoleId && role.RoleName == "CEO");
+            if (isCeo && await CountActiveCeoUsersAsync() <= 1)
+            {
+                throw new InvalidOperationException(
+                    "The final active CEO cannot be deactivated.");
+            }
+        }
+
         user.IsActive = isActive;
         await _db.SaveChangesAsync();
         return true;
     }
+
+    private Task<int> CountActiveCeoUsersAsync() =>
+        _db.Users.CountAsync(candidate =>
+            candidate.IsActive && candidate.Role.RoleName == "CEO");
 
     private static UserResponseDto ToDto(User u) => new()
     {

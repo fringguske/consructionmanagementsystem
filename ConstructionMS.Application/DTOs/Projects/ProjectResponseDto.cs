@@ -9,7 +9,8 @@ public class ProjectResponseDto
     /// <summary>Physical address or description of the site. Optional.</summary>
     public string? Location { get; set; }
 
-    public decimal Budget { get; set; }
+    /// <summary>Null when the authenticated role is not allowed to view project finances.</summary>
+    public decimal? Budget { get; set; }
     public DateOnly StartDate { get; set; }
 
     /// <summary>Null if the project is still active/ongoing.</summary>
