@@ -2,6 +2,7 @@ namespace ConstructionMS.Infrastructure.Services.Requisitions;
 
 using ConstructionMS.Application.Common;
 using ConstructionMS.Application.DTOs.Requisitions.V1;
+using ConstructionMS.Application.Services.Auth;
 using ConstructionMS.Application.Services.Requisitions;
 using ConstructionMS.Domain.Entities;
 using ConstructionMS.Infrastructure.Common;
@@ -36,8 +37,13 @@ public sealed class RequisitionWorkflowService : IRequisitionWorkflowService
     };
 
     private readonly AppDbContext _db;
+    private readonly IActorRoleResolver _actorRoleResolver;
 
-    public RequisitionWorkflowService(AppDbContext db) => _db = db;
+    public RequisitionWorkflowService(AppDbContext db, IActorRoleResolver actorRoleResolver)
+    {
+        _db = db;
+        _actorRoleResolver = actorRoleResolver;
+    }
 
     public async Task<OperationResult<PaginatedResult<RequisitionWorkflowResponseDto>>> GetAllAsync(
         int actorUserId,
@@ -652,12 +658,17 @@ public sealed class RequisitionWorkflowService : IRequisitionWorkflowService
             : OperationResult<ActorContext>.Success(actor);
     }
 
-    private Task<ActorContext?> GetActorAsync(int actorUserId, CancellationToken cancellationToken) =>
-        _db.Users
-            .AsNoTracking()
-            .Where(user => user.Id == actorUserId && user.IsActive)
-            .Select(user => new ActorContext(user.Id, user.FullName, user.Role.RoleName))
-            .FirstOrDefaultAsync(cancellationToken);
+    private async Task<ActorContext?> GetActorAsync(
+        int actorUserId,
+        CancellationToken cancellationToken)
+    {
+        var actor = await _actorRoleResolver.ResolveAsync(
+            actorUserId,
+            cancellationToken: cancellationToken);
+        return actor is null
+            ? null
+            : new ActorContext(actor.UserId, actor.FullName, actor.EffectiveRole);
+    }
 
     private Task<bool> HasProjectAccessAsync(
         int actorUserId,

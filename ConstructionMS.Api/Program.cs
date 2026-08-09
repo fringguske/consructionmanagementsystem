@@ -1,5 +1,6 @@
 using ConstructionMS.Infrastructure.Data;
 using ConstructionMS.Api.Common;
+using ConstructionMS.Application.Configuration;
 using ConstructionMS.Application.Services.Auth;
 using ConstructionMS.Application.Services.Dashboard;
 using ConstructionMS.Application.Services.Materials;
@@ -40,6 +41,12 @@ if (string.IsNullOrWhiteSpace(connectionString))
 
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(connectionString));
+
+builder.Services.AddOptions<ItVerificationOptions>()
+    .Bind(builder.Configuration.GetSection(ItVerificationOptions.SectionName))
+    .Validate(options => !options.Enabled || !string.IsNullOrWhiteSpace(options.TesterEmail),
+        "ItVerification:TesterEmail is required when IT verification is enabled.")
+    .ValidateOnStart();
 
 builder.Services.AddControllers();
 builder.Services.AddProblemDetails();
@@ -103,21 +110,14 @@ builder.Services
                 return;
             }
 
-            var db = context.HttpContext.RequestServices.GetRequiredService<AppDbContext>();
-            var currentUser = await db.Users
-                .AsNoTracking()
-                .Where(user => user.Id == userId && user.IsActive)
-                .Select(user => new
-                {
-                    user.FullName,
-                    user.Email,
-                    Role = user.Role.RoleName
-                })
-                .SingleOrDefaultAsync(context.HttpContext.RequestAborted);
-
             var cookieRole = context.Principal?.FindFirstValue(ClaimTypes.Role);
-            if (currentUser is null
-                || !string.Equals(cookieRole, currentUser.Role, StringComparison.Ordinal))
+            var resolver = context.HttpContext.RequestServices
+                .GetRequiredService<IActorRoleResolver>();
+            var currentUser = await resolver.ResolveAsync(
+                userId,
+                cookieRole,
+                context.HttpContext.RequestAborted);
+            if (currentUser is null)
             {
                 // Deactivation and role changes revoke the old session immediately.
                 context.RejectPrincipal();
@@ -136,7 +136,7 @@ builder.Services
                     new Claim(ClaimTypes.NameIdentifier, userId.ToString()),
                     new Claim(ClaimTypes.Name, currentUser.FullName),
                     new Claim(ClaimTypes.Email, currentUser.Email),
-                    new Claim(ClaimTypes.Role, currentUser.Role)
+                    new Claim(ClaimTypes.Role, currentUser.EffectiveRole)
                 };
                 context.ReplacePrincipal(new ClaimsPrincipal(new ClaimsIdentity(
                     claims,
@@ -168,6 +168,9 @@ builder.Services.AddCors(options => options.AddPolicy("Frontend", policy =>
 builder.Services.AddScoped<
     ConstructionMS.Application.Services.Auth.IAuthenticationService,
     ConstructionMS.Infrastructure.Services.Auth.AuthenticationService>();
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<ICurrentActorContext, HttpCurrentActorContext>();
+builder.Services.AddScoped<IActorRoleResolver, ActorRoleResolver>();
 builder.Services.AddScoped<IUserProjectAssignmentService, UserProjectAssignmentService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
 builder.Services.AddScoped<IUserService, UserService>();

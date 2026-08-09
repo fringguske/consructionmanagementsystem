@@ -34,10 +34,15 @@ Production must also override:
 
 - `AllowedHosts` with the public hostname;
 - `Cors__AllowedOrigins__0` only when the frontend is genuinely cross-origin;
+- `ItVerification__Enabled=true` and `ItVerification__TesterEmail=<email>` only
+  while the named CEO account needs live role inspection during development;
 - TLS at nginx or the hosting platform, because production authentication cookies are Secure;
 - trusted forwarded-proxy addresses if nginx is not running on the same host.
 
 Never commit connection strings, `.env` files, certificates, database dumps or bootstrap credentials. The repository ignore rules cover common variants, including `*.pem` and every `.env` except `.env.example`.
+
+IT verification never accepts a password from configuration and never changes
+the account's stored role. Disable it when development verification is complete.
 
 ## Database setup
 

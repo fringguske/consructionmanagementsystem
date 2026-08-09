@@ -37,6 +37,7 @@ import type {
   SupplierQuote,
   SupplierSummary,
   SupervisorDecisionRequest,
+  SwitchRoleRequest,
   TechnicalCheckRequest,
   UpdateProjectAssignmentsRequest,
   UpdateProjectRequest,
@@ -255,6 +256,13 @@ export const authApi = {
     request<CurrentUser>('/auth/login', { method: 'POST', body: payload, signal }),
 
   me: (signal?: AbortSignal) => request<CurrentUser>('/auth/me', { signal }),
+
+  switchRole: (payload: SwitchRoleRequest, signal?: AbortSignal) =>
+    request<CurrentUser>('/auth/role-context', {
+      method: 'POST',
+      body: payload,
+      signal,
+    }),
 
   logout: (signal?: AbortSignal) =>
     requestWithoutResponse('/auth/logout', { method: 'POST', signal }),

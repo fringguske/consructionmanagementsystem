@@ -2,6 +2,7 @@ namespace ConstructionMS.Infrastructure.Services.Projects;
 
 using ConstructionMS.Application.Common;
 using ConstructionMS.Application.DTOs.Projects;
+using ConstructionMS.Application.Services.Auth;
 using ConstructionMS.Application.Services.Projects;
 using ConstructionMS.Domain.Entities;
 using ConstructionMS.Infrastructure.Common;
@@ -27,11 +28,16 @@ public sealed class ProjectService : IProjectService
     };
 
     private readonly AppDbContext _db;
+    private readonly IActorRoleResolver _actorRoleResolver;
 
     private static readonly string[] AllowedStatuses =
         ["Active", "On Hold", "Completed", "Cancelled"];
 
-    public ProjectService(AppDbContext db) => _db = db;
+    public ProjectService(AppDbContext db, IActorRoleResolver actorRoleResolver)
+    {
+        _db = db;
+        _actorRoleResolver = actorRoleResolver;
+    }
 
     public async Task<PaginatedResult<ProjectResponseDto>> GetAllAsync(
         int actorUserId,
@@ -538,12 +544,15 @@ public sealed class ProjectService : IProjectService
     private async Task<ActorContext> RequireActiveActorAsync(int actorUserId)
     {
         InputNormalizer.Positive(actorUserId, nameof(actorUserId));
+        var resolvedActor = await _actorRoleResolver.ResolveAsync(actorUserId)
+            ?? throw new UnauthorizedAccessException(
+                "The signed-in user is missing, inactive, or has an invalid role context.");
         var user = await _db.Users
             .Include(item => item.Role)
             .FirstOrDefaultAsync(item => item.Id == actorUserId && item.IsActive)
             ?? throw new UnauthorizedAccessException("The signed-in user is missing or inactive.");
 
-        return new ActorContext(user, user.Role.RoleName);
+        return new ActorContext(user, resolvedActor.EffectiveRole);
     }
 
     private async Task<ActorContext> RequireRoleAsync(int actorUserId, string requiredRole)

@@ -1,5 +1,6 @@
 namespace ConstructionMS.Infrastructure.Services.PurchaseOrders;
 
+using ConstructionMS.Application.Services.Auth;
 using ConstructionMS.Domain.Entities;
 using ConstructionMS.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
@@ -21,6 +22,7 @@ internal static class PurchaseWorkflowAuthorization
 
     public static async Task ValidateActorAsync(
         AppDbContext db,
+        IActorRoleResolver actorRoleResolver,
         int actorUserId,
         string actorRole,
         params string[] allowedRoles)
@@ -35,16 +37,11 @@ internal static class PurchaseWorkflowAuthorization
             throw new UnauthorizedAccessException("Your role cannot perform this purchase workflow operation.");
         }
 
-        var actor = await db.Users
-            .AsNoTracking()
-            .Include(user => user.Role)
-            .Where(user => user.Id == actorUserId && user.IsActive)
-            .Select(user => new { user.Role.RoleName })
-            .FirstOrDefaultAsync();
-
-        if (actor is null || !RoleEquals(actor.RoleName, actorRole))
+        var actor = await actorRoleResolver.ResolveAsync(actorUserId, actorRole);
+        if (actor is null)
         {
-            throw new UnauthorizedAccessException("The authenticated user is inactive or their role has changed.");
+            throw new UnauthorizedAccessException(
+                "The authenticated user is inactive or their role context is no longer valid.");
         }
     }
 

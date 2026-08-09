@@ -16,9 +16,15 @@ namespace ConstructionMS.Api.Controllers;
 public sealed class AuthController : ControllerBase
 {
     private readonly ApplicationAuthenticationService _authenticationService;
+    private readonly ILogger<AuthController> _logger;
 
-    public AuthController(ApplicationAuthenticationService authenticationService) =>
+    public AuthController(
+        ApplicationAuthenticationService authenticationService,
+        ILogger<AuthController> logger)
+    {
         _authenticationService = authenticationService;
+        _logger = logger;
+    }
 
     [AllowAnonymous]
     [EnableRateLimiting("login")]
@@ -31,6 +37,60 @@ public sealed class AuthController : ControllerBase
             return Unauthorized(ApiResponse<CurrentUserDto>.Fail("Invalid email or password."));
         }
 
+        await SignInAsync(user);
+
+        return Ok(ApiResponse<CurrentUserDto>.Ok(user));
+    }
+
+    [Authorize]
+    [HttpGet("me")]
+    public async Task<IActionResult> Me()
+    {
+        var user = await _authenticationService.GetCurrentUserAsync(User.GetRequiredUserId());
+        return user is null
+            ? Unauthorized(ApiResponse<CurrentUserDto>.Fail("The authenticated user is inactive."))
+            : Ok(ApiResponse<CurrentUserDto>.Ok(user));
+    }
+
+    /// <summary>
+    /// Changes only the current session's workspace role for the explicitly
+    /// configured IT verification account. The database role remains unchanged.
+    /// </summary>
+    [Authorize]
+    [HttpPost("role-context")]
+    public async Task<IActionResult> SwitchRole([FromBody] SwitchRoleRequestDto request)
+    {
+        var userId = User.GetRequiredUserId();
+        var previousRole = User.GetRequiredRole();
+        var user = await _authenticationService.GetCurrentUserAsync(userId, request.Role.Trim());
+        if (user is null || !user.CanSwitchRoles)
+        {
+            return StatusCode(
+                StatusCodes.Status403Forbidden,
+                ApiResponse<CurrentUserDto>.Fail(
+                    "Role switching is not enabled for this account."));
+        }
+
+        await SignInAsync(user);
+        _logger.LogInformation(
+            "IT verification role context changed for user {UserId}: {PreviousRole} -> {EffectiveRole}.",
+            userId,
+            previousRole,
+            user.Role);
+
+        return Ok(ApiResponse<CurrentUserDto>.Ok(user));
+    }
+
+    [Authorize]
+    [HttpPost("logout")]
+    public async Task<IActionResult> Logout()
+    {
+        await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+        return NoContent();
+    }
+
+    private Task SignInAsync(CurrentUserDto user)
+    {
         var claims = new[]
         {
             new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
@@ -47,29 +107,9 @@ public sealed class AuthController : ControllerBase
             ExpiresUtc = DateTimeOffset.UtcNow.AddHours(8)
         };
 
-        await HttpContext.SignInAsync(
+        return HttpContext.SignInAsync(
             CookieAuthenticationDefaults.AuthenticationScheme,
             new ClaimsPrincipal(identity),
             properties);
-
-        return Ok(ApiResponse<CurrentUserDto>.Ok(user));
-    }
-
-    [Authorize]
-    [HttpGet("me")]
-    public async Task<IActionResult> Me()
-    {
-        var user = await _authenticationService.GetCurrentUserAsync(User.GetRequiredUserId());
-        return user is null
-            ? Unauthorized(ApiResponse<CurrentUserDto>.Fail("The authenticated user is inactive."))
-            : Ok(ApiResponse<CurrentUserDto>.Ok(user));
-    }
-
-    [Authorize]
-    [HttpPost("logout")]
-    public async Task<IActionResult> Logout()
-    {
-        await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
-        return NoContent();
     }
 }

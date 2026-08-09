@@ -14,4 +14,15 @@ public static class ClaimsPrincipalExtensions
 
         return userId;
     }
+
+    public static string GetRequiredRole(this ClaimsPrincipal principal)
+    {
+        var role = principal.FindFirstValue(ClaimTypes.Role);
+        if (string.IsNullOrWhiteSpace(role))
+        {
+            throw new UnauthorizedAccessException("The authenticated role is invalid.");
+        }
+
+        return role;
+    }
 }

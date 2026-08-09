@@ -359,6 +359,7 @@ function Button({ children, variant = 'primary', icon, onClick, type = 'button' 
 type ShellProps = {
   authenticatedUser?: CurrentUser
   onLogout?: () => Promise<void> | void
+  onSwitchRole?: (role: ConstructionRole) => Promise<void>
 }
 
 const liveRoleNavigation: Record<ConstructionRole, readonly { to: string; label: string; icon: IconName; badge?: number }[]> = {
@@ -410,11 +411,13 @@ const liveRoleNavigation: Record<ConstructionRole, readonly { to: string; label:
   ],
 }
 
-function Shell({ authenticatedUser, onLogout }: ShellProps = {}) {
+function Shell({ authenticatedUser, onLogout, onSwitchRole }: ShellProps = {}) {
   const [navOpen, setNavOpen] = useState(false)
   const [site, setSite] = useState('All projects')
   const [searchOpen, setSearchOpen] = useState(false)
   const [roleMenuOpen, setRoleMenuOpen] = useState(false)
+  const [switchingRole, setSwitchingRole] = useState<ConstructionRole | null>(null)
+  const [roleSwitchError, setRoleSwitchError] = useState<string | null>(null)
   const [activeProfileId, setActiveProfileId] = useState('ceo')
   const location = useLocation()
   const navigate = useNavigate()
@@ -507,6 +510,25 @@ function Shell({ authenticatedUser, onLogout }: ShellProps = {}) {
     setSite(nextProfile.projects ? 'Assigned projects' : 'All projects')
     navigate('/')
   }
+  const switchLiveRole = async (nextRole: ConstructionRole) => {
+    if (!onSwitchRole || nextRole === authenticatedUser?.role) {
+      setRoleMenuOpen(false)
+      return
+    }
+
+    setSwitchingRole(nextRole)
+    setRoleSwitchError(null)
+    try {
+      await onSwitchRole(nextRole)
+      setSite(nextRole === 'CEO' || nextRole === 'Auditor' ? 'All projects' : 'Assigned projects')
+      setRoleMenuOpen(false)
+      navigate('/')
+    } catch (error) {
+      setRoleSwitchError(error instanceof Error ? error.message : 'The workspace could not be changed.')
+    } finally {
+      setSwitchingRole(null)
+    }
+  }
   const canAccess = (path: string) => liveMode
     ? liveRoleNavigation[role].some(item => item.to === path)
     : roleNavigation[role].includes(path)
@@ -548,7 +570,23 @@ function Shell({ authenticatedUser, onLogout }: ShellProps = {}) {
               <span className="avatar">{profile.initials}</span><div><b>{profile.name}</b><small>{profile.subtitle}{liveMode ? '' : ' · Demo user'}</small></div><span>⌄</span>
             </button>
             {roleMenuOpen && liveMode && <div className="role-menu live-account-menu">
-              <div className="role-menu-head"><div><span>SIGNED IN</span><b>{authenticatedUser?.email}</b></div><button onClick={() => setRoleMenuOpen(false)} aria-label="Close account menu"><Icon name="close" size={16}/></button></div>
+              <div className="role-menu-head"><div><span>{authenticatedUser?.canSwitchRoles ? 'IT VERIFICATION MODE' : 'SIGNED IN'}</span><b>{authenticatedUser?.email}</b></div><button onClick={() => setRoleMenuOpen(false)} aria-label="Close account menu"><Icon name="close" size={16}/></button></div>
+              {authenticatedUser?.canSwitchRoles && <>
+                <div className="live-role-note">Choose a role to inspect its real workspace and permissions.</div>
+                <div className="role-menu-list live-role-list">
+                  {authenticatedUser.availableRoles.map(option => <button
+                    key={option}
+                    className={authenticatedUser.role === option ? 'active' : ''}
+                    disabled={switchingRole !== null}
+                    onClick={() => void switchLiveRole(option)}
+                  >
+                    <span className="role-dot">{option.split(/\s+/).map(part => part[0]).join('').slice(0, 2)}</span>
+                    <span><b>{option}</b><small>{authenticatedUser.role === option ? 'Current workspace' : 'Open workspace'}</small></span>
+                    {switchingRole === option ? <em>Opening…</em> : authenticatedUser.role === option && <Icon name="check" size={15}/>}
+                  </button>)}
+                </div>
+                {roleSwitchError && <p className="live-role-error">{roleSwitchError}</p>}
+              </>}
               <button className="live-logout" onClick={() => void onLogout?.()}><Icon name="lock" size={15}/>Sign out</button>
             </div>}
             {roleMenuOpen && !liveMode && <div className="role-menu">
@@ -1790,7 +1828,12 @@ function LiveSession() {
     }
   }
 
-  return <BrowserRouter><Shell authenticatedUser={currentUser} onLogout={logout}/></BrowserRouter>
+  const switchRole = async (role: ConstructionRole) => {
+    const user = await authApi.switchRole({ role })
+    setCurrentUser(user)
+  }
+
+  return <BrowserRouter><Shell authenticatedUser={currentUser} onLogout={logout} onSwitchRole={switchRole}/></BrowserRouter>
 }
 
 export default function App() {

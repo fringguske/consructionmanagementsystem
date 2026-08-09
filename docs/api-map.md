@@ -24,20 +24,28 @@ All paths use the `/api/v1` prefix. Except for login, liveness and readiness, th
 | `/purchase-orders` | Submit, approve/return/reject, correct, cancel and issue | CEO, Supervisor, Procurement Officer, Storekeeper, Finance Officer, Auditor |
 | `/access` | Activate accounts and assign project scope | CEO |
 
-Live navigation comes from the authenticated database role. The role switcher and sample transactions remain available only in `demo` mode; they cannot grant access in `live` mode.
+Live navigation comes from the server-authorized effective role. Normally this is
+identical to the authenticated database role. A single explicitly configured IT
+verification account may temporarily select another role in `live` mode; the
+database role is unchanged and every service revalidates the temporary context.
 
 ## 1. Authentication, user scope and dashboard
 
 | Method and path | Role | Purpose |
 |---|---|---|
 | `POST /auth/login` | Anonymous | Validate email/password and issue the session cookie. Rate limited per forwarded client IP. |
-| `GET /auth/me` | Any signed-in user | Return current database role and currently assigned projects. |
+| `GET /auth/me` | Any signed-in user | Return actual/effective role metadata and projects in the current workspace scope. |
+| `POST /auth/role-context` | Configured IT verifier only | Select a temporary effective workspace role without changing the account's database role. |
 | `POST /auth/logout` | Any signed-in user | Remove the session cookie. |
 | `GET /dashboard` | Any signed-in user | Return only counts inside the current user's project scope. |
 | `GET /users/{userId}/projects` | CEO | List a user's current assignments. |
 | `PUT /users/{userId}/projects` | CEO | End removed assignment periods and append newly activated periods. |
 
-The cookie principal is checked against `Users.IsActive` and the current `Roles.RoleName` on every request. Deactivation or a role change invalidates the old cookie immediately.
+The cookie principal is checked against `Users.IsActive`, the actual database
+role, and the server-side IT verification configuration on every request.
+Deactivation, an actual role change, or disabling verification invalidates an
+incompatible cookie immediately. Existing segregation-of-duties checks still use
+the real user ID, so the verifier cannot approve their own earlier action.
 
 CEO and Auditor can read every project. Operational users can read and act only where an active `UserProjectAssignments` period exists.
 

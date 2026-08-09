@@ -41,6 +41,9 @@ export interface CurrentUser {
   fullName: string
   email: string
   role: ConstructionRole
+  actualRole: ConstructionRole
+  canSwitchRoles: boolean
+  availableRoles: ConstructionRole[]
   projects: AssignedProject[]
 }
 
@@ -62,6 +65,10 @@ export interface SetUserActiveRequest {
 export interface LoginRequest {
   email: string
   password: string
+}
+
+export interface SwitchRoleRequest {
+  role: ConstructionRole
 }
 
 export interface UpdateProjectAssignmentsRequest {

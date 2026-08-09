@@ -16,11 +16,16 @@ public sealed class AuthenticationService : IAuthenticationService
         "$2a$12$R9h/cIPz0gi.URNNX3kh2OPST9/PgBkqquzi.Ss7KIUgO2t0jWMUW";
     private readonly AppDbContext _db;
     private readonly ILogger<AuthenticationService> _logger;
+    private readonly IActorRoleResolver _actorRoleResolver;
 
-    public AuthenticationService(AppDbContext db, ILogger<AuthenticationService> logger)
+    public AuthenticationService(
+        AppDbContext db,
+        ILogger<AuthenticationService> logger,
+        IActorRoleResolver actorRoleResolver)
     {
         _db = db;
         _logger = logger;
+        _actorRoleResolver = actorRoleResolver;
     }
 
     public async Task<CurrentUserDto?> AuthenticateAsync(LoginRequestDto request)
@@ -53,33 +58,26 @@ public sealed class AuthenticationService : IAuthenticationService
             return null;
         }
 
-        return await BuildCurrentUserAsync(user.Id, user.FullName, user.Email, user.Role.RoleName);
+        var actor = await _actorRoleResolver.ResolveAsync(user.Id, user.Role.RoleName);
+        return actor is null ? null : await BuildCurrentUserAsync(actor);
     }
 
-    public async Task<CurrentUserDto?> GetCurrentUserAsync(int userId)
-    {
-        var user = await _db.Users
-            .Include(candidate => candidate.Role)
-            .AsNoTracking()
-            .FirstOrDefaultAsync(candidate => candidate.Id == userId && candidate.IsActive);
-
-        return user is null
-            ? null
-            : await BuildCurrentUserAsync(user.Id, user.FullName, user.Email, user.Role.RoleName);
-    }
-
-    private async Task<CurrentUserDto> BuildCurrentUserAsync(
+    public async Task<CurrentUserDto?> GetCurrentUserAsync(
         int userId,
-        string fullName,
-        string email,
-        string role)
+        string? effectiveRole = null)
+    {
+        var actor = await _actorRoleResolver.ResolveAsync(userId, effectiveRole);
+        return actor is null ? null : await BuildCurrentUserAsync(actor);
+    }
+
+    private async Task<CurrentUserDto> BuildCurrentUserAsync(ActorRoleContext actor)
     {
         var projectQuery = _db.Projects.AsNoTracking();
-        if (role is not "CEO" and not "Auditor")
+        if (actor.EffectiveRole is not "CEO" and not "Auditor")
         {
             projectQuery = projectQuery.Where(project =>
                 _db.UserProjectAssignments.Any(assignment =>
-                    assignment.UserId == userId
+                    assignment.UserId == actor.UserId
                     && assignment.ProjectId == project.Id
                     && assignment.IsActive));
         }
@@ -91,10 +89,13 @@ public sealed class AuthenticationService : IAuthenticationService
 
         return new CurrentUserDto
         {
-            Id = userId,
-            FullName = fullName,
-            Email = email,
-            Role = role,
+            Id = actor.UserId,
+            FullName = actor.FullName,
+            Email = actor.Email,
+            Role = actor.EffectiveRole,
+            ActualRole = actor.ActualRole,
+            CanSwitchRoles = actor.CanSwitchRoles,
+            AvailableRoles = actor.AvailableRoles,
             Projects = projects
         };
     }

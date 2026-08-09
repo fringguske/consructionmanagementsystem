@@ -6,6 +6,9 @@ public sealed class CurrentUserDto
     public string FullName { get; init; } = string.Empty;
     public string Email { get; init; } = string.Empty;
     public string Role { get; init; } = string.Empty;
+    public string ActualRole { get; init; } = string.Empty;
+    public bool CanSwitchRoles { get; init; }
+    public IReadOnlyList<string> AvailableRoles { get; init; } = [];
     public IReadOnlyList<AssignedProjectDto> Projects { get; init; } = [];
 }
 

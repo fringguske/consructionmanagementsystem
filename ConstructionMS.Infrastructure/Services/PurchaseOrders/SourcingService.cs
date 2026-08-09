@@ -2,6 +2,7 @@ namespace ConstructionMS.Infrastructure.Services.PurchaseOrders;
 
 using ConstructionMS.Application.Common;
 using ConstructionMS.Application.DTOs.PurchaseOrders;
+using ConstructionMS.Application.Services.Auth;
 using ConstructionMS.Application.Services.PurchaseOrders;
 using ConstructionMS.Domain.Entities;
 using ConstructionMS.Infrastructure.Common;
@@ -21,8 +22,13 @@ public sealed class SourcingService : ISourcingService
 
     private static readonly string[] FilterStatuses = SourcingRoundWorkflowStates.All.ToArray();
     private readonly AppDbContext _db;
+    private readonly IActorRoleResolver _actorRoleResolver;
 
-    public SourcingService(AppDbContext db) => _db = db;
+    public SourcingService(AppDbContext db, IActorRoleResolver actorRoleResolver)
+    {
+        _db = db;
+        _actorRoleResolver = actorRoleResolver;
+    }
 
     private IQueryable<SourcingRound> BaseQuery() =>
         _db.SourcingRounds
@@ -49,7 +55,7 @@ public sealed class SourcingService : ISourcingService
         string? status = null)
     {
         await PurchaseWorkflowAuthorization.ValidateActorAsync(
-            _db, actorUserId, actorRole, VisibleRoles);
+            _db, _actorRoleResolver, actorUserId, actorRole, VisibleRoles);
 
         if (projectId is <= 0)
         {
@@ -94,7 +100,7 @@ public sealed class SourcingService : ISourcingService
         string actorRole)
     {
         await PurchaseWorkflowAuthorization.ValidateActorAsync(
-            _db, actorUserId, actorRole, VisibleRoles);
+            _db, _actorRoleResolver, actorUserId, actorRole, VisibleRoles);
 
         var round = await ApplyReadScope(BaseQuery(), actorUserId, actorRole)
             .FirstOrDefaultAsync(item => item.Id == id);
@@ -109,7 +115,7 @@ public sealed class SourcingService : ISourcingService
         string actorRole)
     {
         await PurchaseWorkflowAuthorization.ValidateActorAsync(
-            _db, actorUserId, actorRole, PurchaseWorkflowAuthorization.ProcurementOfficer);
+            _db, _actorRoleResolver, actorUserId, actorRole, PurchaseWorkflowAuthorization.ProcurementOfficer);
         InputNormalizer.Positive(dto.RequisitionId, nameof(dto.RequisitionId));
         ValidateFutureDeadline(dto.QuoteDueAt);
 
@@ -177,7 +183,7 @@ public sealed class SourcingService : ISourcingService
         string actorRole)
     {
         await PurchaseWorkflowAuthorization.ValidateActorAsync(
-            _db, actorUserId, actorRole, PurchaseWorkflowAuthorization.ProcurementOfficer);
+            _db, _actorRoleResolver, actorUserId, actorRole, PurchaseWorkflowAuthorization.ProcurementOfficer);
         InputNormalizer.Positive(sourcingRoundId, nameof(sourcingRoundId));
         InputNormalizer.Positive(dto.SupplierId, nameof(dto.SupplierId));
 
@@ -297,7 +303,7 @@ public sealed class SourcingService : ISourcingService
         string actorRole)
     {
         await PurchaseWorkflowAuthorization.ValidateActorAsync(
-            _db, actorUserId, actorRole, PurchaseWorkflowAuthorization.ProcurementOfficer);
+            _db, _actorRoleResolver, actorUserId, actorRole, PurchaseWorkflowAuthorization.ProcurementOfficer);
         var round = await GetWorkflowRoundAsync(id);
         await PurchaseWorkflowAuthorization.RequireProjectAssignmentAsync(
             _db, actorUserId, actorRole, round.Requisition.ProjectId);
@@ -318,6 +324,7 @@ public sealed class SourcingService : ISourcingService
     {
         await PurchaseWorkflowAuthorization.ValidateActorAsync(
             _db,
+            _actorRoleResolver,
             actorUserId,
             actorRole,
             PurchaseWorkflowAuthorization.Supervisor,
@@ -342,6 +349,7 @@ public sealed class SourcingService : ISourcingService
     {
         await PurchaseWorkflowAuthorization.ValidateActorAsync(
             _db,
+            _actorRoleResolver,
             actorUserId,
             actorRole,
             PurchaseWorkflowAuthorization.ProcurementOfficer,

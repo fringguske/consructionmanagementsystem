@@ -2,6 +2,7 @@ namespace ConstructionMS.Infrastructure.Services.PurchaseOrders;
 
 using ConstructionMS.Application.Common;
 using ConstructionMS.Application.DTOs.PurchaseOrders;
+using ConstructionMS.Application.Services.Auth;
 using ConstructionMS.Application.Services.PurchaseOrders;
 using ConstructionMS.Domain.Entities;
 using ConstructionMS.Infrastructure.Common;
@@ -24,8 +25,13 @@ public sealed class PurchaseOrderService : IPurchaseOrderService
 
     private static readonly string[] FilterStatuses = PurchaseOrderWorkflowStates.All.ToArray();
     private readonly AppDbContext _db;
+    private readonly IActorRoleResolver _actorRoleResolver;
 
-    public PurchaseOrderService(AppDbContext db) => _db = db;
+    public PurchaseOrderService(AppDbContext db, IActorRoleResolver actorRoleResolver)
+    {
+        _db = db;
+        _actorRoleResolver = actorRoleResolver;
+    }
 
     private IQueryable<PurchaseOrder> BaseQuery() =>
         _db.PurchaseOrders
@@ -52,7 +58,7 @@ public sealed class PurchaseOrderService : IPurchaseOrderService
         string? status = null)
     {
         await PurchaseWorkflowAuthorization.ValidateActorAsync(
-            _db, actorUserId, actorRole, VisibleRoles);
+            _db, _actorRoleResolver, actorUserId, actorRole, VisibleRoles);
         if (projectId is <= 0)
         {
             throw new ArgumentOutOfRangeException(nameof(projectId), "The project ID must be greater than zero.");
@@ -93,7 +99,7 @@ public sealed class PurchaseOrderService : IPurchaseOrderService
         string actorRole)
     {
         await PurchaseWorkflowAuthorization.ValidateActorAsync(
-            _db, actorUserId, actorRole, VisibleRoles);
+            _db, _actorRoleResolver, actorUserId, actorRole, VisibleRoles);
         var order = await ApplyReadScope(BaseQuery(), actorUserId, actorRole)
             .FirstOrDefaultAsync(item => item.Id == id);
         return order is null
@@ -107,7 +113,7 @@ public sealed class PurchaseOrderService : IPurchaseOrderService
         string actorRole)
     {
         await PurchaseWorkflowAuthorization.ValidateActorAsync(
-            _db, actorUserId, actorRole, PurchaseWorkflowAuthorization.ProcurementOfficer);
+            _db, _actorRoleResolver, actorUserId, actorRole, PurchaseWorkflowAuthorization.ProcurementOfficer);
         InputNormalizer.Positive(dto.RequisitionId, nameof(dto.RequisitionId));
         InputNormalizer.Positive(dto.SupplierQuoteId, nameof(dto.SupplierQuoteId));
         var deliveryDate = RequireCurrentOrFutureDate(dto.ExpectedDeliveryDate);
@@ -199,7 +205,7 @@ public sealed class PurchaseOrderService : IPurchaseOrderService
         string actorRole)
     {
         await PurchaseWorkflowAuthorization.ValidateActorAsync(
-            _db, actorUserId, actorRole, PurchaseWorkflowAuthorization.ProcurementOfficer);
+            _db, _actorRoleResolver, actorUserId, actorRole, PurchaseWorkflowAuthorization.ProcurementOfficer);
         var order = await GetWorkflowOrderAsync(id);
         await RequireCreatorAndAssignmentAsync(order, actorUserId, actorRole);
         if (order.SupplierQuote.SourcingRound.Status != SourcingRoundWorkflowStates.Open)
@@ -290,7 +296,7 @@ public sealed class PurchaseOrderService : IPurchaseOrderService
         string actorRole)
     {
         await PurchaseWorkflowAuthorization.ValidateActorAsync(
-            _db, actorUserId, actorRole, PurchaseWorkflowAuthorization.ProcurementOfficer);
+            _db, _actorRoleResolver, actorUserId, actorRole, PurchaseWorkflowAuthorization.ProcurementOfficer);
         var order = await GetWorkflowOrderAsync(id);
         await PurchaseWorkflowAuthorization.RequireProjectAssignmentAsync(
             _db, actorUserId, actorRole, order.ProjectId);
@@ -356,7 +362,7 @@ public sealed class PurchaseOrderService : IPurchaseOrderService
         string actorRole)
     {
         await PurchaseWorkflowAuthorization.ValidateActorAsync(
-            _db, actorUserId, actorRole, PurchaseWorkflowAuthorization.ProcurementOfficer);
+            _db, _actorRoleResolver, actorUserId, actorRole, PurchaseWorkflowAuthorization.ProcurementOfficer);
         var order = await GetWorkflowOrderAsync(id);
         await RequireCreatorAndAssignmentAsync(order, actorUserId, actorRole);
         if (order.Status != PurchaseOrderWorkflowStates.Draft)
@@ -422,6 +428,7 @@ public sealed class PurchaseOrderService : IPurchaseOrderService
     {
         await PurchaseWorkflowAuthorization.ValidateActorAsync(
             _db,
+            _actorRoleResolver,
             actorUserId,
             actorRole,
             PurchaseWorkflowAuthorization.ProcurementOfficer,
@@ -546,6 +553,7 @@ public sealed class PurchaseOrderService : IPurchaseOrderService
     private Task ValidateIndependentDecisionActorAsync(int actorUserId, string actorRole) =>
         PurchaseWorkflowAuthorization.ValidateActorAsync(
             _db,
+            _actorRoleResolver,
             actorUserId,
             actorRole,
             PurchaseWorkflowAuthorization.Supervisor,
