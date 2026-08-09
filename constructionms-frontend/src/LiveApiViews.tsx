@@ -25,7 +25,7 @@ import {
 } from './api'
 import './live-api.css'
 
-export type LiveDestination = 'projects' | 'requisitions' | 'sourcing' | 'purchase-orders'
+export type LiveDestination = 'access' | 'projects' | 'requisitions' | 'sourcing' | 'purchase-orders'
 
 export interface LiveLoginViewProps {
   onAuthenticated: (user: CurrentUser) => void
@@ -176,6 +176,10 @@ function readMoney(value: string, label: string): number {
 
 function dashboardActions(role: CurrentUser['role']): DashboardAction[] {
   switch (role) {
+    case 'Administrator':
+      return [
+        { destination: 'access', label: 'Access requests', detail: 'Approve roles and project scope', count: 'pending' },
+      ]
     case 'CEO':
     case 'Auditor':
       return [
@@ -236,11 +240,15 @@ function EmptyState({ title, detail }: { title: string; detail: string }) {
 
 export function LiveLoginView({ onAuthenticated }: LiveLoginViewProps) {
   const emailId = useId()
+  const usernameId = useId()
   const passwordId = useId()
+  const [mode, setMode] = useState<'signin' | 'signup'>('signin')
   const [email, setEmail] = useState('')
+  const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [message, setMessage] = useState<string | null>(null)
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -248,10 +256,18 @@ export function LiveLoginView({ onAuthenticated }: LiveLoginViewProps) {
 
     setBusy(true)
     setError(null)
+    setMessage(null)
 
     try {
-      const user = await authApi.login({ email: email.trim(), password })
-      onAuthenticated(user)
+      if (mode === 'signup') {
+        await authApi.register({ email: email.trim(), username: username.trim(), password })
+        setPassword('')
+        setMode('signin')
+        setMessage('Request sent. An Administrator must approve your role before you can sign in.')
+      } else {
+        const user = await authApi.login({ email: email.trim(), username: username.trim(), password })
+        onAuthenticated(user)
+      }
     } catch (requestError) {
       setError(errorMessage(requestError))
     } finally {
@@ -282,13 +298,18 @@ export function LiveLoginView({ onAuthenticated }: LiveLoginViewProps) {
 
       <section className="lav-login-panel">
         <form className="lav-login-card" onSubmit={submit}>
+          <div className="lav-login-tabs" role="tablist" aria-label="Account access">
+            <button type="button" className={mode === 'signin' ? 'active' : ''} onClick={() => { setMode('signin'); setError(null) }}>Sign in</button>
+            <button type="button" className={mode === 'signup' ? 'active' : ''} onClick={() => { setMode('signup'); setError(null) }}>Request access</button>
+          </div>
           <header>
-            <span className="lav-kicker">Welcome back</span>
-            <h2>Sign in</h2>
-            <p>Use the work email provided by your administrator.</p>
+            <span className="lav-kicker">{mode === 'signin' ? 'Welcome back' : 'New account'}</span>
+            <h2>{mode === 'signin' ? 'Sign in' : 'Request to join'}</h2>
+            <p>{mode === 'signin' ? 'Use your email, unique username and password.' : 'Choose a unique username. Your account stays locked until approval.'}</p>
           </header>
 
           {error && <Notice tone="error">{error}</Notice>}
+          {message && <Notice tone="success">{message}</Notice>}
 
           <label className="lav-field" htmlFor={emailId}>
             <span>Email address</span>
@@ -297,11 +318,27 @@ export function LiveLoginView({ onAuthenticated }: LiveLoginViewProps) {
               type="email"
               value={email}
               onChange={(event) => setEmail(event.currentTarget.value)}
-              autoComplete="username"
+              autoComplete="email"
               inputMode="email"
               placeholder="name@company.co.ke"
               required
               autoFocus
+            />
+          </label>
+
+          <label className="lav-field" htmlFor={usernameId}>
+            <span>Username</span>
+            <input
+              id={usernameId}
+              type="text"
+              value={username}
+              onChange={(event) => setUsername(event.currentTarget.value)}
+              autoComplete="username"
+              minLength={3}
+              maxLength={50}
+              pattern="[A-Za-z0-9][A-Za-z0-9._-]*"
+              placeholder="your.username"
+              required
             />
           </label>
 
@@ -313,18 +350,18 @@ export function LiveLoginView({ onAuthenticated }: LiveLoginViewProps) {
               value={password}
               onChange={(event) => setPassword(event.currentTarget.value)}
               autoComplete="current-password"
-              minLength={1}
+              minLength={mode === 'signup' ? 12 : 1}
               maxLength={72}
               required
             />
           </label>
 
           <button className="lav-button primary wide" type="submit" disabled={busy}>
-            {busy ? 'Signing in…' : 'Sign in securely'}
+            {busy ? (mode === 'signin' ? 'Signing in…' : 'Sending request…') : (mode === 'signin' ? 'Sign in securely' : 'Send access request')}
           </button>
 
           <p className="lav-login-help">
-            Cannot sign in? Ask your administrator to confirm that your account is active.
+            {mode === 'signin' ? 'Cannot sign in? Ask the Administrator to confirm that your request is approved.' : 'Email addresses may be shared; usernames must be unique.'}
           </p>
         </form>
       </section>

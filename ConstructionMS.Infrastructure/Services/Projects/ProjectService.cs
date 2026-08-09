@@ -16,6 +16,7 @@ using Microsoft.EntityFrameworkCore;
 public sealed class ProjectService : IProjectService
 {
     private const string CeoRole = "CEO";
+    private const string AdministratorRole = "Administrator";
     private const string AuditorRole = "Auditor";
     private const string EngineerRole = "Engineer";
 
@@ -529,7 +530,7 @@ public sealed class ProjectService : IProjectService
 
     private IQueryable<Project> ApplyReadScope(IQueryable<Project> query, ActorContext actor)
     {
-        if (actor.RoleName is CeoRole or AuditorRole)
+        if (actor.RoleName is AdministratorRole or CeoRole or AuditorRole)
         {
             return query;
         }

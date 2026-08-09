@@ -9,11 +9,15 @@ using System.Text;
 /// </summary>
 public class CreateUserRequestDto : IValidatableObject
 {
+    [Required, StringLength(50, MinimumLength = 3)]
+    [RegularExpression("^[a-zA-Z0-9][a-zA-Z0-9._-]*$")]
+    public string Username { get; set; } = string.Empty;
+
     /// <summary>Full display name, e.g. "Jane Mwangi". Required.</summary>
     [Required, StringLength(150, MinimumLength = 2)]
     public string FullName { get; set; } = string.Empty;
 
-    /// <summary>Must be unique across all users (unique index in DB). Required.</summary>
+    /// <summary>Email may be shared by test accounts; username remains unique.</summary>
     [Required, StringLength(254), EmailAddress]
     public string Email { get; set; } = string.Empty;
 

@@ -2,6 +2,7 @@ export type IsoDate = string
 export type IsoDateTime = string
 
 export type ConstructionRole =
+  | 'Administrator'
   | 'CEO'
   | 'Supervisor'
   | 'Engineer'
@@ -38,6 +39,7 @@ export interface AssignedProject {
 
 export interface CurrentUser {
   id: number
+  username: string
   fullName: string
   email: string
   role: ConstructionRole
@@ -49,6 +51,7 @@ export interface CurrentUser {
 
 export interface UserAccount {
   id: number
+  username: string
   fullName: string
   email: string
   phoneNumber: string
@@ -64,7 +67,38 @@ export interface SetUserActiveRequest {
 
 export interface LoginRequest {
   email: string
+  username: string
   password: string
+}
+
+export interface RegisterAccessRequest {
+  email: string
+  username: string
+  password: string
+}
+
+export interface AccessRequest {
+  id: number
+  username: string
+  email: string
+  status: 'Pending' | 'Approved' | 'Rejected'
+  requestedAt: IsoDateTime
+  reviewedAt: IsoDateTime | null
+  reviewedByName: string | null
+  approvedUserId: number | null
+  decisionNote: string | null
+}
+
+export interface ApproveAccessRequest {
+  roleId: number
+  projectIds: number[]
+}
+
+export interface RoleRecord {
+  id: number
+  roleName: ConstructionRole
+  description: string | null
+  createdAt: IsoDateTime
 }
 
 export interface SwitchRoleRequest {

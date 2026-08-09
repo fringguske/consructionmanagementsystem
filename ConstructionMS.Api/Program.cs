@@ -44,8 +44,8 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 
 builder.Services.AddOptions<ItVerificationOptions>()
     .Bind(builder.Configuration.GetSection(ItVerificationOptions.SectionName))
-    .Validate(options => !options.Enabled || !string.IsNullOrWhiteSpace(options.TesterEmail),
-        "ItVerification:TesterEmail is required when IT verification is enabled.")
+    .Validate(options => !options.Enabled || !string.IsNullOrWhiteSpace(options.TesterUsername),
+        "ItVerification:TesterUsername is required when IT verification is enabled.")
     .ValidateOnStart();
 
 builder.Services.AddControllers();
@@ -171,6 +171,7 @@ builder.Services.AddScoped<
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentActorContext, HttpCurrentActorContext>();
 builder.Services.AddScoped<IActorRoleResolver, ActorRoleResolver>();
+builder.Services.AddScoped<IAccessRequestService, AccessRequestService>();
 builder.Services.AddScoped<IUserProjectAssignmentService, UserProjectAssignmentService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
 builder.Services.AddScoped<IUserService, UserService>();
@@ -235,7 +236,7 @@ app.MapGet("/api/v1/health", async (
     .AllowAnonymous();
 app.MapControllers();
 
-if (args.Contains("--bootstrap-ceo", StringComparer.Ordinal))
+if (args.Contains("--bootstrap-administrator", StringComparer.Ordinal))
 {
     await using var scope = app.Services.CreateAsyncScope();
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -243,44 +244,47 @@ if (args.Contains("--bootstrap-ceo", StringComparer.Ordinal))
     if (pendingMigrations.Any())
     {
         throw new InvalidOperationException(
-            "Apply all database migrations before running --bootstrap-ceo.");
+            "Apply all database migrations before running --bootstrap-administrator.");
     }
 
     if (await db.Users.AnyAsync())
     {
         throw new InvalidOperationException(
-            "CEO bootstrap is permitted only while the Users table is empty.");
+            "Administrator bootstrap is permitted only while the Users table is empty.");
     }
 
-    var ceoRoleId = await db.Roles
-        .Where(role => role.RoleName == "CEO")
+    var administratorRoleId = await db.Roles
+        .Where(role => role.RoleName == "Administrator")
         .Select(role => role.Id)
         .SingleAsync();
-    var bootstrapSection = builder.Configuration.GetSection("Bootstrap:Ceo");
+    var bootstrapSection = builder.Configuration.GetSection("Bootstrap:Administrator");
+    var username = bootstrapSection["Username"];
     var fullName = bootstrapSection["FullName"];
     var email = bootstrapSection["Email"];
     var phoneNumber = bootstrapSection["PhoneNumber"];
     var password = bootstrapSection["Password"];
-    if (string.IsNullOrWhiteSpace(fullName)
+    if (string.IsNullOrWhiteSpace(username)
+        || string.IsNullOrWhiteSpace(fullName)
         || string.IsNullOrWhiteSpace(email)
         || string.IsNullOrWhiteSpace(phoneNumber)
         || string.IsNullOrWhiteSpace(password))
     {
         throw new InvalidOperationException(
-            "Bootstrap:Ceo:FullName, Email, PhoneNumber and Password are all required. " +
+            "Bootstrap:Administrator:Username, FullName, Email, PhoneNumber and Password are all required. " +
             "Supply them through the deployment secret store, never committed settings.");
     }
 
     var users = scope.ServiceProvider.GetRequiredService<IUserService>();
     await users.CreateAsync(new CreateUserRequestDto
     {
+        Username = username,
         FullName = fullName,
         Email = email,
         PhoneNumber = phoneNumber,
         Password = password,
-        RoleId = ceoRoleId
+        RoleId = administratorRoleId
     });
-    Console.WriteLine("The initial CEO account was created. Remove the bootstrap secrets now.");
+    Console.WriteLine("The initial Administrator account was created. Remove the bootstrap secrets now.");
     return;
 }
 

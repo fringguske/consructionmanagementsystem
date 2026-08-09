@@ -7,6 +7,8 @@ public class AppDbContext : DbContext
 {
     private const string NormalizedEmailSql =
         "lower(btrim(\"Email\", ' ' || chr(9) || chr(10) || chr(11) || chr(12) || chr(13)))";
+    private const string NormalizedUsernameSql =
+        "lower(btrim(\"Username\", ' ' || chr(9) || chr(10) || chr(11) || chr(12) || chr(13)))";
 
     private const string NormalizedKraPinSql =
         "nullif(upper(btrim(\"KraPin\", ' ' || chr(9) || chr(10) || chr(11) || chr(12) || chr(13))), '')";
@@ -29,6 +31,7 @@ public class AppDbContext : DbContext
 
     public DbSet<Role> Roles => Set<Role>();
     public DbSet<User> Users => Set<User>();
+    public DbSet<AccessRequest> AccessRequests => Set<AccessRequest>();
     public DbSet<Project> Projects => Set<Project>();
     public DbSet<Material> Materials => Set<Material>();
     public DbSet<Supplier> Suppliers => Set<Supplier>();
@@ -143,6 +146,7 @@ public class AppDbContext : DbContext
 
         ConfigureRoles(modelBuilder, seedDate);
         ConfigureUsers(modelBuilder);
+        ConfigureAccessRequests(modelBuilder);
         ConfigureProjects(modelBuilder, seedDate, seedProjectDate);
         ConfigureMaterials(modelBuilder);
         ConfigureSuppliers(modelBuilder);
@@ -233,6 +237,13 @@ public class AppDbContext : DbContext
                 RoleName = "Finance Officer",
                 Description = "Performs three-way matching and independently authorizes payments",
                 CreatedAt = seedDate
+            },
+            new Role
+            {
+                Id = 10,
+                RoleName = "Administrator",
+                Description = "Approves access requests and manages user roles and project scope",
+                CreatedAt = seedDate
             });
     }
 
@@ -240,6 +251,7 @@ public class AppDbContext : DbContext
     {
         var users = modelBuilder.Entity<User>();
 
+        users.Property(user => user.Username).HasMaxLength(50);
         users.Property(user => user.FullName).HasMaxLength(150);
         users.Property(user => user.PhoneNumber).HasMaxLength(30);
         users.Property(user => user.Email).HasMaxLength(254);
@@ -247,11 +259,45 @@ public class AppDbContext : DbContext
         users.Property<string>("NormalizedEmail")
             .HasComputedColumnSql(NormalizedEmailSql, stored: true);
         users.HasIndex("NormalizedEmail")
-            .IsUnique();
+            .IsUnique(false);
+        users.Property<string>("NormalizedUsername")
+            .HasComputedColumnSql(NormalizedUsernameSql, stored: true);
+        users.HasIndex("NormalizedUsername").IsUnique();
+        users.ToTable(table => table.HasCheckConstraint(
+            "CK_Users_Username_Format",
+            "\"Username\" ~ '^[a-zA-Z0-9][a-zA-Z0-9._-]{2,49}$'"));
 
         users.HasOne(user => user.Role)
             .WithMany()
             .HasForeignKey(user => user.RoleId)
+            .OnDelete(DeleteBehavior.Restrict);
+    }
+
+    private static void ConfigureAccessRequests(ModelBuilder modelBuilder)
+    {
+        var requests = modelBuilder.Entity<AccessRequest>();
+        requests.Property(request => request.Username).HasMaxLength(50);
+        requests.Property(request => request.Email).HasMaxLength(254);
+        requests.Property(request => request.PasswordHash).HasMaxLength(255);
+        requests.Property(request => request.Status).HasMaxLength(20);
+        requests.Property(request => request.DecisionNote).HasMaxLength(500);
+        requests.Property<string>("NormalizedUsername")
+            .HasComputedColumnSql(NormalizedUsernameSql, stored: true);
+        requests.HasIndex("NormalizedUsername").IsUnique();
+        requests.HasIndex(request => new { request.Status, request.RequestedAt });
+        requests.ToTable(table => table.HasCheckConstraint(
+            "CK_AccessRequests_Status",
+            "\"Status\" IN ('Pending', 'Approved', 'Rejected')"));
+        requests.ToTable(table => table.HasCheckConstraint(
+            "CK_AccessRequests_Username_Format",
+            "\"Username\" ~ '^[a-zA-Z0-9][a-zA-Z0-9._-]{2,49}$'"));
+        requests.HasOne(request => request.ReviewedByUser)
+            .WithMany()
+            .HasForeignKey(request => request.ReviewedByUserId)
+            .OnDelete(DeleteBehavior.Restrict);
+        requests.HasOne(request => request.ApprovedUser)
+            .WithMany()
+            .HasForeignKey(request => request.ApprovedUserId)
             .OnDelete(DeleteBehavior.Restrict);
     }
 

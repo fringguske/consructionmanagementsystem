@@ -1,6 +1,8 @@
 import { apiConfig } from './config'
 import type {
   AssignedProject,
+  AccessRequest,
+  ApproveAccessRequest,
   ApiEnvelope,
   CostCode,
   CorrectPurchaseOrderRequest,
@@ -15,6 +17,7 @@ import type {
   CurrentUser,
   DashboardResponse,
   LoginRequest,
+  RegisterAccessRequest,
   Material,
   PageQuery,
   PaginatedResult,
@@ -29,6 +32,7 @@ import type {
   ReopenSourcingRoundRequest,
   Requisition,
   RequisitionListQuery,
+  RoleRecord,
   SetUserActiveRequest,
   SetProjectBudgetRequest,
   SourcingRound,
@@ -255,6 +259,9 @@ export const authApi = {
   login: (payload: LoginRequest, signal?: AbortSignal) =>
     request<CurrentUser>('/auth/login', { method: 'POST', body: payload, signal }),
 
+  register: (payload: RegisterAccessRequest, signal?: AbortSignal) =>
+    request<AccessRequest>('/auth/register', { method: 'POST', body: payload, signal }),
+
   me: (signal?: AbortSignal) => request<CurrentUser>('/auth/me', { signal }),
 
   switchRole: (payload: SwitchRoleRequest, signal?: AbortSignal) =>
@@ -280,6 +287,34 @@ export const authApi = {
       body: payload,
       signal,
     }),
+}
+
+export const accessRequestsApi = {
+  list: (status: AccessRequest['status'] | undefined, signal?: AbortSignal) =>
+    request<PaginatedResult<AccessRequest>>(
+      '/access-requests',
+      { signal },
+      { page: 1, pageSize: 100, status },
+    ),
+
+  approve: (id: number, payload: ApproveAccessRequest, signal?: AbortSignal) =>
+    request<AccessRequest>(`/access-requests/${id}/approve`, {
+      method: 'POST',
+      body: payload,
+      signal,
+    }),
+
+  reject: (id: number, reason: string, signal?: AbortSignal) =>
+    request<AccessRequest>(`/access-requests/${id}/reject`, {
+      method: 'POST',
+      body: { reason },
+      signal,
+    }),
+}
+
+export const rolesApi = {
+  list: (signal?: AbortSignal) =>
+    request<PaginatedResult<RoleRecord>>('/roles', { signal }, { page: 1, pageSize: 100 }),
 }
 
 export const dashboardApi = {

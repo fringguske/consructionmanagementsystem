@@ -22,7 +22,7 @@ All paths use the `/api/v1` prefix. Except for login, liveness and readiness, th
 | `/requisitions` | Material request and technical/approval chain | CEO, Supervisor, Engineer, Foreman, Auditor |
 | `/sourcing` | Sourcing rounds, quotes, supplier comparison and draft-PO creation | CEO, Supervisor, Procurement Officer, Auditor |
 | `/purchase-orders` | Submit, approve/return/reject, correct, cancel and issue | CEO, Supervisor, Procurement Officer, Storekeeper, Finance Officer, Auditor |
-| `/access` | Activate accounts and assign project scope | CEO |
+| `/access` | Review join requests, manage accounts and assign project scope | Administrator |
 
 Live navigation comes from the server-authorized effective role. Normally this is
 identical to the authenticated database role. A single explicitly configured IT
@@ -33,13 +33,17 @@ database role is unchanged and every service revalidates the temporary context.
 
 | Method and path | Role | Purpose |
 |---|---|---|
-| `POST /auth/login` | Anonymous | Validate email/password and issue the session cookie. Rate limited per forwarded client IP. |
+| `POST /auth/register` | Anonymous | Reserve a unique username and create a pending access request. Email addresses may be shared. |
+| `POST /auth/login` | Anonymous | Validate email, username and password and issue the session cookie. Rate limited per forwarded client IP. |
 | `GET /auth/me` | Any signed-in user | Return actual/effective role metadata and projects in the current workspace scope. |
 | `POST /auth/role-context` | Configured IT verifier only | Select a temporary effective workspace role without changing the account's database role. |
 | `POST /auth/logout` | Any signed-in user | Remove the session cookie. |
 | `GET /dashboard` | Any signed-in user | Return only counts inside the current user's project scope. |
-| `GET /users/{userId}/projects` | CEO | List a user's current assignments. |
-| `PUT /users/{userId}/projects` | CEO | End removed assignment periods and append newly activated periods. |
+| `GET /access-requests` | Administrator | List pending or reviewed join requests. |
+| `POST /access-requests/{id}/approve` | Administrator | Create the account with a selected role and project scope. |
+| `POST /access-requests/{id}/reject` | Administrator | Reject a request without creating a login. |
+| `GET /users/{userId}/projects` | Administrator | List a user's current assignments. |
+| `PUT /users/{userId}/projects` | Administrator | End removed assignment periods and append newly activated periods. |
 
 The cookie principal is checked against `Users.IsActive`, the actual database
 role, and the server-side IT verification configuration on every request.
@@ -47,7 +51,7 @@ Deactivation, an actual role change, or disabling verification invalidates an
 incompatible cookie immediately. Existing segregation-of-duties checks still use
 the real user ID, so the verifier cannot approve their own earlier action.
 
-CEO and Auditor can read every project. Operational users can read and act only where an active `UserProjectAssignments` period exists.
+Administrator, CEO and Auditor can list every project; only CEO and approved financial roles receive financial fields. Operational users can read and act only where an active `UserProjectAssignments` period exists.
 
 ## 2. Projects, cost codes, budgets and progress
 

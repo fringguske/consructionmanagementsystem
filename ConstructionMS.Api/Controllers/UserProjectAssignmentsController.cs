@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace ConstructionMS.Api.Controllers;
 
 [ApiController]
-[Authorize(Roles = "CEO")]
+[Authorize(Roles = "Administrator")]
 [Route("api/v1/users/{userId:int}/projects")]
 [Produces("application/json")]
 public sealed class UserProjectAssignmentsController : ControllerBase

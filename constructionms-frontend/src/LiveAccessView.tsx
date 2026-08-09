@@ -1,13 +1,17 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   ApiError,
+  accessRequestsApi,
   authApi,
   projectsApi,
+  rolesApi,
   usersApi,
+  type AccessRequest,
   type AssignedProject,
   type CurrentUser,
   type PaginatedResult,
   type Project,
+  type RoleRecord,
   type UserAccount,
 } from './api'
 import './live-api.css'
@@ -16,7 +20,7 @@ export interface LiveAccessViewProps {
   currentUser: CurrentUser
 }
 
-const PORTFOLIO_ROLES = new Set(['CEO', 'Auditor'])
+const PORTFOLIO_ROLES = new Set(['Administrator', 'CEO', 'Auditor'])
 
 function errorMessage(error: unknown): string {
   if (error instanceof ApiError || error instanceof Error) {
@@ -58,6 +62,8 @@ async function collectPages<T>(
 
 export function LiveAccessView({ currentUser }: LiveAccessViewProps) {
   const [users, setUsers] = useState<UserAccount[]>([])
+  const [pendingRequests, setPendingRequests] = useState<AccessRequest[]>([])
+  const [roles, setRoles] = useState<RoleRecord[]>([])
   const [projects, setProjects] = useState<Project[]>([])
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null)
   const [savedProjectIds, setSavedProjectIds] = useState<number[]>([])
@@ -72,6 +78,9 @@ export function LiveAccessView({ currentUser }: LiveAccessViewProps) {
   const [assignmentError, setAssignmentError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
+  const [reviewingRequestId, setReviewingRequestId] = useState<number | null>(null)
+  const [approvalRoleId, setApprovalRoleId] = useState<number | null>(null)
+  const [approvalProjectIds, setApprovalProjectIds] = useState<number[]>([])
 
   const selectedUser = users.find((user) => user.id === selectedUserId) ?? null
   const selectedHasPortfolioAccess = selectedUser
@@ -90,14 +99,14 @@ export function LiveAccessView({ currentUser }: LiveAccessViewProps) {
     if (!normalizedSearch) return users
 
     return users.filter((user) =>
-      [user.fullName, user.email, user.roleName].some((value) =>
+      [user.fullName, user.username, user.email, user.roleName].some((value) =>
         value.toLocaleLowerCase().includes(normalizedSearch),
       ),
     )
   }, [search, users])
 
   useEffect(() => {
-    if (currentUser.role !== 'CEO') {
+    if (currentUser.role !== 'Administrator') {
       return
     }
 
@@ -106,8 +115,10 @@ export function LiveAccessView({ currentUser }: LiveAccessViewProps) {
     Promise.all([
       collectPages((page) => usersApi.list({ page, pageSize: 100 }, controller.signal)),
       collectPages((page) => projectsApi.list({ page, pageSize: 100 }, controller.signal)),
+      accessRequestsApi.list('Pending', controller.signal),
+      rolesApi.list(controller.signal),
     ])
-      .then(([loadedUsers, loadedProjects]) => {
+      .then(([loadedUsers, loadedProjects, loadedRequests, loadedRoles]) => {
         const sortedUsers = [...loadedUsers].sort((left, right) =>
           left.fullName.localeCompare(right.fullName),
         )
@@ -122,6 +133,9 @@ export function LiveAccessView({ currentUser }: LiveAccessViewProps) {
         setProjects(
           [...loadedProjects].sort((left, right) => left.name.localeCompare(right.name)),
         )
+        setPendingRequests(loadedRequests.items)
+        setRoles(loadedRoles.items.filter(role => role.roleName !== 'Administrator'))
+        setApprovalRoleId(current => current ?? loadedRoles.items.find(role => role.roleName === 'Foreman')?.id ?? null)
         setSelectedUserId((current) => {
           if (current && sortedUsers.some((user) => user.id === current)) return current
           return preferredUser?.id ?? null
@@ -140,7 +154,7 @@ export function LiveAccessView({ currentUser }: LiveAccessViewProps) {
   }, [currentUser.id, currentUser.role, refreshKey])
 
   useEffect(() => {
-    if (currentUser.role !== 'CEO' || selectedUserId === null) {
+    if (currentUser.role !== 'Administrator' || selectedUserId === null) {
       return
     }
 
@@ -223,13 +237,46 @@ export function LiveAccessView({ currentUser }: LiveAccessViewProps) {
     }
   }
 
-  if (currentUser.role !== 'CEO') {
+  async function approveRequest(request: AccessRequest) {
+    if (!approvalRoleId) return
+    setReviewingRequestId(request.id)
+    setError(null)
+    try {
+      await accessRequestsApi.approve(request.id, {
+        roleId: approvalRoleId,
+        projectIds: approvalProjectIds,
+      })
+      setMessage(`${request.username} was approved and can now sign in.`)
+      setApprovalProjectIds([])
+      setRefreshKey(value => value + 1)
+    } catch (requestError) {
+      setError(errorMessage(requestError))
+    } finally {
+      setReviewingRequestId(null)
+    }
+  }
+
+  async function rejectRequest(request: AccessRequest) {
+    setReviewingRequestId(request.id)
+    setError(null)
+    try {
+      await accessRequestsApi.reject(request.id, 'Access request declined by Administrator')
+      setMessage(`${request.username}'s request was declined.`)
+      setRefreshKey(value => value + 1)
+    } catch (requestError) {
+      setError(errorMessage(requestError))
+    } finally {
+      setReviewingRequestId(null)
+    }
+  }
+
+  if (currentUser.role !== 'Administrator') {
     return (
       <div className="lav-view">
         <div className="lav-empty">
           <span aria-hidden="true">—</span>
-          <h3>CEO access only</h3>
-          <p>Account status and project assignments are managed by the CEO.</p>
+          <h3>Administrator access only</h3>
+          <p>Join requests, account status and project assignments are managed by the Administrator.</p>
         </div>
       </div>
     )
@@ -239,9 +286,9 @@ export function LiveAccessView({ currentUser }: LiveAccessViewProps) {
     <div className="lav-view">
       <header className="lav-page-head">
         <div>
-          <span className="lav-kicker">Live access records</span>
-          <h1>Team access</h1>
-          <p>Choose a person, set their sites, and control whether they can sign in.</p>
+          <span className="lav-kicker">Administrator workspace</span>
+          <h1>Access requests</h1>
+          <p>Approve new people, choose their role and limit them to the correct projects.</p>
         </div>
         <span className="lav-count-chip">
           {users.filter((user) => user.isActive).length} active
@@ -269,6 +316,21 @@ export function LiveAccessView({ currentUser }: LiveAccessViewProps) {
           {message}
         </div>
       )}
+
+      {!loading && <section className="lav-panel lav-access-requests">
+        <header className="lav-panel-head">
+          <div><span className="lav-kicker">Waiting for you</span><h2>New join requests</h2></div>
+          <span className="lav-count-chip attention">{pendingRequests.length}</span>
+        </header>
+        {pendingRequests.length === 0 ? <div className="lav-access-auto"><strong>No requests waiting</strong><p>New sign-ups will appear here.</p></div> : <div className="lav-request-list">
+          {pendingRequests.map(request => <article key={request.id}>
+            <div><strong>@{request.username}</strong><span>{request.email}</span><small>{new Date(request.requestedAt).toLocaleString()}</small></div>
+            <label><span>Role</span><select value={approvalRoleId ?? ''} onChange={event => setApprovalRoleId(Number(event.target.value))}>{roles.map(role => <option key={role.id} value={role.id}>{role.roleName}</option>)}</select></label>
+            <div className="lav-request-projects">{projects.map(project => <label key={project.id}><input type="checkbox" checked={approvalProjectIds.includes(project.id)} onChange={() => setApprovalProjectIds(ids => ids.includes(project.id) ? ids.filter(id => id !== project.id) : [...ids, project.id])}/><span>{project.name}</span></label>)}</div>
+            <div className="lav-request-actions"><button className="lav-button secondary" disabled={reviewingRequestId !== null} onClick={() => void rejectRequest(request)}>Decline</button><button className="lav-button primary" disabled={!approvalRoleId || reviewingRequestId !== null} onClick={() => void approveRequest(request)}>{reviewingRequestId === request.id ? 'Saving…' : 'Approve'}</button></div>
+          </article>)}
+        </div>}
+      </section>}
 
       {loading ? (
         <div className="lav-loading" role="status">
@@ -298,7 +360,7 @@ export function LiveAccessView({ currentUser }: LiveAccessViewProps) {
                 type="search"
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="Name, email or role"
+                placeholder="Username, email, name or role"
               />
             </div>
             <ul className="lav-access-user-list">
@@ -322,7 +384,7 @@ export function LiveAccessView({ currentUser }: LiveAccessViewProps) {
                       <span className="lav-access-user-copy">
                         <strong>{user.fullName}</strong>
                         <small>{user.roleName}</small>
-                        <span>{user.email}</span>
+                        <span>@{user.username} · {user.email}</span>
                       </span>
                       <i className={`lav-access-state ${user.isActive ? 'active' : 'inactive'}`}>
                         {user.isActive ? 'Active' : 'Inactive'}
@@ -346,7 +408,7 @@ export function LiveAccessView({ currentUser }: LiveAccessViewProps) {
                   <span className="lav-kicker">Selected account</span>
                   <h2 id="access-detail-title">{selectedUser.fullName}</h2>
                   <p>
-                    {selectedUser.roleName} · {selectedUser.email}
+                    @{selectedUser.username} · {selectedUser.roleName} · {selectedUser.email}
                   </p>
                 </div>
                 <span
@@ -456,7 +518,7 @@ export function LiveAccessView({ currentUser }: LiveAccessViewProps) {
                   {selectedIsCurrentUser && selectedUser.isActive ? (
                     <div className="lav-access-self-note">
                       <strong>This is your signed-in account</strong>
-                      <p>Use another CEO account if this account ever needs to be deactivated.</p>
+                      <p>Use another Administrator account if this account ever needs to be deactivated.</p>
                     </div>
                   ) : selectedUser.isActive ? (
                     confirmingDeactivate ? (

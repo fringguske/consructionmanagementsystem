@@ -2,9 +2,13 @@ namespace ConstructionMS.Infrastructure.Common;
 
 using ConstructionMS.Application.Common;
 using System.Text;
+using System.Text.RegularExpressions;
 
 internal static class InputNormalizer
 {
+    private static readonly Regex UsernamePattern = new(
+        "^[a-zA-Z0-9][a-zA-Z0-9._-]*$",
+        RegexOptions.CultureInvariant);
     private static readonly char[] OuterWhitespace = [' ', '\t', '\n', '\v', '\f', '\r'];
 
     public static string RequiredText(
@@ -52,6 +56,19 @@ internal static class InputNormalizer
 
     public static string Email(string? value, string parameterName) =>
         RequiredText(value, parameterName, minimumLength: 3, maximumLength: 254).ToLowerInvariant();
+
+    public static string Username(string? value, string parameterName)
+    {
+        var username = RequiredText(value, parameterName, 3, 50).ToLowerInvariant();
+        if (!UsernamePattern.IsMatch(username))
+        {
+            throw new ArgumentException(
+                "Username may contain only letters, numbers, dots, underscores, and hyphens.",
+                parameterName);
+        }
+
+        return username;
+    }
 
     public static string Password(
         string? value,

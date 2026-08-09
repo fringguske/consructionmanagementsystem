@@ -8,7 +8,7 @@ using Microsoft.Extensions.Options;
 
 public sealed class ActorRoleResolver : IActorRoleResolver
 {
-    private const string ChiefExecutiveRole = "CEO";
+    private const string AdministratorRole = "Administrator";
     private readonly AppDbContext _db;
     private readonly ICurrentActorContext _currentActor;
     private readonly ItVerificationOptions _options;
@@ -39,6 +39,7 @@ public sealed class ActorRoleResolver : IActorRoleResolver
             .Select(candidate => new
             {
                 candidate.Id,
+                candidate.Username,
                 candidate.FullName,
                 candidate.Email,
                 ActualRole = candidate.Role.RoleName
@@ -62,11 +63,11 @@ public sealed class ActorRoleResolver : IActorRoleResolver
             : effectiveRoleRequest.Trim();
 
         var isConfiguredTester = _options.Enabled
-            && string.Equals(user.ActualRole, ChiefExecutiveRole, StringComparison.Ordinal)
-            && !string.IsNullOrWhiteSpace(_options.TesterEmail)
+            && string.Equals(user.ActualRole, AdministratorRole, StringComparison.Ordinal)
+            && !string.IsNullOrWhiteSpace(_options.TesterUsername)
             && string.Equals(
-                user.Email.Trim(),
-                _options.TesterEmail.Trim(),
+                user.Username.Trim(),
+                _options.TesterUsername.Trim(),
                 StringComparison.OrdinalIgnoreCase);
 
         IReadOnlyList<string> availableRoles = [];
@@ -95,6 +96,7 @@ public sealed class ActorRoleResolver : IActorRoleResolver
             ? null
             : new ActorRoleContext(
                 user.Id,
+                user.Username,
                 user.FullName,
                 user.Email,
                 user.ActualRole,

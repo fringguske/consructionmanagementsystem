@@ -1,11 +1,13 @@
 export {
   ApiError,
+  accessRequestsApi,
   authApi,
   dashboardApi,
   materialsApi,
   projectsApi,
   purchaseOrdersApi,
   requisitionsApi,
+  rolesApi,
   sourcingRoundsApi,
   suppliersApi,
   usersApi,

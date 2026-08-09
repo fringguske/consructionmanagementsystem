@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore;
 public class UserService : IUserService
 {
     private const int PasswordWorkFactor = 12;
-    private const string NormalizedEmailProperty = "NormalizedEmail";
+    private const string NormalizedUsernameProperty = "NormalizedUsername";
     private readonly AppDbContext _db;
 
     public UserService(AppDbContext db) => _db = db;
@@ -54,11 +54,14 @@ public class UserService : IUserService
     public async Task<UserResponseDto> CreateAsync(CreateUserRequestDto dto)
     {
         var email = InputNormalizer.Email(dto.Email, nameof(dto.Email));
+        var username = InputNormalizer.Username(dto.Username, nameof(dto.Username));
 
         if (await _db.Users.AnyAsync(user =>
-                EF.Property<string>(user, NormalizedEmailProperty) == email))
+                EF.Property<string>(user, NormalizedUsernameProperty) == username)
+            || await _db.AccessRequests.AnyAsync(request =>
+                EF.Property<string>(request, NormalizedUsernameProperty) == username))
         {
-            throw new InvalidOperationException("A user with that email address already exists.");
+            throw new InvalidOperationException("A user with that username already exists.");
         }
 
         if (!await _db.Roles.AnyAsync(role => role.Id == dto.RoleId))
@@ -68,6 +71,7 @@ public class UserService : IUserService
 
         var user = new User
         {
+            Username = username,
             FullName = InputNormalizer.RequiredText(dto.FullName, nameof(dto.FullName), 2, 150),
             Email = email,
             PhoneNumber = InputNormalizer.RequiredText(
@@ -97,12 +101,16 @@ public class UserService : IUserService
         if (user is null) return null;
 
         var email = InputNormalizer.Email(dto.Email, nameof(dto.Email));
+        var username = InputNormalizer.Username(dto.Username, nameof(dto.Username));
 
         if (await _db.Users.AnyAsync(existing =>
                 existing.Id != id
-                && EF.Property<string>(existing, NormalizedEmailProperty) == email))
+                && EF.Property<string>(existing, NormalizedUsernameProperty) == username)
+            || await _db.AccessRequests.AnyAsync(request =>
+                request.ApprovedUserId != id
+                && EF.Property<string>(request, NormalizedUsernameProperty) == username))
         {
-            throw new InvalidOperationException("A user with that email address already exists.");
+            throw new InvalidOperationException("A user with that username already exists.");
         }
 
         if (!await _db.Roles.AnyAsync(role => role.Id == dto.RoleId))
@@ -120,17 +128,18 @@ public class UserService : IUserService
                 .Where(role => role.Id == dto.RoleId)
                 .Select(role => role.RoleName)
                 .SingleAsync();
-            if (currentRole == "CEO"
-                && nextRole != "CEO"
+            if (currentRole is "CEO" or "Administrator"
+                && nextRole != currentRole
                 && user.IsActive
-                && await CountActiveCeoUsersAsync() <= 1)
+                && await CountActiveUsersInRoleAsync(currentRole) <= 1)
             {
                 throw new InvalidOperationException(
-                    "The final active CEO cannot be moved to another role.");
+                    $"The final active {currentRole} cannot be moved to another role.");
             }
         }
 
         user.FullName = InputNormalizer.RequiredText(dto.FullName, nameof(dto.FullName), 2, 150);
+        user.Username = username;
         user.Email = email;
         user.PhoneNumber = InputNormalizer.RequiredText(
             dto.PhoneNumber,
@@ -151,12 +160,16 @@ public class UserService : IUserService
 
         if (!isActive && user.IsActive)
         {
-            var isCeo = await _db.Roles
-                .AnyAsync(role => role.Id == user.RoleId && role.RoleName == "CEO");
-            if (isCeo && await CountActiveCeoUsersAsync() <= 1)
+            var protectedRole = await _db.Roles
+                .Where(role => role.Id == user.RoleId
+                    && (role.RoleName == "CEO" || role.RoleName == "Administrator"))
+                .Select(role => role.RoleName)
+                .SingleOrDefaultAsync();
+            if (protectedRole is not null
+                && await CountActiveUsersInRoleAsync(protectedRole) <= 1)
             {
                 throw new InvalidOperationException(
-                    "The final active CEO cannot be deactivated.");
+                    $"The final active {protectedRole} cannot be deactivated.");
             }
         }
 
@@ -165,13 +178,14 @@ public class UserService : IUserService
         return true;
     }
 
-    private Task<int> CountActiveCeoUsersAsync() =>
+    private Task<int> CountActiveUsersInRoleAsync(string roleName) =>
         _db.Users.CountAsync(candidate =>
-            candidate.IsActive && candidate.Role.RoleName == "CEO");
+            candidate.IsActive && candidate.Role.RoleName == roleName);
 
     private static UserResponseDto ToDto(User u) => new()
     {
         Id = u.Id,
+        Username = u.Username,
         FullName = u.FullName,
         Email = u.Email,
         PhoneNumber = u.PhoneNumber,

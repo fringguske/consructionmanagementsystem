@@ -34,8 +34,8 @@ Production must also override:
 
 - `AllowedHosts` with the public hostname;
 - `Cors__AllowedOrigins__0` only when the frontend is genuinely cross-origin;
-- `ItVerification__Enabled=true` and `ItVerification__TesterEmail=<email>` only
-  while the named CEO account needs live role inspection during development;
+- `ItVerification__Enabled=true` and `ItVerification__TesterUsername=<username>` only
+  while the named Administrator account needs live role inspection during development;
 - TLS at nginx or the hosting platform, because production authentication cookies are Secure;
 - trusted forwarded-proxy addresses if nginx is not running on the same host.
 
@@ -58,21 +58,22 @@ The workflow migration preserves legacy requisitions as imported evidence. Legac
 
 Production rollout requires a maintenance window, a verified PostgreSQL backup and an atomic two-migration apply. Follow [docs/production-database-rollout.md](docs/production-database-rollout.md); do not run the old API against the migrated schema or use the destructive `Down` migrations as a rollback strategy.
 
-After migration, a CEO must assign each operational user to the correct projects through `PUT /api/v1/users/{userId}/projects`. The system intentionally does not infer access from names or give all users every site.
+After approval, the Administrator assigns each operational user to the correct projects. The system intentionally does not infer access from names or give all users every site.
 
-### First CEO on an empty database
+### First Administrator on an empty database
 
 There is no default password. On a brand-new database with an empty `Users` table, provide these values through user secrets or environment variables:
 
-- `Bootstrap__Ceo__FullName`
-- `Bootstrap__Ceo__Email`
-- `Bootstrap__Ceo__PhoneNumber`
-- `Bootstrap__Ceo__Password`
+- `Bootstrap__Administrator__Username`
+- `Bootstrap__Administrator__FullName`
+- `Bootstrap__Administrator__Email`
+- `Bootstrap__Administrator__PhoneNumber`
+- `Bootstrap__Administrator__Password`
 
-Then run the API once with `--bootstrap-ceo`. The command refuses to run if migrations are pending or any user already exists. Remove all bootstrap secrets immediately after it succeeds.
+Then run the API once with `--bootstrap-administrator`. The command refuses to run if migrations are pending or any user already exists. Remove all bootstrap secrets immediately after it succeeds.
 
 ```bash
-dotnet run --project ConstructionMS.Api/ConstructionMS.Api.csproj -- --bootstrap-ceo
+dotnet run --project ConstructionMS.Api/ConstructionMS.Api.csproj -- --bootstrap-administrator
 ```
 
 ## Frontend modes

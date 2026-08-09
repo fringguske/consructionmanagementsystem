@@ -12,7 +12,7 @@ namespace ConstructionMS.Api.Controllers;
 /// Manages system users and their role assignments.
 /// </summary>
 [ApiController]
-[Authorize(Roles = "CEO")]
+[Authorize(Roles = "Administrator")]
 [Route("api/v1/users")]
 [Route("api/[controller]")]
 [Produces("application/json")]
@@ -84,7 +84,7 @@ public class UsersController : ControllerBase
         if (id == User.GetRequiredUserId() && !request.IsActive)
         {
             return BadRequest(ApiResponse<UserResponseDto>.Fail(
-                "Use another CEO account to deactivate your own account."));
+                "Use another Administrator account to deactivate your own account."));
         }
 
         var changed = await _userService.SetActiveStatusAsync(id, request.IsActive);

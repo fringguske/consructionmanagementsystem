@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using ConstructionMS.Api.Common;
 using ConstructionMS.Application.DTOs.Auth;
+using ConstructionMS.Application.Services.Auth;
 using ApplicationAuthenticationService = ConstructionMS.Application.Services.Auth.IAuthenticationService;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -16,14 +17,30 @@ namespace ConstructionMS.Api.Controllers;
 public sealed class AuthController : ControllerBase
 {
     private readonly ApplicationAuthenticationService _authenticationService;
+    private readonly IAccessRequestService _accessRequestService;
     private readonly ILogger<AuthController> _logger;
 
     public AuthController(
         ApplicationAuthenticationService authenticationService,
+        IAccessRequestService accessRequestService,
         ILogger<AuthController> logger)
     {
         _authenticationService = authenticationService;
+        _accessRequestService = accessRequestService;
         _logger = logger;
+    }
+
+    [AllowAnonymous]
+    [EnableRateLimiting("login")]
+    [HttpPost("register")]
+    public async Task<IActionResult> Register(
+        [FromBody] RegisterAccessRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var accessRequest = await _accessRequestService.RegisterAsync(request, cancellationToken);
+        return StatusCode(
+            StatusCodes.Status201Created,
+            ApiResponse<AccessRequestResponseDto>.Ok(accessRequest));
     }
 
     [AllowAnonymous]

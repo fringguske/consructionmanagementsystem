@@ -10,6 +10,7 @@ using Microsoft.Extensions.Logging;
 public sealed class AuthenticationService : IAuthenticationService
 {
     private const string NormalizedEmailProperty = "NormalizedEmail";
+    private const string NormalizedUsernameProperty = "NormalizedUsername";
     // A valid BCrypt hash used only to keep unknown-email work comparable to
     // wrong-password work. It is not an application credential.
     private const string DummyPasswordHash =
@@ -31,12 +32,14 @@ public sealed class AuthenticationService : IAuthenticationService
     public async Task<CurrentUserDto?> AuthenticateAsync(LoginRequestDto request)
     {
         var normalizedEmail = InputNormalizer.Email(request.Email, nameof(request.Email));
+        var normalizedUsername = InputNormalizer.Username(request.Username, nameof(request.Username));
         var user = await _db.Users
             .Include(candidate => candidate.Role)
             .AsNoTracking()
             .FirstOrDefaultAsync(candidate =>
                 candidate.IsActive
-                && EF.Property<string>(candidate, NormalizedEmailProperty) == normalizedEmail);
+                && EF.Property<string>(candidate, NormalizedEmailProperty) == normalizedEmail
+                && EF.Property<string>(candidate, NormalizedUsernameProperty) == normalizedUsername);
 
         if (user is null)
         {
@@ -73,7 +76,7 @@ public sealed class AuthenticationService : IAuthenticationService
     private async Task<CurrentUserDto> BuildCurrentUserAsync(ActorRoleContext actor)
     {
         var projectQuery = _db.Projects.AsNoTracking();
-        if (actor.EffectiveRole is not "CEO" and not "Auditor")
+        if (actor.EffectiveRole is not "Administrator" and not "CEO" and not "Auditor")
         {
             projectQuery = projectQuery.Where(project =>
                 _db.UserProjectAssignments.Any(assignment =>
@@ -90,6 +93,7 @@ public sealed class AuthenticationService : IAuthenticationService
         return new CurrentUserDto
         {
             Id = actor.UserId,
+            Username = actor.Username,
             FullName = actor.FullName,
             Email = actor.Email,
             Role = actor.EffectiveRole,

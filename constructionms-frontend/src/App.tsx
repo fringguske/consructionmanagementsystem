@@ -29,6 +29,7 @@ const LivePurchaseOrdersView = lazy(() => import('./LivePurchaseViews').then(mod
 const LiveAccessView = lazy(() => import('./LiveAccessView').then(module => ({ default: module.LiveAccessView })))
 
 const liveDestinationPaths: Record<LiveDestination, string> = {
+  access: '/access',
   projects: '/projects',
   requisitions: '/requisitions',
   sourcing: '/sourcing',
@@ -275,6 +276,7 @@ const nav = [
 ]
 
 const roleNavigation: Record<DemoRole, string[]> = {
+  Administrator: ['/', '/settings'],
   CEO: ['/', '/projects', '/procurement', '/inventory', '/finance', '/workforce', '/equipment', '/audit'],
   Supervisor: ['/', '/projects', '/procurement', '/inventory', '/finance', '/workforce', '/equipment'],
   Engineer: ['/', '/projects', '/quality', '/drawings'],
@@ -363,13 +365,16 @@ type ShellProps = {
 }
 
 const liveRoleNavigation: Record<ConstructionRole, readonly { to: string; label: string; icon: IconName; badge?: number }[]> = {
+  Administrator: [
+    { to: '/', label: 'Overview', icon: 'grid' },
+    { to: '/access', label: 'Requests & access', icon: 'users' },
+  ],
   CEO: [
     { to: '/', label: 'Overview', icon: 'grid' },
     { to: '/projects', label: 'Projects', icon: 'building' },
     { to: '/requisitions', label: 'Material requests', icon: 'cart' },
     { to: '/sourcing', label: 'Supplier sourcing', icon: 'users' },
     { to: '/purchase-orders', label: 'Purchase orders', icon: 'file' },
-    { to: '/access', label: 'People & access', icon: 'settings' },
   ],
   Supervisor: [
     { to: '/', label: 'Overview', icon: 'grid' },
@@ -458,6 +463,7 @@ function Shell({ authenticatedUser, onLogout, onSwitchRole }: ShellProps = {}) {
   }))
   const visibleNav = liveMode ? liveRoleNavigation[role] : fieldRoleNav[role] ?? standardNav
   const roleHomeTitles: Record<DemoRole, [string, string]> = {
+    Administrator: ['Administrator', 'Join requests, roles and project access'],
     CEO: ['Overview', 'Your projects, money and stores'],
     Supervisor: ['Supervisor overview', `Projects and actions across ${scopeLabel}`],
     Engineer: ['Technical overview', `Progress, quality and compliance across ${scopeLabel}`],
@@ -474,7 +480,7 @@ function Shell({ authenticatedUser, onLogout, onSwitchRole }: ShellProps = {}) {
     '/procurement': role === 'Foreman' ? ['My material requests', 'Request what the site needs and follow its approval'] : role === 'Supervisor' ? ['Material approvals', 'Approve or return requests raised by your foremen'] : role === 'Procurement Officer' ? ['Approved sourcing queue', 'Source approved demand without changing it'] : ['Procurement', 'Requisitions, approvals and purchase orders'],
     '/requisitions': role === 'Foreman' ? ['My material requests', 'Request what the site needs and follow its approval'] : role === 'Engineer' ? ['Technical checks', 'Verify the site need before a supervisor decides'] : role === 'Supervisor' ? ['Material approvals', 'Decide only after an engineer has checked the request'] : ['Material requests', 'The controlled path from site request to approval'],
     '/sourcing': ['Supplier sourcing', 'Quotes and supplier selection for approved material needs'],
-    '/access': ['People & access', 'Assign the right projects without changing transaction history'],
+    '/access': ['Requests & access', 'Approve people, select roles and assign projects'],
     '/inventory': role === 'CEO' ? ['Stock & movement', 'What is inside each store, with site teams and moving'] : role === 'Foreman' ? ['Materials on site', 'Confirm receipt, record use and report wastage'] : role === 'Storekeeper' ? ['Stock ledger', 'Immutable balances across project stores'] : ['Inventory', 'Stock levels and material movement'],
     '/finance': role === 'Cashier'
       ? ['Payments & cash', 'Execute approved payments and reconcile site floats']
@@ -570,7 +576,7 @@ function Shell({ authenticatedUser, onLogout, onSwitchRole }: ShellProps = {}) {
               <span className="avatar">{profile.initials}</span><div><b>{profile.name}</b><small>{profile.subtitle}{liveMode ? '' : ' · Demo user'}</small></div><span>⌄</span>
             </button>
             {roleMenuOpen && liveMode && <div className="role-menu live-account-menu">
-              <div className="role-menu-head"><div><span>{authenticatedUser?.canSwitchRoles ? 'IT VERIFICATION MODE' : 'SIGNED IN'}</span><b>{authenticatedUser?.email}</b></div><button onClick={() => setRoleMenuOpen(false)} aria-label="Close account menu"><Icon name="close" size={16}/></button></div>
+              <div className="role-menu-head"><div><span>{authenticatedUser?.canSwitchRoles ? 'IT VERIFICATION MODE' : 'SIGNED IN'}</span><b>@{authenticatedUser?.username} · {authenticatedUser?.email}</b></div><button onClick={() => setRoleMenuOpen(false)} aria-label="Close account menu"><Icon name="close" size={16}/></button></div>
               {authenticatedUser?.canSwitchRoles && <>
                 <div className="live-role-note">Choose a role to inspect its real workspace and permissions.</div>
                 <div className="role-menu-list live-role-list">

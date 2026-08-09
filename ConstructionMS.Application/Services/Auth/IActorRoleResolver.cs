@@ -14,6 +14,7 @@ public interface IActorRoleResolver
 
 public sealed record ActorRoleContext(
     int UserId,
+    string Username,
     string FullName,
     string Email,
     string ActualRole,

@@ -36,16 +36,16 @@ public sealed class UserProjectAssignmentService : IUserProjectAssignmentService
         IReadOnlyCollection<int> projectIds,
         int assignedByUserId)
     {
-        var actorIsCeo = await _db.Users
+        var actorIsAdministrator = await _db.Users
             .AsNoTracking()
             .AnyAsync(user =>
                 user.Id == assignedByUserId
                 && user.IsActive
-                && user.Role.RoleName == "CEO");
+                && user.Role.RoleName == "Administrator");
 
-        if (!actorIsCeo)
+        if (!actorIsAdministrator)
         {
-            throw new UnauthorizedAccessException("Only the CEO can change project assignments.");
+            throw new UnauthorizedAccessException("Only the Administrator can change project assignments.");
         }
 
         if (!await _db.Users.AnyAsync(user => user.Id == userId && user.IsActive))
