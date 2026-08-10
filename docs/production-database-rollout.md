@@ -1,10 +1,12 @@
 # Production database rollout
 
-These steps apply only the first-four workflow migrations to a PostgreSQL database currently ending at `20260727193905_RenameManagerRoleToSupervisor`.
+Use this procedure for every PostgreSQL production rollout. Migrations are never
+applied automatically by the API.
 
 ## 1. Preflight
 
-Confirm the database identity and migration history without displaying its connection string:
+Confirm the database identity, current migration and owner of an established
+application table without displaying the connection string:
 
 ```sql
 SELECT current_database(), current_user, inet_server_addr(), inet_server_port(),
@@ -15,58 +17,50 @@ FROM "__EFMigrationsHistory"
 ORDER BY "MigrationId" DESC
 LIMIT 5;
 
-SELECT "Status", count(*)
-FROM "Requisitions"
-GROUP BY "Status"
-ORDER BY "Status";
+SELECT pg_get_userbyid(relowner) AS established_application_owner
+FROM pg_class
+WHERE oid = 'public."Users"'::regclass;
 ```
 
-Review every legacy `Approved` requisition before continuing. The migration deliberately sends legacy `Pending` and `Approved` records back through Engineer and Supervisor review. Already fulfilled records must not be allowed to trigger duplicate procurement.
+The role used to apply migrations must be the established application owner.
+Using a maintenance superuser creates otherwise valid tables that the API role
+cannot read or write. If policy requires a privileged migration role, explicitly
+transfer ownership or grant the required table and sequence privileges before the
+API starts; never rely on a superuser's default privileges.
 
-Confirm that the migration's function names are not already owned by another application:
-
-```sql
-SELECT n.nspname, p.proname, pg_get_userbyid(p.proowner)
-FROM pg_proc p
-JOIN pg_namespace n ON n.oid = p.pronamespace
-WHERE p.proname IN (
-    'constructionms_reject_evidence_mutation',
-    'constructionms_close_assignment_period_only',
-    'constructionms_preserve_po_commercial_source',
-    'constructionms_validate_po_commercial_source',
-    'constructionms_validate_po_line_source'
-);
-```
-
-The expected result before the migration is zero rows.
+Review the pending migration source and generated SQL. Run any migration-specific
+business-data gates before continuing.
 
 ## 2. Backup and maintenance window
 
-Stop the old API and every process that writes to the database. The new schema is intentionally incompatible with old requisition writes.
-
-Create and validate a custom-format backup in a restricted directory:
+Stop the API and every other process that writes to the database. Create and
+validate a custom-format backup in a restricted directory:
 
 ```bash
 pg_dump --format=custom --no-owner --no-acl \
-  --file=/secure/location/constructionms-before-first-four.dump \
-  "$CONSTRUCTIONMS_PG_URI"
+  --file=/secure/location/constructionms-before-release.dump \
+  "$CONSTRUCTIONMS_BACKUP_PG_URI"
 
 pg_restore --list \
-  /secure/location/constructionms-before-first-four.dump >/dev/null
+  /secure/location/constructionms-before-release.dump >/dev/null
 ```
 
-Retain the backup until the new API and data checks have been accepted. Restore this backup or forward-fix if rollout fails; never migrate `Down`, because `Down` removes new audit and workflow records.
+Retain the backup until the new API and data checks have been accepted. Restore
+the backup or forward-fix if rollout fails; never migrate `Down` when that would
+remove audit or workflow records.
 
 ## 3. Generate and apply one atomic script
 
-Build the reviewed release, then generate only the two new migrations without EF-managed transaction statements:
+Build the reviewed release, then generate only the pending range without
+EF-managed transaction statements. Replace the two placeholders with the exact
+IDs confirmed during preflight and code review:
 
 ```bash
 dotnet build ConstructionMS.slnx --configuration Release --no-restore -m:1
 
 dotnet ef migrations script \
-  20260727193905_RenameManagerRoleToSupervisor \
-  20260803104510_LinkRequisitionsToCostCodes \
+  <CURRENT_PRODUCTION_MIGRATION> \
+  <TARGET_RELEASE_MIGRATION> \
   --project ConstructionMS.Infrastructure/ConstructionMS.Infrastructure.csproj \
   --startup-project ConstructionMS.Api/ConstructionMS.Api.csproj \
   --configuration Release \
@@ -75,50 +69,58 @@ dotnet ef migrations script \
   --output /tmp/constructionms-production.sql
 ```
 
-Apply both migrations inside one PostgreSQL transaction. A lock timeout or SQL error then rolls back the entire rollout:
+Apply the script through the established application-owner connection. A lock
+timeout or SQL error then rolls back the entire migration range:
 
 ```bash
 PGOPTIONS='-c lock_timeout=10s -c statement_timeout=15min' \
-psql "$CONSTRUCTIONMS_PG_URI" \
+psql "$CONSTRUCTIONMS_APP_PG_URI" \
   --set=ON_ERROR_STOP=1 \
   --single-transaction \
   --file=/tmp/constructionms-production.sql
 ```
 
-## 4. Verification
+## 4. Ownership and access verification
 
-Both migration rows must exist:
+Run these checks through `CONSTRUCTIONMS_APP_PG_URI`, not a superuser connection.
+The first query must show the expected target migration. The second must return
+zero rows.
 
 ```sql
 SELECT "MigrationId"
 FROM "__EFMigrationsHistory"
-WHERE "MigrationId" IN (
-    '20260803095108_ImplementFirstFourApiPaths',
-    '20260803104510_LinkRequisitionsToCostCodes'
+ORDER BY "MigrationId" DESC
+LIMIT 5;
+
+WITH required_table("Name") AS (
+    VALUES
+        ('ControlEvents'),
+        ('GoodsReceipts'),
+        ('MaterialIssues'),
+        ('MaterialUsageRecords'),
+        ('PaymentAuthorizations'),
+        ('PaymentReceipts'),
+        ('Payments'),
+        ('StockBalances'),
+        ('StockCounts'),
+        ('StockLedgerEntries'),
+        ('StockTransfers'),
+        ('SupplierInvoices'),
+        ('SupplierOnboardingRequests')
 )
-ORDER BY "MigrationId";
+SELECT "Name" AS inaccessible_table
+FROM required_table
+WHERE NOT has_table_privilege(
+    current_user,
+    format('%I.%I', 'public', "Name"),
+    'SELECT');
 ```
 
-Every requisition must have a valid cost code from the same project, an imported audit-chain event, and no generated sentinel data:
+Only then start the new API. Verify both health endpoints and exercise at least
+one authenticated read for procurement, inventory and finance:
 
-```sql
-SELECT r."Id"
-FROM "Requisitions" r
-LEFT JOIN "CostCodes" c ON c."Id" = r."CostCodeId"
-WHERE c."Id" IS NULL OR c."ProjectId" <> r."ProjectId";
-
-SELECT r."Id"
-FROM "Requisitions" r
-LEFT JOIN "RequisitionApprovalEvents" e
-  ON e."RequisitionId" = r."Id" AND e."SequenceNumber" = 1
-WHERE e."Id" IS NULL OR length(e."EventHash") <> 64;
-
-SELECT count(*) AS invalid_requisitions
-FROM "Requisitions"
-WHERE "NeededByDate" = '-infinity'::date
-   OR "UpdatedAt" = '-infinity'::timestamptz
-   OR btrim("Purpose") = ''
-   OR "WorkflowRevision" < 1;
-```
-
-The first two queries must return zero rows and `invalid_requisitions` must be zero. Only then deploy/start the new API and verify `GET /api/v1/health` returns HTTP 200.
+- `GET /api/v1/health/live` returns HTTP 200;
+- `GET /api/v1/health` returns HTTP 200;
+- procurement supplier/sourcing data loads without a server error;
+- inventory receipts load without a server error;
+- finance supplier invoices load without a server error.

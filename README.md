@@ -61,7 +61,7 @@ dotnet ef database update \
 
 The workflow migration preserves legacy requisitions as imported evidence. Legacy `Pending` and `Approved` rows are routed through a fresh Engineer/Supervisor review so an old approval cannot bypass the new controls. Existing `Projects.Budget` values become explicitly labelled legacy baseline budget revisions.
 
-Production rollout requires a maintenance window, a verified PostgreSQL backup and an atomic two-migration apply. Follow [docs/production-database-rollout.md](docs/production-database-rollout.md); do not run the old API against the migrated schema or use the destructive `Down` migrations as a rollback strategy.
+Production rollout requires a maintenance window, a verified PostgreSQL backup and an atomic pending-migration apply using the established application database role. Follow [docs/production-database-rollout.md](docs/production-database-rollout.md); do not run an incompatible old API against the migrated schema or use destructive `Down` migrations as a rollback strategy.
 
 After approval, the Administrator assigns each operational user to the correct projects. The system intentionally does not infer access from names or give all users every site.
 
