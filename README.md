@@ -1,6 +1,6 @@
 # ConstructionMS
 
-ConstructionMS is a React and ASP.NET Core construction-control system for multiple sites. The first live workflow slice now covers authenticated project scope, project progress and budgets, material requisitions, supplier sourcing, and independently approved purchase orders.
+ConstructionMS is a React and ASP.NET Core construction-control system for multiple sites. The live workflow covers authenticated project scope, project progress and budgets, material requisitions, independently approved supplier onboarding, supplier sourcing, purchase orders, inventory and controlled payments.
 
 The existing React demonstration remains the default. Set the frontend to `live` mode only after the API and database have been configured.
 
@@ -21,10 +21,12 @@ The existing React demonstration remains the default. Set the frontend to `live`
 - CEO project/cost-area setup, append-only budget revisions and Engineer progress verifications.
 - Foreman → Engineer → Supervisor requisition workflow with a hash-chained event history.
 - Procurement sourcing rounds, immutable supplier quotes and snapshotted reference prices.
+- Procurement supplier applications with independent Finance/CEO approval before a company becomes available for quotations.
 - Draft → submit → independent approval → issue purchase-order workflow, including return, rejection, correction and cancellation paths.
+- Storekeeper GRNs, store balances, immutable movement ledger, Foreman issue confirmation/use/wastage, dual-confirmed transfers and independently reviewed stock counts.
+- Supplier invoice capture after full receipt, Finance three-way matching/authorization, CEO high-value exceptions, Cashier execution and system receipts.
+- One CEO/Auditor material-and-money trace backed by hash-linked control events.
 - PostgreSQL triggers that reject updates or deletes to approval/evidence records.
-
-Inventory receipt/issue, invoice matching and payments remain later slices. Do not treat an issued PO as proof that goods were received or paid.
 
 ## Secure configuration
 
@@ -42,7 +44,10 @@ Production must also override:
 Never commit connection strings, `.env` files, certificates, database dumps or bootstrap credentials. The repository ignore rules cover common variants, including `*.pem` and every `.env` except `.env.example`.
 
 IT verification never accepts a password from configuration and never changes
-the account's stored role. Disable it when development verification is complete.
+the account's stored role. While explicitly enabled, the named tester can inspect
+all projects in each selected workspace, but actions retain the real Administrator
+user ID and same-person duty conflicts remain blocked. Disable it when development
+verification is complete.
 
 ## Database setup
 

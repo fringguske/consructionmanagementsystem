@@ -3,6 +3,7 @@ using System;
 using ConstructionMS.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace ConstructionMS.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260809215702_CompleteInventoryAndFinanceWorkflows")]
+    partial class CompleteInventoryAndFinanceWorkflows
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1850,113 +1853,6 @@ namespace ConstructionMS.Infrastructure.Migrations
                         });
                 });
 
-            modelBuilder.Entity("ConstructionMS.Domain.Entities.SupplierOnboardingRequest", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<int?>("ApprovedSupplierId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Category")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<string>("ContactPerson")
-                        .IsRequired()
-                        .HasMaxLength(150)
-                        .HasColumnType("character varying(150)");
-
-                    b.Property<string>("Email")
-                        .HasMaxLength(254)
-                        .HasColumnType("character varying(254)");
-
-                    b.Property<string>("KraPin")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<string>("MpesaNumber")
-                        .HasMaxLength(30)
-                        .HasColumnType("character varying(30)");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<string>("NormalizedKraPin")
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("text")
-                        .HasComputedColumnSql("nullif(upper(btrim(\"KraPin\", ' ' || chr(9) || chr(10) || chr(11) || chr(12) || chr(13))), '')", true);
-
-                    b.Property<string>("PhoneNumber")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("character varying(30)");
-
-                    b.Property<string>("RequestNumber")
-                        .IsRequired()
-                        .HasMaxLength(40)
-                        .HasColumnType("character varying(40)");
-
-                    b.Property<string>("ReviewNotes")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)");
-
-                    b.Property<DateTime?>("ReviewedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int?>("ReviewedByUserId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Status")
-                        .IsConcurrencyToken()
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<DateTime>("SubmittedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("SubmittedByUserId")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ApprovedSupplierId")
-                        .IsUnique()
-                        .HasFilter("\"ApprovedSupplierId\" IS NOT NULL");
-
-                    b.HasIndex("NormalizedKraPin")
-                        .IsUnique()
-                        .HasFilter("\"Status\" = 'Pending'");
-
-                    b.HasIndex("RequestNumber")
-                        .IsUnique();
-
-                    b.HasIndex("ReviewedByUserId");
-
-                    b.HasIndex("Status");
-
-                    b.HasIndex("SubmittedByUserId");
-
-                    b.ToTable("SupplierOnboardingRequests", t =>
-                        {
-                            t.HasCheckConstraint("CK_SupplierOnboardingRequests_Actors_Distinct", "\"ReviewedByUserId\" IS NULL OR \"ReviewedByUserId\" <> \"SubmittedByUserId\"");
-
-                            t.HasCheckConstraint("CK_SupplierOnboardingRequests_Decision_Consistent", "(\"Status\" = 'Pending' AND \"ReviewedByUserId\" IS NULL AND \"ReviewedAt\" IS NULL AND \"ReviewNotes\" IS NULL AND \"ApprovedSupplierId\" IS NULL) OR (\"Status\" = 'Approved' AND \"ReviewedByUserId\" IS NOT NULL AND \"ReviewedAt\" IS NOT NULL AND length(btrim(\"ReviewNotes\")) >= 3 AND \"ApprovedSupplierId\" IS NOT NULL) OR (\"Status\" = 'Rejected' AND \"ReviewedByUserId\" IS NOT NULL AND \"ReviewedAt\" IS NOT NULL AND length(btrim(\"ReviewNotes\")) >= 3 AND \"ApprovedSupplierId\" IS NULL)");
-
-                            t.HasCheckConstraint("CK_SupplierOnboardingRequests_Review_After_Submission", "\"ReviewedAt\" IS NULL OR \"ReviewedAt\" >= \"SubmittedAt\"");
-
-                            t.HasCheckConstraint("CK_SupplierOnboardingRequests_Status_Valid", "\"Status\" IN ('Pending', 'Approved', 'Rejected')");
-                        });
-                });
-
             modelBuilder.Entity("ConstructionMS.Domain.Entities.SupplierQuote", b =>
                 {
                     b.Property<int>("Id")
@@ -2822,31 +2718,6 @@ namespace ConstructionMS.Infrastructure.Migrations
                     b.Navigation("ReviewedByUser");
 
                     b.Navigation("Supplier");
-                });
-
-            modelBuilder.Entity("ConstructionMS.Domain.Entities.SupplierOnboardingRequest", b =>
-                {
-                    b.HasOne("ConstructionMS.Domain.Entities.Supplier", "ApprovedSupplier")
-                        .WithMany()
-                        .HasForeignKey("ApprovedSupplierId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("ConstructionMS.Domain.Entities.User", "ReviewedByUser")
-                        .WithMany()
-                        .HasForeignKey("ReviewedByUserId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("ConstructionMS.Domain.Entities.User", "SubmittedByUser")
-                        .WithMany()
-                        .HasForeignKey("SubmittedByUserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("ApprovedSupplier");
-
-                    b.Navigation("ReviewedByUser");
-
-                    b.Navigation("SubmittedByUser");
                 });
 
             modelBuilder.Entity("ConstructionMS.Domain.Entities.SupplierQuote", b =>

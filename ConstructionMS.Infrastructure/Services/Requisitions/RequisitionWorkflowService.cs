@@ -623,9 +623,11 @@ public sealed class RequisitionWorkflowService : IRequisitionWorkflowService
 
     private IQueryable<Requisition> ApplyReadScope(IQueryable<Requisition> query, ActorContext actor)
     {
-        if (actor.Role is CeoRole or AuditorRole)
+        if (actor.Role is CeoRole or AuditorRole || actor.CanSwitchRoles)
         {
-            return query;
+            return actor.Role == ForemanRole
+                ? query.Where(requisition => requisition.RequestedByUserId == actor.UserId)
+                : query;
         }
 
         query = query.Where(requisition => _db.Set<UserProjectAssignment>().Any(assignment =>
@@ -667,19 +669,27 @@ public sealed class RequisitionWorkflowService : IRequisitionWorkflowService
             cancellationToken: cancellationToken);
         return actor is null
             ? null
-            : new ActorContext(actor.UserId, actor.FullName, actor.EffectiveRole);
+            : new ActorContext(actor.UserId, actor.FullName, actor.EffectiveRole, actor.CanSwitchRoles);
     }
 
-    private Task<bool> HasProjectAccessAsync(
+    private async Task<bool> HasProjectAccessAsync(
         int actorUserId,
         int projectId,
-        CancellationToken cancellationToken) =>
-        _db.Set<UserProjectAssignment>()
+        CancellationToken cancellationToken)
+    {
+        var actor = await _actorRoleResolver.ResolveAsync(actorUserId, cancellationToken: cancellationToken);
+        if (actor?.CanSwitchRoles == true)
+        {
+            return true;
+        }
+
+        return await _db.Set<UserProjectAssignment>()
             .AsNoTracking()
             .AnyAsync(assignment => assignment.UserId == actorUserId
                 && assignment.ProjectId == projectId
                 && assignment.IsActive,
                 cancellationToken);
+    }
 
     private Task<bool> IsProjectOperationalAsync(
         int projectId,
@@ -967,5 +977,5 @@ public sealed class RequisitionWorkflowService : IRequisitionWorkflowService
             OperationErrorKind.Conflict,
             "This requisition changed after you opened it. Refresh before trying again.");
 
-    private sealed record ActorContext(int UserId, string Name, string Role);
+    private sealed record ActorContext(int UserId, string Name, string Role, bool CanSwitchRoles);
 }

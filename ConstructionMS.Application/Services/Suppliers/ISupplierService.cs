@@ -11,7 +11,6 @@ public interface ISupplierService
 {
     Task<PaginatedResult<SupplierResponseDto>> GetAllAsync(int page, int pageSize);
     Task<SupplierResponseDto?> GetByIdAsync(int id);
-    Task<SupplierResponseDto> CreateAsync(CreateSupplierRequestDto dto);
     Task<SupplierResponseDto?> UpdateAsync(int id, UpdateSupplierRequestDto dto);
 
     /// <summary>

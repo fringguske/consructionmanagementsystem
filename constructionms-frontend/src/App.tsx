@@ -27,13 +27,21 @@ const LiveRequisitionsView = lazy(() => import('./LiveApiViews').then(module => 
 const LiveProcurementView = lazy(() => import('./LivePurchaseViews').then(module => ({ default: module.LiveProcurementView })))
 const LivePurchaseOrdersView = lazy(() => import('./LivePurchaseViews').then(module => ({ default: module.LivePurchaseOrdersView })))
 const LiveAccessView = lazy(() => import('./LiveAccessView').then(module => ({ default: module.LiveAccessView })))
+const LiveSuppliersView = lazy(() => import('./LiveSuppliersView').then(module => ({ default: module.LiveSuppliersView })))
+const LiveInventoryView = lazy(() => import('./LiveOperationsViews').then(module => ({ default: module.LiveInventoryView })))
+const LiveFinanceView = lazy(() => import('./LiveOperationsViews').then(module => ({ default: module.LiveFinanceView })))
+const LiveAuditView = lazy(() => import('./LiveOperationsViews').then(module => ({ default: module.LiveAuditView })))
 
 const liveDestinationPaths: Record<LiveDestination, string> = {
   access: '/access',
   projects: '/projects',
   requisitions: '/requisitions',
   sourcing: '/sourcing',
+  suppliers: '/suppliers',
   'purchase-orders': '/purchase-orders',
+  inventory: '/inventory',
+  finance: '/finance',
+  audit: '/audit',
 }
 
 type IconName =
@@ -374,7 +382,11 @@ const liveRoleNavigation: Record<ConstructionRole, readonly { to: string; label:
     { to: '/projects', label: 'Projects', icon: 'building' },
     { to: '/requisitions', label: 'Material requests', icon: 'cart' },
     { to: '/sourcing', label: 'Supplier sourcing', icon: 'users' },
+    { to: '/suppliers', label: 'Supplier register', icon: 'users' },
     { to: '/purchase-orders', label: 'Purchase orders', icon: 'file' },
+    { to: '/inventory', label: 'Stock & movement', icon: 'boxes' },
+    { to: '/finance', label: 'Money path', icon: 'wallet' },
+    { to: '/audit', label: 'Complete chain', icon: 'shield' },
   ],
   Supervisor: [
     { to: '/', label: 'Overview', icon: 'grid' },
@@ -382,6 +394,7 @@ const liveRoleNavigation: Record<ConstructionRole, readonly { to: string; label:
     { to: '/requisitions', label: 'Material approvals', icon: 'cart' },
     { to: '/sourcing', label: 'Sourcing exceptions', icon: 'users' },
     { to: '/purchase-orders', label: 'Purchase orders', icon: 'file' },
+    { to: '/inventory', label: 'Stock controls', icon: 'boxes' },
   ],
   Engineer: [
     { to: '/', label: 'Overview', icon: 'grid' },
@@ -391,28 +404,42 @@ const liveRoleNavigation: Record<ConstructionRole, readonly { to: string; label:
   Foreman: [
     { to: '/', label: 'Overview', icon: 'grid' },
     { to: '/requisitions', label: 'My material requests', icon: 'cart' },
+    { to: '/inventory', label: 'Materials with me', icon: 'boxes' },
   ],
-  Cashier: [{ to: '/', label: 'Overview', icon: 'grid' }],
+  Cashier: [
+    { to: '/', label: 'Overview', icon: 'grid' },
+    { to: '/finance', label: 'Approved payments', icon: 'wallet' },
+  ],
   Storekeeper: [
     { to: '/', label: 'Overview', icon: 'grid' },
     { to: '/purchase-orders', label: 'Issued orders', icon: 'truck' },
+    { to: '/inventory', label: 'Receive & control stock', icon: 'boxes' },
   ],
   'Procurement Officer': [
     { to: '/', label: 'Overview', icon: 'grid' },
     { to: '/sourcing', label: 'Sourcing', icon: 'cart' },
     { to: '/purchase-orders', label: 'Purchase orders', icon: 'file' },
+    { to: '/suppliers', label: 'Supplier onboarding', icon: 'users' },
+    { to: '/finance', label: 'Supplier invoices', icon: 'receipt' },
   ],
   'Finance Officer': [
     { to: '/', label: 'Overview', icon: 'grid' },
     { to: '/projects', label: 'Project budgets', icon: 'wallet' },
     { to: '/purchase-orders', label: 'Purchase orders', icon: 'file' },
+    { to: '/suppliers', label: 'Supplier approvals', icon: 'users' },
+    { to: '/finance', label: 'Match & authorize', icon: 'check' },
+    { to: '/inventory', label: 'GRNs & stock', icon: 'boxes' },
   ],
   Auditor: [
     { to: '/', label: 'Overview', icon: 'grid' },
     { to: '/projects', label: 'Projects', icon: 'building' },
     { to: '/requisitions', label: 'Request trail', icon: 'shield' },
     { to: '/sourcing', label: 'Sourcing trail', icon: 'users' },
+    { to: '/suppliers', label: 'Supplier register', icon: 'users' },
     { to: '/purchase-orders', label: 'Order trail', icon: 'file' },
+    { to: '/inventory', label: 'Material trail', icon: 'boxes' },
+    { to: '/finance', label: 'Payment trail', icon: 'wallet' },
+    { to: '/audit', label: 'Complete chain', icon: 'shield' },
   ],
 }
 
@@ -624,6 +651,10 @@ function Shell({ authenticatedUser, onLogout, onSwitchRole }: ShellProps = {}) {
             <Route path="/sourcing" element={canAccess('/sourcing') ? <LiveProcurementView currentUser={authenticatedUser!}/> : <AccessRestricted role={role}/>}/>
             <Route path="/purchase-orders" element={canAccess('/purchase-orders') ? <LivePurchaseOrdersView currentUser={authenticatedUser!}/> : <AccessRestricted role={role}/>}/>
             <Route path="/access" element={canAccess('/access') ? <LiveAccessView currentUser={authenticatedUser!}/> : <AccessRestricted role={role}/>}/>
+            <Route path="/suppliers" element={canAccess('/suppliers') ? <LiveSuppliersView currentUser={authenticatedUser!}/> : <AccessRestricted role={role}/>}/>
+            <Route path="/inventory" element={canAccess('/inventory') ? <LiveInventoryView currentUser={authenticatedUser!}/> : <AccessRestricted role={role}/>}/>
+            <Route path="/finance" element={canAccess('/finance') ? <LiveFinanceView currentUser={authenticatedUser!}/> : <AccessRestricted role={role}/>}/>
+            <Route path="/audit" element={canAccess('/audit') ? <LiveAuditView/> : <AccessRestricted role={role}/>}/>
             <Route path="*" element={<LiveDashboardView currentUser={authenticatedUser!}/>}/>
           </>}
           {!liveMode && <>

@@ -114,6 +114,18 @@ export interface DashboardResponse {
   visibleProjectCount: number
   pendingRequisitionCount: number
   approvedRequisitionCount: number
+  pendingAccessRequestCount: number
+  pendingSupplierOnboardingCount: number
+  pendingGoodsReceiptCount: number
+  pendingMaterialIssueCount: number
+  pendingMaterialConfirmationCount: number
+  pendingStockCountReviewCount: number
+  pendingInvoiceCaptureCount: number
+  pendingInvoiceReviewCount: number
+  pendingCeoDecisionCount: number
+  pendingPaymentAuthorizationCount: number
+  pendingPaymentCount: number
+  completedPaymentCount: number
 }
 
 export interface Material {
@@ -145,6 +157,44 @@ export interface SupplierSummary {
   createdAt: IsoDateTime
 }
 
+export type SupplierOnboardingStatus = 'Pending' | 'Approved' | 'Rejected'
+
+export interface SupplierOnboardingRequest {
+  id: number
+  requestNumber: string
+  name: string
+  contactPerson: string
+  phoneNumber: string
+  email: string | null
+  kraPin: string
+  mpesaNumber: string | null
+  category: string
+  status: SupplierOnboardingStatus
+  submittedByUserId: number
+  submittedByName: string
+  submittedAt: IsoDateTime
+  reviewedByUserId: number | null
+  reviewedByName: string | null
+  reviewedAt: IsoDateTime | null
+  reviewNotes: string | null
+  approvedSupplierId: number | null
+}
+
+export interface CreateSupplierOnboardingRequest {
+  name: string
+  contactPerson: string
+  phoneNumber: string
+  email?: string | null
+  kraPin: string
+  mpesaNumber?: string | null
+  category: string
+}
+
+export interface ReviewSupplierOnboardingRequest {
+  approve: boolean
+  notes: string
+}
+
 export interface Supplier extends SupplierSummary {
   contactPerson: string | null
   phoneNumber: string | null
@@ -163,7 +213,6 @@ export interface SupplierWriteRequest {
   category?: string | null
 }
 
-export type CreateSupplierRequest = SupplierWriteRequest
 export type UpdateSupplierRequest = SupplierWriteRequest
 
 export type ProjectStatus = 'Active' | 'On Hold' | 'Completed' | 'Cancelled'
@@ -533,4 +582,88 @@ export interface CorrectPurchaseOrderRequest {
   deliveryLocation?: string | null
   notes?: string | null
   reason: string
+}
+
+export interface GoodsReceipt {
+  id: number; receiptNumber: string; purchaseOrderId: number; purchaseOrderNumber: string
+  requisitionId: number; projectId: number; projectName: string; materialId: number
+  materialName: string; materialUnit: string; orderedQuantity: number; deliveredQuantity: number
+  acceptedQuantity: number; rejectedQuantity: number; condition: 'Good' | 'Damaged' | 'Mixed'
+  deliveryNoteReference: string; evidenceReference: string | null; discrepancyNotes: string | null
+  receivedByName: string; receivedAt: IsoDateTime
+}
+
+export interface StockBalance {
+  id: number; projectId: number; projectName: string; materialId: number; materialName: string
+  category: string; unit: string; quantityOnHand: number; reorderLevel: number; updatedAt: IsoDateTime
+}
+
+export interface StockLedgerEntry {
+  id: number; projectId: number; projectName: string; materialId: number; materialName: string
+  unit: string; movementType: string; quantityDelta: number; balanceAfter: number
+  referenceNumber: string; actorName: string; notes: string | null; occurredAt: IsoDateTime
+}
+
+export interface MaterialUsage {
+  id: number; usageType: 'Used' | 'Wastage'; quantity: number; purposeOrReason: string
+  evidenceReference: string | null; recordedByName: string; recordedAt: IsoDateTime
+}
+
+export interface MaterialIssue {
+  id: number; issueNumber: string; requisitionId: number; projectId: number; projectName: string
+  materialId: number; materialName: string; materialUnit: string; requestedQuantity: number
+  quantityIssued: number; status: 'AwaitingConfirmation' | 'Confirmed' | 'Disputed'
+  issuedByName: string; issuedToUserId: number; issuedToName: string; notes: string | null
+  issuedAt: IsoDateTime; confirmedQuantity: number | null; confirmationNotes: string | null
+  confirmedAt: IsoDateTime | null; usedQuantity: number; wastedQuantity: number
+  unaccountedQuantity: number; usage: MaterialUsage[]
+}
+
+export interface StockTransfer {
+  id: number; transferNumber: string; fromProjectId: number; fromProjectName: string
+  toProjectId: number; toProjectName: string; materialId: number; materialName: string
+  materialUnit: string; quantity: number; reason: string
+  status: 'PendingDispatch' | 'InTransit' | 'Received' | 'Disputed'
+  requestedByName: string; requestedAt: IsoDateTime; dispatchedByUserId: number | null; dispatchedByName: string | null
+  dispatchedAt: IsoDateTime | null; receivedByName: string | null; receivedQuantity: number | null
+  receiptNotes: string | null; receivedAt: IsoDateTime | null
+}
+
+export interface StockCount {
+  id: number; countNumber: string; projectId: number; projectName: string; materialId: number
+  materialName: string; materialUnit: string; systemQuantity: number; countedQuantity: number
+  variance: number; notes: string; status: 'AwaitingReview' | 'Approved' | 'Rejected'
+  countedByName: string; countedAt: IsoDateTime; reviewedByName: string | null
+  reviewNotes: string | null; reviewedAt: IsoDateTime | null
+}
+
+export interface SupplierInvoice {
+  id: number; invoiceNumber: string; purchaseOrderId: number; purchaseOrderNumber: string
+  requisitionId: number; projectId: number; projectName: string; supplierId: number
+  supplierName: string; materialName: string; materialUnit: string; orderedQuantity: number
+  orderedUnitPrice: number; acceptedQuantity: number; quantity: number; unitPrice: number; amount: number
+  documentReference: string | null; status: string; quantityMatches: boolean; priceMatches: boolean
+  amountMatches: boolean; requiresCeoApproval: boolean; matchNotes: string | null
+  capturedByName: string; capturedAt: IsoDateTime; reviewedByName: string | null
+  reviewedAt: IsoDateTime | null; ceoDecision: string | null; ceoDecisionNotes: string | null
+  ceoDecisionAt: IsoDateTime | null; authorization: PaymentAuthorization | null; payment: Payment | null
+}
+
+export interface PaymentAuthorization {
+  id: number; authorizationNumber: string; supplierInvoiceId: number; amount: number
+  supplierName: string; projectName: string; authorizedByName: string; notes: string | null
+  authorizedAt: IsoDateTime; isPaid: boolean
+}
+
+export interface Payment {
+  id: number; paymentNumber: string; paymentAuthorizationId: number; amount: number; method: string
+  externalReference: string; evidenceReference: string | null; paidByName: string
+  paidAt: IsoDateTime; receiptNumber: string
+}
+
+export interface ControlEvent {
+  chainKey: string; sequenceNumber: number; requisitionId: number | null; projectId: number
+  projectName: string; entityType: string; entityId: number; referenceNumber: string
+  eventType: string; actorName: string; actorRole: ConstructionRole; detailsJson: string | null
+  occurredAt: IsoDateTime; eventHash: string
 }

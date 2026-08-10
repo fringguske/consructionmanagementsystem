@@ -76,7 +76,8 @@ public sealed class AuthenticationService : IAuthenticationService
     private async Task<CurrentUserDto> BuildCurrentUserAsync(ActorRoleContext actor)
     {
         var projectQuery = _db.Projects.AsNoTracking();
-        if (actor.EffectiveRole is not "Administrator" and not "CEO" and not "Auditor")
+        if (!actor.CanSwitchRoles
+            && actor.EffectiveRole is not "Administrator" and not "CEO" and not "Auditor")
         {
             projectQuery = projectQuery.Where(project =>
                 _db.UserProjectAssignments.Any(assignment =>

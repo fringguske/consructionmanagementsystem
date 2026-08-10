@@ -57,7 +57,7 @@ public sealed class PurchaseOrderService : IPurchaseOrderService
         int? projectId = null,
         string? status = null)
     {
-        await PurchaseWorkflowAuthorization.ValidateActorAsync(
+        var actor = await PurchaseWorkflowAuthorization.ValidateActorAsync(
             _db, _actorRoleResolver, actorUserId, actorRole, VisibleRoles);
         if (projectId is <= 0)
         {
@@ -66,7 +66,7 @@ public sealed class PurchaseOrderService : IPurchaseOrderService
 
         var pagination = Pagination.Normalize(page, pageSize);
         var normalizedStatus = NormalizeStatus(status);
-        var query = ApplyReadScope(BaseQuery(), actorUserId, actorRole);
+        var query = ApplyReadScope(BaseQuery(), actorUserId, actorRole, actor.CanSwitchRoles);
         if (projectId.HasValue)
         {
             query = query.Where(order => order.ProjectId == projectId.Value);
@@ -98,9 +98,9 @@ public sealed class PurchaseOrderService : IPurchaseOrderService
         int actorUserId,
         string actorRole)
     {
-        await PurchaseWorkflowAuthorization.ValidateActorAsync(
+        var actor = await PurchaseWorkflowAuthorization.ValidateActorAsync(
             _db, _actorRoleResolver, actorUserId, actorRole, VisibleRoles);
-        var order = await ApplyReadScope(BaseQuery(), actorUserId, actorRole)
+        var order = await ApplyReadScope(BaseQuery(), actorUserId, actorRole, actor.CanSwitchRoles)
             .FirstOrDefaultAsync(item => item.Id == id);
         return order is null
             ? null
@@ -132,7 +132,7 @@ public sealed class PurchaseOrderService : IPurchaseOrderService
         var requisition = quote.SourcingRound.Requisition;
         ValidateQuoteForRequisition(quote, requisition, dto.RequisitionId);
         await PurchaseWorkflowAuthorization.RequireProjectAssignmentAsync(
-            _db, actorUserId, actorRole, requisition.ProjectId);
+            _db, _actorRoleResolver, actorUserId, actorRole, requisition.ProjectId);
         await PurchaseWorkflowAuthorization.RequireOperationalProjectAsync(_db, requisition.ProjectId);
 
         var now = DateTime.UtcNow;
@@ -299,7 +299,7 @@ public sealed class PurchaseOrderService : IPurchaseOrderService
             _db, _actorRoleResolver, actorUserId, actorRole, PurchaseWorkflowAuthorization.ProcurementOfficer);
         var order = await GetWorkflowOrderAsync(id);
         await PurchaseWorkflowAuthorization.RequireProjectAssignmentAsync(
-            _db, actorUserId, actorRole, order.ProjectId);
+            _db, _actorRoleResolver, actorUserId, actorRole, order.ProjectId);
         await PurchaseWorkflowAuthorization.RequireOperationalProjectAsync(_db, order.ProjectId);
         if (order.SupplierQuote.SourcingRound.Status != SourcingRoundWorkflowStates.Awarded)
         {
@@ -436,7 +436,7 @@ public sealed class PurchaseOrderService : IPurchaseOrderService
             PurchaseWorkflowAuthorization.ChiefExecutive);
         var order = await GetWorkflowOrderAsync(id);
         await PurchaseWorkflowAuthorization.RequireProjectAssignmentAsync(
-            _db, actorUserId, actorRole, order.ProjectId);
+            _db, _actorRoleResolver, actorUserId, actorRole, order.ProjectId);
 
         var procurementCancellation =
             (order.Status == PurchaseOrderWorkflowStates.Draft
@@ -507,9 +507,10 @@ public sealed class PurchaseOrderService : IPurchaseOrderService
     private IQueryable<PurchaseOrder> ApplyReadScope(
         IQueryable<PurchaseOrder> query,
         int actorUserId,
-        string actorRole)
+        string actorRole,
+        bool canSwitchRoles)
     {
-        if (PurchaseWorkflowAuthorization.CanViewAllProjects(actorRole))
+        if (PurchaseWorkflowAuthorization.CanViewAllProjects(actorRole) || canSwitchRoles)
         {
             return query;
         }
@@ -542,7 +543,7 @@ public sealed class PurchaseOrderService : IPurchaseOrderService
         string actorRole)
     {
         await PurchaseWorkflowAuthorization.RequireProjectAssignmentAsync(
-            _db, actorUserId, actorRole, order.ProjectId);
+            _db, _actorRoleResolver, actorUserId, actorRole, order.ProjectId);
         if (order.CreatedByUserId != actorUserId)
         {
             throw new UnauthorizedAccessException(
@@ -565,7 +566,7 @@ public sealed class PurchaseOrderService : IPurchaseOrderService
         string actorRole)
     {
         await PurchaseWorkflowAuthorization.RequireProjectAssignmentAsync(
-            _db, actorUserId, actorRole, order.ProjectId);
+            _db, _actorRoleResolver, actorUserId, actorRole, order.ProjectId);
         if (SegregationOfDutiesChecker.IsSameUser(order.CreatedByUserId, actorUserId))
         {
             throw new InvalidOperationException(

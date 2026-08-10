@@ -25,7 +25,7 @@ import {
 } from './api'
 import './live-api.css'
 
-export type LiveDestination = 'access' | 'projects' | 'requisitions' | 'sourcing' | 'purchase-orders'
+export type LiveDestination = 'access' | 'projects' | 'requisitions' | 'sourcing' | 'suppliers' | 'purchase-orders' | 'inventory' | 'finance' | 'audit'
 
 export interface LiveLoginViewProps {
   onAuthenticated: (user: CurrentUser) => void
@@ -48,7 +48,32 @@ interface DashboardAction {
   destination: LiveDestination
   label: string
   detail: string
-  count: 'projects' | 'pending' | 'approved'
+  count: DashboardCountKey | null
+  countLabel?: string
+}
+
+type DashboardCountKey =
+  | 'visibleProjectCount'
+  | 'pendingRequisitionCount'
+  | 'approvedRequisitionCount'
+  | 'pendingAccessRequestCount'
+  | 'pendingSupplierOnboardingCount'
+  | 'pendingGoodsReceiptCount'
+  | 'pendingMaterialIssueCount'
+  | 'pendingMaterialConfirmationCount'
+  | 'pendingStockCountReviewCount'
+  | 'pendingInvoiceCaptureCount'
+  | 'pendingInvoiceReviewCount'
+  | 'pendingCeoDecisionCount'
+  | 'pendingPaymentAuthorizationCount'
+  | 'pendingPaymentCount'
+  | 'completedPaymentCount'
+
+interface DashboardSummaryItem {
+  label: string
+  value: number
+  detail: string
+  tone: 'projects' | 'pending' | 'approved'
 }
 
 interface ProjectEntry {
@@ -178,44 +203,108 @@ function dashboardActions(role: CurrentUser['role']): DashboardAction[] {
   switch (role) {
     case 'Administrator':
       return [
-        { destination: 'access', label: 'Access requests', detail: 'Approve roles and project scope', count: 'pending' },
+        { destination: 'access', label: 'Access requests', detail: 'Approve roles and project scope', count: 'pendingAccessRequestCount', countLabel: 'waiting for approval' },
       ]
     case 'CEO':
+      return [
+        { destination: 'projects', label: 'Projects', detail: 'Open progress and controlled budgets', count: 'visibleProjectCount', countLabel: 'projects visible' },
+        { destination: 'finance', label: 'Money exceptions', detail: 'Decide only payments above the control threshold', count: 'pendingCeoDecisionCount', countLabel: 'waiting for you' },
+        { destination: 'audit', label: 'Complete chain', detail: 'Trace material and cash from source to close', count: null },
+      ]
     case 'Auditor':
       return [
-        { destination: 'projects', label: 'Projects', detail: 'Open progress and controlled budgets', count: 'projects' },
-        { destination: 'requisitions', label: 'Material requests', detail: 'Read the complete request history', count: 'pending' },
+        { destination: 'projects', label: 'Projects', detail: 'Open progress and controlled budgets', count: 'visibleProjectCount', countLabel: 'projects visible' },
+        { destination: 'audit', label: 'Complete chain', detail: 'Trace material and cash from source to close', count: null },
       ]
     case 'Supervisor':
       return [
-        { destination: 'requisitions', label: 'Material decisions', detail: 'Approve only Engineer-checked requests', count: 'pending' },
-        { destination: 'projects', label: 'Projects', detail: 'Review progress and commitments', count: 'projects' },
+        { destination: 'requisitions', label: 'Material decisions', detail: 'Approve only Engineer-checked requests', count: 'pendingRequisitionCount', countLabel: 'requests in progress' },
+        { destination: 'inventory', label: 'Stock checks', detail: 'Review independent physical-count differences', count: 'pendingStockCountReviewCount', countLabel: 'waiting for review' },
+        { destination: 'projects', label: 'Projects', detail: 'Review progress and commitments', count: 'visibleProjectCount', countLabel: 'projects visible' },
       ]
     case 'Engineer':
       return [
-        { destination: 'requisitions', label: 'Technical checks', detail: 'Verify material need and quantity', count: 'pending' },
-        { destination: 'projects', label: 'Project progress', detail: 'Record verified physical progress', count: 'projects' },
+        { destination: 'requisitions', label: 'Technical checks', detail: 'Verify material need and quantity', count: 'pendingRequisitionCount', countLabel: 'requests in progress' },
+        { destination: 'projects', label: 'Project progress', detail: 'Record verified physical progress', count: 'visibleProjectCount', countLabel: 'projects visible' },
       ]
     case 'Foreman':
       return [
-        { destination: 'requisitions', label: 'Material requests', detail: 'Create or revise a site request', count: 'pending' },
+        { destination: 'requisitions', label: 'Material requests', detail: 'Create or revise a site request', count: 'pendingRequisitionCount', countLabel: 'requests in progress' },
+        { destination: 'inventory', label: 'Materials with me', detail: 'Confirm, use and report wastage', count: 'pendingMaterialConfirmationCount', countLabel: 'issues to confirm' },
       ]
     case 'Procurement Officer':
       return [
-        { destination: 'sourcing', label: 'Supplier sourcing', detail: 'Collect quotes for approved needs', count: 'approved' },
-        { destination: 'purchase-orders', label: 'Purchase orders', detail: 'Prepare, submit and issue orders', count: 'approved' },
+        { destination: 'sourcing', label: 'Supplier sourcing', detail: 'Collect quotes for approved needs', count: 'approvedRequisitionCount', countLabel: 'approved requests' },
+        { destination: 'suppliers', label: 'Supplier onboarding', detail: 'Submit companies for independent approval', count: 'pendingSupplierOnboardingCount', countLabel: 'awaiting review' },
+        { destination: 'finance', label: 'Supplier invoices', detail: 'Capture invoices only after Stores receives goods', count: 'pendingInvoiceCaptureCount', countLabel: 'ready for invoice' },
       ]
     case 'Storekeeper':
       return [
-        { destination: 'purchase-orders', label: 'Issued orders', detail: 'See deliveries expected at the store', count: 'approved' },
+        { destination: 'purchase-orders', label: 'Expected deliveries', detail: 'See issued orders awaiting goods', count: 'pendingGoodsReceiptCount', countLabel: 'orders not fully received' },
+        { destination: 'inventory', label: 'Store operations', detail: 'Receive, issue, transfer and count stock', count: 'pendingMaterialIssueCount', countLabel: 'approved issues ready' },
       ]
     case 'Finance Officer':
       return [
-        { destination: 'projects', label: 'Project budgets', detail: 'Review budget and order commitments', count: 'projects' },
-        { destination: 'purchase-orders', label: 'Purchase orders', detail: 'Read commercial commitments', count: 'approved' },
+        { destination: 'suppliers', label: 'Supplier approvals', detail: 'Verify supplier identity before sourcing', count: 'pendingSupplierOnboardingCount', countLabel: 'waiting for review' },
+        { destination: 'finance', label: 'Invoice matching', detail: 'Match invoice, order and received goods', count: 'pendingInvoiceReviewCount', countLabel: 'waiting for review' },
+        { destination: 'finance', label: 'Payment authority', detail: 'Lock an independently matched amount', count: 'pendingPaymentAuthorizationCount', countLabel: 'ready to authorize' },
+      ]
+    case 'Cashier':
+      return [
+        { destination: 'finance', label: 'Ready to pay', detail: 'Execute only locked Finance instructions', count: 'pendingPaymentCount', countLabel: 'approved payments waiting' },
       ]
     default:
       return []
+  }
+}
+
+function dashboardSummary(role: CurrentUser['role'], dashboard: DashboardResponse): DashboardSummaryItem[] {
+  const projects: DashboardSummaryItem = {
+    label: 'Projects visible', value: dashboard.visibleProjectCount,
+    detail: 'Your access is applied by the server.', tone: 'projects',
+  }
+  switch (role) {
+    case 'Administrator':
+      return [{ label: 'Access requests', value: dashboard.pendingAccessRequestCount, detail: 'People waiting for account approval.', tone: 'pending' }]
+    case 'CEO':
+      return [projects,
+        { label: 'Requests moving', value: dashboard.pendingRequisitionCount, detail: 'Still inside the controlled work chain.', tone: 'pending' },
+        { label: 'Money exceptions', value: dashboard.pendingCeoDecisionCount, detail: 'High-value decisions waiting for you.', tone: 'approved' }]
+    case 'Auditor':
+      return [projects,
+        { label: 'Requests moving', value: dashboard.pendingRequisitionCount, detail: 'Still inside the controlled work chain.', tone: 'pending' },
+        { label: 'Payments recorded', value: dashboard.completedPaymentCount, detail: 'Completed payments with system receipts.', tone: 'approved' }]
+    case 'Supervisor':
+      return [projects,
+        { label: 'Requests moving', value: dashboard.pendingRequisitionCount, detail: 'Requests not yet finally decided.', tone: 'pending' },
+        { label: 'Stock checks', value: dashboard.pendingStockCountReviewCount, detail: 'Physical counts waiting for review.', tone: 'approved' }]
+    case 'Engineer':
+      return [projects,
+        { label: 'Requests moving', value: dashboard.pendingRequisitionCount, detail: 'Includes requests needing technical checks.', tone: 'pending' },
+        { label: 'Approved requests', value: dashboard.approvedRequisitionCount, detail: 'Technically checked needs now approved.', tone: 'approved' }]
+    case 'Foreman':
+      return [projects,
+        { label: 'My requests moving', value: dashboard.pendingRequisitionCount, detail: 'Not yet through the full approval chain.', tone: 'pending' },
+        { label: 'Issues to confirm', value: dashboard.pendingMaterialConfirmationCount, detail: 'Store issues awaiting your receipt check.', tone: 'approved' }]
+    case 'Procurement Officer':
+      return [projects,
+        { label: 'Approved needs', value: dashboard.approvedRequisitionCount, detail: 'Available for controlled sourcing.', tone: 'pending' },
+        { label: 'Invoices to capture', value: dashboard.pendingInvoiceCaptureCount, detail: 'Goods received with no active invoice.', tone: 'approved' }]
+    case 'Storekeeper':
+      return [projects,
+        { label: 'Deliveries expected', value: dashboard.pendingGoodsReceiptCount, detail: 'Issued orders not fully received.', tone: 'pending' },
+        { label: 'Issues ready', value: dashboard.pendingMaterialIssueCount, detail: 'Approved requests waiting for stock issue.', tone: 'approved' }]
+    case 'Finance Officer':
+      return [
+        { label: 'Suppliers to review', value: dashboard.pendingSupplierOnboardingCount, detail: 'Companies not yet available for sourcing.', tone: 'projects' },
+        { label: 'Invoices to match', value: dashboard.pendingInvoiceReviewCount, detail: 'Waiting for the three-way check.', tone: 'pending' },
+        { label: 'Ready to authorize', value: dashboard.pendingPaymentAuthorizationCount, detail: 'Matched amounts awaiting Finance.', tone: 'approved' }]
+    case 'Cashier':
+      return [projects,
+        { label: 'Ready to pay', value: dashboard.pendingPaymentCount, detail: 'Locked instructions approved by Finance.', tone: 'pending' },
+        { label: 'Payments recorded', value: dashboard.completedPaymentCount, detail: 'Completed with system receipts.', tone: 'approved' }]
+    default:
+      return [projects]
   }
 }
 
@@ -290,10 +379,6 @@ export function LiveLoginView({ onAuthenticated }: LiveLoginViewProps) {
             Sign in to open the work assigned to your role and projects.
           </p>
         </div>
-        <div className="lav-login-assurance">
-          <strong>Controlled access</strong>
-          <span>Actions are recorded against your account.</span>
-        </div>
       </section>
 
       <section className="lav-login-panel">
@@ -305,7 +390,7 @@ export function LiveLoginView({ onAuthenticated }: LiveLoginViewProps) {
           <header>
             <span className="lav-kicker">{mode === 'signin' ? 'Welcome back' : 'New account'}</span>
             <h2>{mode === 'signin' ? 'Sign in' : 'Request to join'}</h2>
-            <p>{mode === 'signin' ? 'Use your email, unique username and password.' : 'Choose a unique username. Your account stays locked until approval.'}</p>
+            <p>{mode === 'signin' ? 'Use your email, set a username and password.' : ''}</p>
           </header>
 
           {error && <Notice tone="error">{error}</Notice>}
@@ -393,6 +478,7 @@ export function LiveDashboardView({ currentUser, onNavigate }: LiveDashboardView
 
   const assignedNames = currentUser.projects.map((project) => project.name).join(', ')
   const actions = dashboardActions(currentUser.role)
+  const summaryItems = dashboard ? dashboardSummary(currentUser.role, dashboard) : []
 
   return (
     <div className="lav-view">
@@ -430,21 +516,13 @@ export function LiveDashboardView({ currentUser, onNavigate }: LiveDashboardView
         dashboard && (
           <>
             <section className="lav-summary-grid" aria-label="Workspace summary">
-              <article className="lav-summary-card projects">
-                <span>Projects visible</span>
-                <strong>{dashboard.visibleProjectCount}</strong>
-                <small>Your access is applied by the server.</small>
-              </article>
-              <article className="lav-summary-card pending">
-                <span>Requests in progress</span>
-                <strong>{dashboard.pendingRequisitionCount}</strong>
-                <small>Waiting somewhere in the approval chain.</small>
-              </article>
-              <article className="lav-summary-card approved">
-                <span>Approved requests</span>
-                <strong>{dashboard.approvedRequisitionCount}</strong>
-                <small>Ready for the next controlled step.</small>
-              </article>
+              {summaryItems.map((item) => (
+                <article className={`lav-summary-card ${item.tone}`} key={item.label}>
+                  <span>{item.label}</span>
+                  <strong>{item.value}</strong>
+                  <small>{item.detail}</small>
+                </article>
+              ))}
             </section>
 
             <section className="lav-home-grid">
@@ -457,24 +535,15 @@ export function LiveDashboardView({ currentUser, onNavigate }: LiveDashboardView
                 </header>
                 <div className="lav-home-actions">
                   {actions.length > 0 ? actions.map(action => {
-                    const count = action.count === 'projects'
-                      ? dashboard.visibleProjectCount
-                      : action.count === 'pending'
-                        ? dashboard.pendingRequisitionCount
-                        : dashboard.approvedRequisitionCount
-                    const countLabel = action.count === 'projects'
-                      ? 'projects visible'
-                      : action.count === 'pending'
-                        ? 'requests in progress'
-                        : 'approved requests'
-                    return <button key={action.destination} type="button" onClick={() => onNavigate?.(action.destination)}>
+                    const count = action.count ? dashboard[action.count] : null
+                    return <button key={`${action.destination}-${action.label}`} type="button" onClick={() => onNavigate?.(action.destination)}>
                       <span>{action.label}</span>
                       <strong>{action.detail}</strong>
-                      <small>{count} {countLabel}</small>
+                      {count !== null && <small>{count} {action.countLabel}</small>}
                     </button>
                   }) : <div className="lav-home-boundary">
-                    <strong>No live cashier actions in this release</strong>
-                    <small>Payment execution stays disabled until invoice matching and receiving controls are connected.</small>
+                    <strong>No action is assigned to this role</strong>
+                    <small>The Administrator can confirm the account role and project scope.</small>
                   </div>}
                 </div>
               </article>
@@ -498,7 +567,7 @@ export function LiveDashboardView({ currentUser, onNavigate }: LiveDashboardView
                     <li className="lav-scope-empty">
                       {currentUser.role === 'CEO' || currentUser.role === 'Auditor'
                         ? 'Portfolio access is applied automatically.'
-                        : 'Ask the CEO to assign a project.'}
+                        : 'Ask the Administrator to assign a project.'}
                     </li>
                   )}
                 </ul>
@@ -1486,10 +1555,24 @@ function CreateRequisitionForm({ projects, materials, onCreated }: CreateRequisi
   const [notes, setNotes] = useState('')
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<{ tone: 'error' | 'success'; text: string } | null>(null)
+  const hasMaterials = materials.length > 0
 
   const selectedProject = projects.find((project) => project.project.id === Number(projectId))
   const selectedMaterial = materials.find((material) => material.id === Number(materialId))
   const costCodes = selectedProject?.costCodes.filter((code) => code.isActive) ?? []
+  const materialGroups = useMemo(() => {
+    const grouped = new Map<string, Material[]>()
+    materials.forEach((material) => {
+      const category = material.category?.trim() || 'Other building materials'
+      grouped.set(category, [...(grouped.get(category) ?? []), material])
+    })
+    return [...grouped.entries()]
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([category, items]) => ({
+        category,
+        items: items.sort((left, right) => left.name.localeCompare(right.name)),
+      }))
+  }, [materials])
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -1541,6 +1624,12 @@ function CreateRequisitionForm({ projects, materials, onCreated }: CreateRequisi
       {open && (
         <form onSubmit={submit}>
           {message && <Notice tone={message.tone}>{message.text}</Notice>}
+          {!hasMaterials && (
+            <Notice tone="error">
+              The material catalog is empty. Procurement must load the catalog before a foreman
+              can send a request.
+            </Notice>
+          )}
           <div className="lav-form-grid request-form">
             <label className="lav-field compact">
               <span>Project</span>
@@ -1587,18 +1676,25 @@ function CreateRequisitionForm({ projects, materials, onCreated }: CreateRequisi
               <select
                 value={materialId}
                 onChange={(event) => setMaterialId(event.currentTarget.value)}
+                disabled={!hasMaterials}
                 required
               >
-                <option value="">Choose material</option>
-                {materials.map((material) => (
-                  <option key={material.id} value={material.id}>
-                    {material.name} ({material.unit})
-                  </option>
+                <option value="">
+                  {hasMaterials ? 'Choose material' : 'No materials available'}
+                </option>
+                {materialGroups.map((group) => (
+                  <optgroup label={group.category} key={group.category}>
+                    {group.items.map((material) => (
+                      <option key={material.id} value={material.id}>
+                        {material.name} — {material.unit}
+                      </option>
+                    ))}
+                  </optgroup>
                 ))}
               </select>
             </label>
             <label className="lav-field compact">
-              <span>Quantity {selectedMaterial ? `(${selectedMaterial.unit})` : ''}</span>
+              <span>Quantity</span>
               <input
                 type="number"
                 min="0.001"
@@ -1607,6 +1703,14 @@ function CreateRequisitionForm({ projects, materials, onCreated }: CreateRequisi
                 onChange={(event) => setQuantity(event.currentTarget.value)}
                 required
               />
+            </label>
+            <label className="lav-field compact">
+              <span>Unit of measure</span>
+              <select value={selectedMaterial?.unit ?? ''} disabled aria-label="Unit fixed by selected material">
+                <option value="">Choose material first</option>
+                {selectedMaterial && <option value={selectedMaterial.unit}>{selectedMaterial.unit}</option>}
+              </select>
+              <small>The catalog fixes the unit so requests and store balances agree.</small>
             </label>
             <label className="lav-field compact">
               <span>Needed by</span>
@@ -1642,7 +1746,7 @@ function CreateRequisitionForm({ projects, materials, onCreated }: CreateRequisi
           </div>
           <div className="lav-form-actions">
             <span>The engineer must check this before the supervisor can decide.</span>
-            <button className="lav-button primary" type="submit" disabled={busy}>
+            <button className="lav-button primary" type="submit" disabled={busy || !hasMaterials}>
               {busy ? 'Sending…' : 'Send request'}
             </button>
           </div>

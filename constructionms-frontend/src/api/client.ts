@@ -13,7 +13,7 @@ import type {
   CreatePurchaseOrderRequest,
   CreateRequisitionRequest,
   CreateSourcingRoundRequest,
-  CreateSupplierRequest,
+  CreateSupplierOnboardingRequest,
   CurrentUser,
   DashboardResponse,
   LoginRequest,
@@ -38,6 +38,8 @@ import type {
   SourcingRound,
   SourcingRoundListQuery,
   Supplier,
+  SupplierOnboardingRequest,
+  SupplierOnboardingStatus,
   SupplierQuote,
   SupplierSummary,
   SupervisorDecisionRequest,
@@ -48,8 +50,19 @@ import type {
   UpdateRequisitionRequest,
   UpdateMaterialRequest,
   UpdateSupplierRequest,
+  ReviewSupplierOnboardingRequest,
   UserAccount,
   WorkflowReasonRequest,
+  GoodsReceipt,
+  StockBalance,
+  StockLedgerEntry,
+  MaterialIssue,
+  StockTransfer,
+  StockCount,
+  SupplierInvoice,
+  PaymentAuthorization,
+  Payment,
+  ControlEvent,
 } from './types'
 
 interface ProblemDetails {
@@ -365,9 +378,6 @@ export const suppliersApi = {
   get: (supplierId: number, signal?: AbortSignal) =>
     request<Supplier>(`/suppliers/${supplierId}`, { signal }),
 
-  create: (payload: CreateSupplierRequest, signal?: AbortSignal) =>
-    request<Supplier>('/suppliers', { method: 'POST', body: payload, signal }),
-
   update: (supplierId: number, payload: UpdateSupplierRequest, signal?: AbortSignal) =>
     request<Supplier>(`/suppliers/${supplierId}`, {
       method: 'PUT',
@@ -379,6 +389,36 @@ export const suppliersApi = {
     request<Supplier>(`/suppliers/${supplierId}/blacklist`, {
       method: 'PATCH',
       body: { isBlacklisted },
+      signal,
+    }),
+}
+
+export const supplierOnboardingApi = {
+  list: (
+    query: PageQuery & { status?: SupplierOnboardingStatus } = {},
+    signal?: AbortSignal,
+  ) =>
+    request<PaginatedResult<SupplierOnboardingRequest>>(
+      '/supplier-onboarding',
+      { signal },
+      { ...pageQuery(query), status: query.status },
+    ),
+
+  submit: (payload: CreateSupplierOnboardingRequest, signal?: AbortSignal) =>
+    request<SupplierOnboardingRequest>('/supplier-onboarding', {
+      method: 'POST',
+      body: payload,
+      signal,
+    }),
+
+  review: (
+    requestId: number,
+    payload: ReviewSupplierOnboardingRequest,
+    signal?: AbortSignal,
+  ) =>
+    request<SupplierOnboardingRequest>(`/supplier-onboarding/${requestId}/decision`, {
+      method: 'POST',
+      body: payload,
       signal,
     }),
 }
@@ -654,4 +694,49 @@ export const purchaseOrdersApi = {
       body: payload,
       signal,
     }),
+}
+
+export const inventoryApi = {
+  receipts: (signal?: AbortSignal) => request<PaginatedResult<GoodsReceipt>>('/inventory/receipts', { signal }, { page: 1, pageSize: 100 }),
+  receive: (body: { purchaseOrderId: number; deliveredQuantity: number; acceptedQuantity: number; condition: string; deliveryNoteReference: string; evidenceReference?: string | null; discrepancyNotes?: string | null }, signal?: AbortSignal) =>
+    request<GoodsReceipt>('/inventory/receipts', { method: 'POST', body, signal }),
+  balances: (signal?: AbortSignal) => request<PaginatedResult<StockBalance>>('/inventory/balances', { signal }, { page: 1, pageSize: 100 }),
+  ledger: (signal?: AbortSignal) => request<PaginatedResult<StockLedgerEntry>>('/inventory/ledger', { signal }, { page: 1, pageSize: 100 }),
+  issues: (signal?: AbortSignal) => request<PaginatedResult<MaterialIssue>>('/inventory/issues', { signal }, { page: 1, pageSize: 100 }),
+  issue: (body: { requisitionId: number; quantity: number; notes?: string | null }, signal?: AbortSignal) =>
+    request<MaterialIssue>('/inventory/issues', { method: 'POST', body, signal }),
+  confirmIssue: (id: number, body: { receivedQuantity: number; notes?: string | null }, signal?: AbortSignal) =>
+    request<MaterialIssue>(`/inventory/issues/${id}/confirm`, { method: 'POST', body, signal }),
+  recordUsage: (id: number, body: { usageType: 'Used' | 'Wastage'; quantity: number; purposeOrReason: string; evidenceReference?: string | null }, signal?: AbortSignal) =>
+    request<MaterialIssue>(`/inventory/issues/${id}/usage`, { method: 'POST', body, signal }),
+  transfers: (signal?: AbortSignal) => request<PaginatedResult<StockTransfer>>('/inventory/transfers', { signal }, { page: 1, pageSize: 100 }),
+  createTransfer: (body: { fromProjectId: number; toProjectId: number; materialId: number; quantity: number; reason: string }, signal?: AbortSignal) =>
+    request<StockTransfer>('/inventory/transfers', { method: 'POST', body, signal }),
+  dispatchTransfer: (id: number, signal?: AbortSignal) =>
+    request<StockTransfer>(`/inventory/transfers/${id}/dispatch`, { method: 'POST', body: {}, signal }),
+  receiveTransfer: (id: number, body: { receivedQuantity: number; notes?: string | null }, signal?: AbortSignal) =>
+    request<StockTransfer>(`/inventory/transfers/${id}/receive`, { method: 'POST', body, signal }),
+  counts: (signal?: AbortSignal) => request<PaginatedResult<StockCount>>('/inventory/counts', { signal }, { page: 1, pageSize: 100 }),
+  createCount: (body: { projectId: number; materialId: number; countedQuantity: number; notes: string }, signal?: AbortSignal) =>
+    request<StockCount>('/inventory/counts', { method: 'POST', body, signal }),
+  reviewCount: (id: number, body: { approve: boolean; notes: string }, signal?: AbortSignal) =>
+    request<StockCount>(`/inventory/counts/${id}/review`, { method: 'POST', body, signal }),
+}
+
+export const financeApi = {
+  invoices: (signal?: AbortSignal) => request<PaginatedResult<SupplierInvoice>>('/finance/invoices', { signal }, { page: 1, pageSize: 100 }),
+  createInvoice: (body: { purchaseOrderId: number; invoiceNumber: string; quantity: number; unitPrice: number; amount: number; documentReference?: string | null }, signal?: AbortSignal) =>
+    request<SupplierInvoice>('/finance/invoices', { method: 'POST', body, signal }),
+  reviewInvoice: (id: number, notes?: string, signal?: AbortSignal) =>
+    request<SupplierInvoice>(`/finance/invoices/${id}/review`, { method: 'POST', body: { notes: notes || null }, signal }),
+  ceoDecision: (id: number, approve: boolean, notes: string, signal?: AbortSignal) =>
+    request<SupplierInvoice>(`/finance/invoices/${id}/ceo-decision`, { method: 'POST', body: { approve, notes }, signal }),
+  authorize: (id: number, notes?: string, signal?: AbortSignal) =>
+    request<SupplierInvoice>(`/finance/invoices/${id}/authorize`, { method: 'POST', body: { notes: notes || null }, signal }),
+  authorizations: (unpaidOnly = false, signal?: AbortSignal) =>
+    request<PaginatedResult<PaymentAuthorization>>('/finance/authorizations', { signal }, { page: 1, pageSize: 100, unpaidOnly }),
+  pay: (id: number, body: { method: string; externalReference: string; evidenceReference?: string | null }, signal?: AbortSignal) =>
+    request<Payment>(`/finance/authorizations/${id}/pay`, { method: 'POST', body, signal }),
+  payments: (signal?: AbortSignal) => request<PaginatedResult<Payment>>('/finance/payments', { signal }, { page: 1, pageSize: 100 }),
+  controlEvents: (signal?: AbortSignal) => request<PaginatedResult<ControlEvent>>('/finance/control-events', { signal }, { page: 1, pageSize: 100 }),
 }

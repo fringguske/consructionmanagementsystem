@@ -54,7 +54,7 @@ public sealed class SourcingService : ISourcingService
         int? projectId = null,
         string? status = null)
     {
-        await PurchaseWorkflowAuthorization.ValidateActorAsync(
+        var actor = await PurchaseWorkflowAuthorization.ValidateActorAsync(
             _db, _actorRoleResolver, actorUserId, actorRole, VisibleRoles);
 
         if (projectId is <= 0)
@@ -64,7 +64,7 @@ public sealed class SourcingService : ISourcingService
 
         var pagination = Pagination.Normalize(page, pageSize);
         var normalizedStatus = NormalizeStatus(status);
-        var query = ApplyReadScope(BaseQuery(), actorUserId, actorRole);
+        var query = ApplyReadScope(BaseQuery(), actorUserId, actorRole, actor.CanSwitchRoles);
 
         if (projectId.HasValue)
         {
@@ -99,10 +99,10 @@ public sealed class SourcingService : ISourcingService
         int actorUserId,
         string actorRole)
     {
-        await PurchaseWorkflowAuthorization.ValidateActorAsync(
+        var actor = await PurchaseWorkflowAuthorization.ValidateActorAsync(
             _db, _actorRoleResolver, actorUserId, actorRole, VisibleRoles);
 
-        var round = await ApplyReadScope(BaseQuery(), actorUserId, actorRole)
+        var round = await ApplyReadScope(BaseQuery(), actorUserId, actorRole, actor.CanSwitchRoles)
             .FirstOrDefaultAsync(item => item.Id == id);
         return round is null
             ? null
@@ -130,7 +130,7 @@ public sealed class SourcingService : ISourcingService
         }
 
         await PurchaseWorkflowAuthorization.RequireProjectAssignmentAsync(
-            _db, actorUserId, actorRole, requisition.ProjectId);
+            _db, _actorRoleResolver, actorUserId, actorRole, requisition.ProjectId);
         await PurchaseWorkflowAuthorization.RequireOperationalProjectAsync(_db, requisition.ProjectId);
 
         if (await HasCurrentRoundAsync(requisition.Id))
@@ -193,7 +193,7 @@ public sealed class SourcingService : ISourcingService
             ?? throw new KeyNotFoundException($"Sourcing round with ID {sourcingRoundId} was not found.");
 
         await PurchaseWorkflowAuthorization.RequireProjectAssignmentAsync(
-            _db, actorUserId, actorRole, round.Requisition.ProjectId);
+            _db, _actorRoleResolver, actorUserId, actorRole, round.Requisition.ProjectId);
 
         await using var transaction = await _db.Database.BeginTransactionAsync();
         await LockSourcingRoundAsync(round.Id);
@@ -306,7 +306,7 @@ public sealed class SourcingService : ISourcingService
             _db, _actorRoleResolver, actorUserId, actorRole, PurchaseWorkflowAuthorization.ProcurementOfficer);
         var round = await GetWorkflowRoundAsync(id);
         await PurchaseWorkflowAuthorization.RequireProjectAssignmentAsync(
-            _db, actorUserId, actorRole, round.Requisition.ProjectId);
+            _db, _actorRoleResolver, actorUserId, actorRole, round.Requisition.ProjectId);
         return await EndRoundAsync(
             round,
             SourcingRoundWorkflowStates.Closed,
@@ -331,7 +331,7 @@ public sealed class SourcingService : ISourcingService
             PurchaseWorkflowAuthorization.ChiefExecutive);
         var round = await GetWorkflowRoundAsync(id);
         await PurchaseWorkflowAuthorization.RequireProjectAssignmentAsync(
-            _db, actorUserId, actorRole, round.Requisition.ProjectId);
+            _db, _actorRoleResolver, actorUserId, actorRole, round.Requisition.ProjectId);
         return await EndRoundAsync(
             round,
             SourcingRoundWorkflowStates.Cancelled,
@@ -358,7 +358,7 @@ public sealed class SourcingService : ISourcingService
         ValidateFutureDeadline(dto.QuoteDueAt);
         var round = await GetWorkflowRoundAsync(id);
         await PurchaseWorkflowAuthorization.RequireProjectAssignmentAsync(
-            _db, actorUserId, actorRole, round.Requisition.ProjectId);
+            _db, _actorRoleResolver, actorUserId, actorRole, round.Requisition.ProjectId);
 
         var canReopen = round.Status == SourcingRoundWorkflowStates.Closed
             ? PurchaseWorkflowAuthorization.RoleEquals(
@@ -438,9 +438,10 @@ public sealed class SourcingService : ISourcingService
     private IQueryable<SourcingRound> ApplyReadScope(
         IQueryable<SourcingRound> query,
         int actorUserId,
-        string actorRole)
+        string actorRole,
+        bool canSwitchRoles)
     {
-        if (PurchaseWorkflowAuthorization.CanViewAllProjects(actorRole))
+        if (PurchaseWorkflowAuthorization.CanViewAllProjects(actorRole) || canSwitchRoles)
         {
             return query;
         }

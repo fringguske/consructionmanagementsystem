@@ -14,7 +14,7 @@ using System.ComponentModel.DataAnnotations;
 /// roles and are omitted from collection responses.
 /// </summary>
 [ApiController]
-[Authorize(Roles = "Procurement Officer,CEO,Auditor")]
+[Authorize(Roles = "Procurement Officer,Finance Officer,CEO,Auditor")]
 [Route("api/v1/suppliers")]
 [Produces("application/json")]
 public sealed class SuppliersController : ControllerBase
@@ -64,20 +64,6 @@ public sealed class SuppliersController : ControllerBase
         }
 
         return Ok(ApiResponse<SupplierResponseDto>.Ok(supplier));
-    }
-
-    /// <summary>Registers a supplier. New suppliers are never blacklisted by default.</summary>
-    [HttpPost]
-    [Authorize(Roles = "Procurement Officer,CEO")]
-    [ProducesResponseType(typeof(ApiResponse<SupplierResponseDto>), StatusCodes.Status201Created)]
-    public async Task<ActionResult<ApiResponse<SupplierResponseDto>>> Create(
-        [FromBody] CreateSupplierRequestDto request)
-    {
-        var supplier = await _supplierService.CreateAsync(request);
-        return CreatedAtAction(
-            nameof(GetById),
-            new { id = supplier.Id },
-            ApiResponse<SupplierResponseDto>.Ok(supplier));
     }
 
     /// <summary>Updates supplier identity, tax, contact and payment metadata.</summary>

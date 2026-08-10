@@ -20,7 +20,7 @@ internal static class PurchaseWorkflowAuthorization
     public static bool CanViewAllProjects(string role) =>
         RoleEquals(role, ChiefExecutive) || RoleEquals(role, Auditor);
 
-    public static async Task ValidateActorAsync(
+    public static async Task<ActorRoleContext> ValidateActorAsync(
         AppDbContext db,
         IActorRoleResolver actorRoleResolver,
         int actorUserId,
@@ -43,15 +43,24 @@ internal static class PurchaseWorkflowAuthorization
             throw new UnauthorizedAccessException(
                 "The authenticated user is inactive or their role context is no longer valid.");
         }
+
+        return actor;
     }
 
     public static async Task RequireProjectAssignmentAsync(
         AppDbContext db,
+        IActorRoleResolver actorRoleResolver,
         int actorUserId,
         string actorRole,
         int projectId)
     {
         if (CanViewAllProjects(actorRole))
+        {
+            return;
+        }
+
+        var actor = await actorRoleResolver.ResolveAsync(actorUserId, actorRole);
+        if (actor?.CanSwitchRoles == true)
         {
             return;
         }

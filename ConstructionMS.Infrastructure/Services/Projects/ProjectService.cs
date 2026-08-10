@@ -470,7 +470,7 @@ public sealed class ProjectService : IProjectService
                 && assignment.IsActive
                 && assignment.EndedAt == null);
 
-        if (!assigned)
+        if (!assigned && !actor.CanSwitchRoles)
         {
             throw new UnauthorizedAccessException(
                 "Engineers may verify progress only for projects currently assigned to them.");
@@ -530,7 +530,7 @@ public sealed class ProjectService : IProjectService
 
     private IQueryable<Project> ApplyReadScope(IQueryable<Project> query, ActorContext actor)
     {
-        if (actor.RoleName is AdministratorRole or CeoRole or AuditorRole)
+        if (actor.CanSwitchRoles || actor.RoleName is AdministratorRole or CeoRole or AuditorRole)
         {
             return query;
         }
@@ -553,7 +553,7 @@ public sealed class ProjectService : IProjectService
             .FirstOrDefaultAsync(item => item.Id == actorUserId && item.IsActive)
             ?? throw new UnauthorizedAccessException("The signed-in user is missing or inactive.");
 
-        return new ActorContext(user, resolvedActor.EffectiveRole);
+        return new ActorContext(user, resolvedActor.EffectiveRole, resolvedActor.CanSwitchRoles);
     }
 
     private async Task<ActorContext> RequireRoleAsync(int actorUserId, string requiredRole)
@@ -642,7 +642,7 @@ public sealed class ProjectService : IProjectService
             VerifiedAt = verification.VerifiedAt
         };
 
-    private sealed record ActorContext(User User, string RoleName)
+    private sealed record ActorContext(User User, string RoleName, bool CanSwitchRoles)
     {
         public int Id => User.Id;
     }

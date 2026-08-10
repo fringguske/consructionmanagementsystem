@@ -35,6 +35,7 @@ public class AppDbContext : DbContext
     public DbSet<Project> Projects => Set<Project>();
     public DbSet<Material> Materials => Set<Material>();
     public DbSet<Supplier> Suppliers => Set<Supplier>();
+    public DbSet<SupplierOnboardingRequest> SupplierOnboardingRequests => Set<SupplierOnboardingRequest>();
     public DbSet<Requisition> Requisitions => Set<Requisition>();
     public DbSet<UserProjectAssignment> UserProjectAssignments => Set<UserProjectAssignment>();
     public DbSet<EngineerTechnicalCheck> EngineerTechnicalChecks => Set<EngineerTechnicalCheck>();
@@ -49,11 +50,25 @@ public class AppDbContext : DbContext
     public DbSet<PurchaseOrder> PurchaseOrders => Set<PurchaseOrder>();
     public DbSet<PurchaseOrderLine> PurchaseOrderLines => Set<PurchaseOrderLine>();
     public DbSet<PurchaseOrderEvent> PurchaseOrderEvents => Set<PurchaseOrderEvent>();
+    public DbSet<GoodsReceipt> GoodsReceipts => Set<GoodsReceipt>();
+    public DbSet<StockBalance> StockBalances => Set<StockBalance>();
+    public DbSet<StockLedgerEntry> StockLedgerEntries => Set<StockLedgerEntry>();
+    public DbSet<MaterialIssue> MaterialIssues => Set<MaterialIssue>();
+    public DbSet<MaterialUsageRecord> MaterialUsageRecords => Set<MaterialUsageRecord>();
+    public DbSet<StockTransfer> StockTransfers => Set<StockTransfer>();
+    public DbSet<StockCount> StockCounts => Set<StockCount>();
+    public DbSet<SupplierInvoice> SupplierInvoices => Set<SupplierInvoice>();
+    public DbSet<PaymentAuthorization> PaymentAuthorizations => Set<PaymentAuthorization>();
+    public DbSet<Payment> Payments => Set<Payment>();
+    public DbSet<PaymentReceipt> PaymentReceipts => Set<PaymentReceipt>();
+    public DbSet<ControlEvent> ControlEvents => Set<ControlEvent>();
 
     private void GuardAppendOnlyEvidence()
     {
         GuardAssignmentHistory();
         GuardPurchaseOrderCommercialFields();
+        GuardOperationalSourceFields();
+        GuardSupplierOnboarding();
 
         var changedEvidence = ChangeTracker.Entries()
             .FirstOrDefault(entry =>
@@ -66,12 +81,61 @@ public class AppDbContext : DbContext
                     or SupplierQuote
                     or SourcingRoundEvent
                     or PurchaseOrderLine
-                    or PurchaseOrderEvent);
+                    or PurchaseOrderEvent
+                    or GoodsReceipt
+                    or StockLedgerEntry
+                    or MaterialUsageRecord
+                    or PaymentAuthorization
+                    or Payment
+                    or PaymentReceipt
+                    or ControlEvent);
 
         if (changedEvidence is not null)
         {
             throw new InvalidOperationException(
                 $"{changedEvidence.Metadata.ClrType.Name} is append-only and cannot be modified or deleted.");
+        }
+    }
+
+    private void GuardSupplierOnboarding()
+    {
+        var allowedDecisionProperties = new HashSet<string>(StringComparer.Ordinal)
+        {
+            nameof(SupplierOnboardingRequest.Status),
+            nameof(SupplierOnboardingRequest.ReviewedByUserId),
+            nameof(SupplierOnboardingRequest.ReviewedAt),
+            nameof(SupplierOnboardingRequest.ReviewNotes),
+            nameof(SupplierOnboardingRequest.ApprovedSupplierId)
+        };
+
+        foreach (var entry in ChangeTracker.Entries<SupplierOnboardingRequest>())
+        {
+            if (entry.State == EntityState.Deleted)
+            {
+                throw new InvalidOperationException(
+                    "Supplier onboarding requests cannot be deleted.");
+            }
+
+            if (entry.State != EntityState.Modified)
+            {
+                continue;
+            }
+
+            if (!string.Equals(
+                    entry.OriginalValues.GetValue<string>(nameof(SupplierOnboardingRequest.Status)),
+                    SupplierOnboardingStatuses.Pending,
+                    StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException(
+                    "A reviewed supplier onboarding request is immutable.");
+            }
+
+            if (entry.Properties.Any(property =>
+                    property.IsModified && !allowedDecisionProperties.Contains(property.Metadata.Name)))
+            {
+                throw new InvalidOperationException(
+                    "Supplier proposal fields are immutable; submit a new onboarding request instead.");
+            }
         }
     }
 
@@ -95,6 +159,52 @@ public class AppDbContext : DbContext
             {
                 throw new InvalidOperationException(
                     "Purchase-order commercial source fields are immutable; cancel and create a replacement PO.");
+            }
+        }
+    }
+
+    private void GuardOperationalSourceFields()
+    {
+        var deletedControlRecord = ChangeTracker.Entries()
+            .FirstOrDefault(entry => entry.State == EntityState.Deleted
+                && entry.Entity is MaterialIssue or StockTransfer or StockCount or SupplierInvoice);
+        if (deletedControlRecord is not null)
+        {
+            throw new InvalidOperationException(
+                $"{deletedControlRecord.Metadata.ClrType.Name} cannot be deleted; use its controlled workflow state instead.");
+        }
+
+        RejectProtectedChanges<MaterialIssue>(
+            nameof(MaterialIssue.IssueNumber), nameof(MaterialIssue.RequisitionId),
+            nameof(MaterialIssue.ProjectId), nameof(MaterialIssue.MaterialId),
+            nameof(MaterialIssue.QuantityIssued), nameof(MaterialIssue.IssuedByUserId),
+            nameof(MaterialIssue.IssuedToUserId), nameof(MaterialIssue.Notes), nameof(MaterialIssue.IssuedAt));
+        RejectProtectedChanges<StockTransfer>(
+            nameof(StockTransfer.TransferNumber), nameof(StockTransfer.FromProjectId),
+            nameof(StockTransfer.ToProjectId), nameof(StockTransfer.MaterialId),
+            nameof(StockTransfer.Quantity), nameof(StockTransfer.Reason),
+            nameof(StockTransfer.RequestedByUserId), nameof(StockTransfer.RequestedAt));
+        RejectProtectedChanges<StockCount>(
+            nameof(StockCount.CountNumber), nameof(StockCount.ProjectId), nameof(StockCount.MaterialId),
+            nameof(StockCount.SystemQuantity), nameof(StockCount.CountedQuantity), nameof(StockCount.Variance),
+            nameof(StockCount.Notes), nameof(StockCount.CountedByUserId), nameof(StockCount.CountedAt));
+        RejectProtectedChanges<SupplierInvoice>(
+            nameof(SupplierInvoice.InvoiceNumber), nameof(SupplierInvoice.PurchaseOrderId),
+            nameof(SupplierInvoice.ProjectId), nameof(SupplierInvoice.SupplierId),
+            nameof(SupplierInvoice.Quantity), nameof(SupplierInvoice.UnitPrice), nameof(SupplierInvoice.Amount),
+            nameof(SupplierInvoice.DocumentReference), nameof(SupplierInvoice.CapturedByUserId),
+            nameof(SupplierInvoice.CapturedAt));
+    }
+
+    private void RejectProtectedChanges<TEntity>(params string[] propertyNames)
+        where TEntity : class
+    {
+        foreach (var entry in ChangeTracker.Entries<TEntity>().Where(item => item.State == EntityState.Modified))
+        {
+            if (propertyNames.Any(property => entry.Property(property).IsModified))
+            {
+                throw new InvalidOperationException(
+                    $"{typeof(TEntity).Name} source fields are immutable; record a new workflow event instead.");
             }
         }
     }
@@ -150,6 +260,7 @@ public class AppDbContext : DbContext
         ConfigureProjects(modelBuilder, seedDate, seedProjectDate);
         ConfigureMaterials(modelBuilder);
         ConfigureSuppliers(modelBuilder);
+        ConfigureSupplierOnboardingRequests(modelBuilder);
         ConfigureRequisitions(modelBuilder);
         ConfigureUserProjectAssignments(modelBuilder);
         ConfigureEngineerTechnicalChecks(modelBuilder);
@@ -164,6 +275,18 @@ public class AppDbContext : DbContext
         ConfigurePurchaseOrders(modelBuilder);
         ConfigurePurchaseOrderLines(modelBuilder);
         ConfigurePurchaseOrderEvents(modelBuilder);
+        ConfigureGoodsReceipts(modelBuilder);
+        ConfigureStockBalances(modelBuilder);
+        ConfigureStockLedgerEntries(modelBuilder);
+        ConfigureMaterialIssues(modelBuilder);
+        ConfigureMaterialUsageRecords(modelBuilder);
+        ConfigureStockTransfers(modelBuilder);
+        ConfigureStockCounts(modelBuilder);
+        ConfigureSupplierInvoices(modelBuilder);
+        ConfigurePaymentAuthorizations(modelBuilder);
+        ConfigurePayments(modelBuilder);
+        ConfigurePaymentReceipts(modelBuilder);
+        ConfigureControlEvents(modelBuilder);
     }
 
     private static void ConfigureRoles(ModelBuilder modelBuilder, DateTime seedDate)
@@ -365,6 +488,70 @@ public class AppDbContext : DbContext
             .HasComputedColumnSql(NormalizedKraPinSql, stored: true)
             .IsRequired(false);
         suppliers.HasIndex("NormalizedKraPin").IsUnique();
+    }
+
+    private static void ConfigureSupplierOnboardingRequests(ModelBuilder modelBuilder)
+    {
+        var requests = modelBuilder.Entity<SupplierOnboardingRequest>();
+
+        requests.Property(request => request.RequestNumber).HasMaxLength(40);
+        requests.Property(request => request.Name).HasMaxLength(200);
+        requests.Property(request => request.ContactPerson).HasMaxLength(150);
+        requests.Property(request => request.PhoneNumber).HasMaxLength(30);
+        requests.Property(request => request.Email).HasMaxLength(254);
+        requests.Property(request => request.KraPin).HasMaxLength(20);
+        requests.Property(request => request.MpesaNumber).HasMaxLength(30);
+        requests.Property(request => request.Category).HasMaxLength(100);
+        requests.Property(request => request.Status).HasMaxLength(20).IsConcurrencyToken();
+        requests.Property(request => request.ReviewNotes).HasMaxLength(1_000);
+        requests.Property<string>("NormalizedKraPin")
+            .HasComputedColumnSql(NormalizedKraPinSql, stored: true);
+
+        requests.HasIndex(request => request.RequestNumber).IsUnique();
+        requests.HasIndex(request => request.Status);
+        requests.HasIndex("NormalizedKraPin")
+            .IsUnique()
+            .HasFilter("\"Status\" = 'Pending'");
+        requests.HasIndex(request => request.ApprovedSupplierId)
+            .IsUnique()
+            .HasFilter("\"ApprovedSupplierId\" IS NOT NULL");
+
+        requests.ToTable(table =>
+        {
+            table.HasCheckConstraint(
+                "CK_SupplierOnboardingRequests_Status_Valid",
+                "\"Status\" IN ('Pending', 'Approved', 'Rejected')");
+            table.HasCheckConstraint(
+                "CK_SupplierOnboardingRequests_Decision_Consistent",
+                "(\"Status\" = 'Pending' AND \"ReviewedByUserId\" IS NULL " +
+                "AND \"ReviewedAt\" IS NULL AND \"ReviewNotes\" IS NULL " +
+                "AND \"ApprovedSupplierId\" IS NULL) OR " +
+                "(\"Status\" = 'Approved' AND \"ReviewedByUserId\" IS NOT NULL " +
+                "AND \"ReviewedAt\" IS NOT NULL AND length(btrim(\"ReviewNotes\")) >= 3 " +
+                "AND \"ApprovedSupplierId\" IS NOT NULL) OR " +
+                "(\"Status\" = 'Rejected' AND \"ReviewedByUserId\" IS NOT NULL " +
+                "AND \"ReviewedAt\" IS NOT NULL AND length(btrim(\"ReviewNotes\")) >= 3 " +
+                "AND \"ApprovedSupplierId\" IS NULL)");
+            table.HasCheckConstraint(
+                "CK_SupplierOnboardingRequests_Actors_Distinct",
+                "\"ReviewedByUserId\" IS NULL OR \"ReviewedByUserId\" <> \"SubmittedByUserId\"");
+            table.HasCheckConstraint(
+                "CK_SupplierOnboardingRequests_Review_After_Submission",
+                "\"ReviewedAt\" IS NULL OR \"ReviewedAt\" >= \"SubmittedAt\"");
+        });
+
+        requests.HasOne(request => request.SubmittedByUser)
+            .WithMany()
+            .HasForeignKey(request => request.SubmittedByUserId)
+            .OnDelete(DeleteBehavior.Restrict);
+        requests.HasOne(request => request.ReviewedByUser)
+            .WithMany()
+            .HasForeignKey(request => request.ReviewedByUserId)
+            .OnDelete(DeleteBehavior.Restrict);
+        requests.HasOne(request => request.ApprovedSupplier)
+            .WithMany()
+            .HasForeignKey(request => request.ApprovedSupplierId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 
     private static void ConfigureRequisitions(ModelBuilder modelBuilder)
@@ -846,5 +1033,256 @@ public class AppDbContext : DbContext
             .WithMany()
             .HasForeignKey(assignment => assignment.AssignedByUserId)
             .OnDelete(DeleteBehavior.Restrict);
+    }
+
+    private static void ConfigureGoodsReceipts(ModelBuilder modelBuilder)
+    {
+        var receipts = modelBuilder.Entity<GoodsReceipt>();
+        receipts.Property(item => item.ReceiptNumber).HasMaxLength(30);
+        receipts.Property(item => item.DeliveredQuantity).HasPrecision(18, 3);
+        receipts.Property(item => item.AcceptedQuantity).HasPrecision(18, 3);
+        receipts.Property(item => item.RejectedQuantity).HasPrecision(18, 3);
+        receipts.Property(item => item.Condition).HasMaxLength(30);
+        receipts.Property(item => item.DeliveryNoteReference).HasMaxLength(100);
+        receipts.Property(item => item.EvidenceReference).HasMaxLength(500);
+        receipts.Property(item => item.DiscrepancyNotes).HasMaxLength(1_000);
+        receipts.HasIndex(item => item.ReceiptNumber).IsUnique();
+        receipts.HasIndex(item => new { item.PurchaseOrderLineId, item.ReceivedAt });
+        receipts.ToTable(table =>
+        {
+            table.HasCheckConstraint("CK_GoodsReceipts_Quantities",
+                "\"DeliveredQuantity\" > 0 AND \"AcceptedQuantity\" >= 0 AND \"RejectedQuantity\" >= 0 " +
+                "AND \"DeliveredQuantity\" = \"AcceptedQuantity\" + \"RejectedQuantity\"");
+            table.HasCheckConstraint("CK_GoodsReceipts_Condition",
+                "\"Condition\" IN ('Good', 'Damaged', 'Mixed')");
+        });
+        receipts.HasOne(item => item.PurchaseOrder).WithMany().HasForeignKey(item => item.PurchaseOrderId).OnDelete(DeleteBehavior.Restrict);
+        receipts.HasOne(item => item.PurchaseOrderLine).WithMany().HasForeignKey(item => item.PurchaseOrderLineId).OnDelete(DeleteBehavior.Restrict);
+        receipts.HasOne(item => item.Project).WithMany().HasForeignKey(item => item.ProjectId).OnDelete(DeleteBehavior.Restrict);
+        receipts.HasOne(item => item.Material).WithMany().HasForeignKey(item => item.MaterialId).OnDelete(DeleteBehavior.Restrict);
+        receipts.HasOne(item => item.ReceivedByUser).WithMany().HasForeignKey(item => item.ReceivedByUserId).OnDelete(DeleteBehavior.Restrict);
+    }
+
+    private static void ConfigureStockBalances(ModelBuilder modelBuilder)
+    {
+        var balances = modelBuilder.Entity<StockBalance>();
+        balances.Property(item => item.QuantityOnHand).HasPrecision(18, 3);
+        balances.HasIndex(item => new { item.ProjectId, item.MaterialId }).IsUnique();
+        balances.ToTable(table => table.HasCheckConstraint(
+            "CK_StockBalances_NonNegative", "\"QuantityOnHand\" >= 0"));
+        balances.HasOne(item => item.Project).WithMany().HasForeignKey(item => item.ProjectId).OnDelete(DeleteBehavior.Restrict);
+        balances.HasOne(item => item.Material).WithMany().HasForeignKey(item => item.MaterialId).OnDelete(DeleteBehavior.Restrict);
+    }
+
+    private static void ConfigureStockLedgerEntries(ModelBuilder modelBuilder)
+    {
+        var ledger = modelBuilder.Entity<StockLedgerEntry>();
+        ledger.Property(item => item.MovementType).HasMaxLength(30);
+        ledger.Property(item => item.QuantityDelta).HasPrecision(18, 3);
+        ledger.Property(item => item.BalanceAfter).HasPrecision(18, 3);
+        ledger.Property(item => item.ReferenceType).HasMaxLength(40);
+        ledger.Property(item => item.ReferenceNumber).HasMaxLength(40);
+        ledger.Property(item => item.Notes).HasMaxLength(1_000);
+        ledger.HasIndex(item => new { item.ProjectId, item.MaterialId, item.OccurredAt });
+        ledger.ToTable(table =>
+        {
+            table.HasCheckConstraint("CK_StockLedgerEntries_Movement",
+                "\"MovementType\" IN ('Receipt', 'Issue', 'TransferOut', 'TransferIn', 'CountAdjustment')");
+            table.HasCheckConstraint("CK_StockLedgerEntries_Balance", "\"BalanceAfter\" >= 0");
+            table.HasCheckConstraint("CK_StockLedgerEntries_Delta", "\"QuantityDelta\" <> 0");
+        });
+        ledger.HasOne(item => item.Project).WithMany().HasForeignKey(item => item.ProjectId).OnDelete(DeleteBehavior.Restrict);
+        ledger.HasOne(item => item.Material).WithMany().HasForeignKey(item => item.MaterialId).OnDelete(DeleteBehavior.Restrict);
+        ledger.HasOne(item => item.ActorUser).WithMany().HasForeignKey(item => item.ActorUserId).OnDelete(DeleteBehavior.Restrict);
+    }
+
+    private static void ConfigureMaterialIssues(ModelBuilder modelBuilder)
+    {
+        var issues = modelBuilder.Entity<MaterialIssue>();
+        issues.Property(item => item.IssueNumber).HasMaxLength(30);
+        issues.Property(item => item.QuantityIssued).HasPrecision(18, 3);
+        issues.Property(item => item.ConfirmedQuantity).HasPrecision(18, 3);
+        issues.Property(item => item.Status).HasMaxLength(30);
+        issues.Property(item => item.Notes).HasMaxLength(1_000);
+        issues.Property(item => item.ConfirmationNotes).HasMaxLength(1_000);
+        issues.HasIndex(item => item.IssueNumber).IsUnique();
+        issues.HasIndex(item => item.RequisitionId).IsUnique();
+        issues.ToTable(table =>
+        {
+            table.HasCheckConstraint("CK_MaterialIssues_Quantity", "\"QuantityIssued\" > 0");
+            table.HasCheckConstraint("CK_MaterialIssues_Status",
+                "\"Status\" IN ('AwaitingConfirmation', 'Confirmed', 'Disputed')");
+            table.HasCheckConstraint("CK_MaterialIssues_Confirmation",
+                "(\"Status\" = 'AwaitingConfirmation' AND \"ConfirmedByUserId\" IS NULL AND \"ConfirmedAt\" IS NULL AND \"ConfirmedQuantity\" IS NULL) OR " +
+                "(\"Status\" <> 'AwaitingConfirmation' AND \"ConfirmedByUserId\" IS NOT NULL AND \"ConfirmedAt\" IS NOT NULL AND \"ConfirmedQuantity\" IS NOT NULL)");
+        });
+        issues.HasOne(item => item.Requisition).WithMany().HasForeignKey(item => item.RequisitionId).OnDelete(DeleteBehavior.Restrict);
+        issues.HasOne(item => item.Project).WithMany().HasForeignKey(item => item.ProjectId).OnDelete(DeleteBehavior.Restrict);
+        issues.HasOne(item => item.Material).WithMany().HasForeignKey(item => item.MaterialId).OnDelete(DeleteBehavior.Restrict);
+        issues.HasOne(item => item.IssuedByUser).WithMany().HasForeignKey(item => item.IssuedByUserId).OnDelete(DeleteBehavior.Restrict);
+        issues.HasOne(item => item.IssuedToUser).WithMany().HasForeignKey(item => item.IssuedToUserId).OnDelete(DeleteBehavior.Restrict);
+        issues.HasOne(item => item.ConfirmedByUser).WithMany().HasForeignKey(item => item.ConfirmedByUserId).OnDelete(DeleteBehavior.Restrict);
+    }
+
+    private static void ConfigureMaterialUsageRecords(ModelBuilder modelBuilder)
+    {
+        var usage = modelBuilder.Entity<MaterialUsageRecord>();
+        usage.Property(item => item.UsageType).HasMaxLength(20);
+        usage.Property(item => item.Quantity).HasPrecision(18, 3);
+        usage.Property(item => item.PurposeOrReason).HasMaxLength(500);
+        usage.Property(item => item.EvidenceReference).HasMaxLength(500);
+        usage.HasIndex(item => new { item.MaterialIssueId, item.RecordedAt });
+        usage.ToTable(table =>
+        {
+            table.HasCheckConstraint("CK_MaterialUsageRecords_Type", "\"UsageType\" IN ('Used', 'Wastage')");
+            table.HasCheckConstraint("CK_MaterialUsageRecords_Quantity", "\"Quantity\" > 0");
+        });
+        usage.HasOne(item => item.MaterialIssue).WithMany(item => item.UsageRecords).HasForeignKey(item => item.MaterialIssueId).OnDelete(DeleteBehavior.Restrict);
+        usage.HasOne(item => item.RecordedByUser).WithMany().HasForeignKey(item => item.RecordedByUserId).OnDelete(DeleteBehavior.Restrict);
+    }
+
+    private static void ConfigureStockTransfers(ModelBuilder modelBuilder)
+    {
+        var transfers = modelBuilder.Entity<StockTransfer>();
+        transfers.Property(item => item.TransferNumber).HasMaxLength(30);
+        transfers.Property(item => item.Quantity).HasPrecision(18, 3);
+        transfers.Property(item => item.ReceivedQuantity).HasPrecision(18, 3);
+        transfers.Property(item => item.Reason).HasMaxLength(500);
+        transfers.Property(item => item.Status).HasMaxLength(30);
+        transfers.Property(item => item.ReceiptNotes).HasMaxLength(1_000);
+        transfers.HasIndex(item => item.TransferNumber).IsUnique();
+        transfers.ToTable(table =>
+        {
+            table.HasCheckConstraint("CK_StockTransfers_Projects", "\"FromProjectId\" <> \"ToProjectId\"");
+            table.HasCheckConstraint("CK_StockTransfers_Quantity", "\"Quantity\" > 0");
+            table.HasCheckConstraint("CK_StockTransfers_Status",
+                "\"Status\" IN ('PendingDispatch', 'InTransit', 'Received', 'Disputed')");
+        });
+        transfers.HasOne(item => item.FromProject).WithMany().HasForeignKey(item => item.FromProjectId).OnDelete(DeleteBehavior.Restrict);
+        transfers.HasOne(item => item.ToProject).WithMany().HasForeignKey(item => item.ToProjectId).OnDelete(DeleteBehavior.Restrict);
+        transfers.HasOne(item => item.Material).WithMany().HasForeignKey(item => item.MaterialId).OnDelete(DeleteBehavior.Restrict);
+        transfers.HasOne(item => item.RequestedByUser).WithMany().HasForeignKey(item => item.RequestedByUserId).OnDelete(DeleteBehavior.Restrict);
+        transfers.HasOne(item => item.DispatchedByUser).WithMany().HasForeignKey(item => item.DispatchedByUserId).OnDelete(DeleteBehavior.Restrict);
+        transfers.HasOne(item => item.ReceivedByUser).WithMany().HasForeignKey(item => item.ReceivedByUserId).OnDelete(DeleteBehavior.Restrict);
+    }
+
+    private static void ConfigureStockCounts(ModelBuilder modelBuilder)
+    {
+        var counts = modelBuilder.Entity<StockCount>();
+        counts.Property(item => item.CountNumber).HasMaxLength(30);
+        counts.Property(item => item.SystemQuantity).HasPrecision(18, 3);
+        counts.Property(item => item.CountedQuantity).HasPrecision(18, 3);
+        counts.Property(item => item.Variance).HasPrecision(18, 3);
+        counts.Property(item => item.Notes).HasMaxLength(1_000);
+        counts.Property(item => item.Status).HasMaxLength(30);
+        counts.Property(item => item.ReviewNotes).HasMaxLength(1_000);
+        counts.HasIndex(item => item.CountNumber).IsUnique();
+        counts.HasIndex(item => new { item.ProjectId, item.MaterialId })
+            .HasFilter("\"Status\" = 'AwaitingReview'").IsUnique();
+        counts.ToTable(table =>
+        {
+            table.HasCheckConstraint("CK_StockCounts_Quantities", "\"SystemQuantity\" >= 0 AND \"CountedQuantity\" >= 0");
+            table.HasCheckConstraint("CK_StockCounts_Variance", "\"Variance\" = \"CountedQuantity\" - \"SystemQuantity\"");
+            table.HasCheckConstraint("CK_StockCounts_Status", "\"Status\" IN ('AwaitingReview', 'Approved', 'Rejected')");
+        });
+        counts.HasOne(item => item.Project).WithMany().HasForeignKey(item => item.ProjectId).OnDelete(DeleteBehavior.Restrict);
+        counts.HasOne(item => item.Material).WithMany().HasForeignKey(item => item.MaterialId).OnDelete(DeleteBehavior.Restrict);
+        counts.HasOne(item => item.CountedByUser).WithMany().HasForeignKey(item => item.CountedByUserId).OnDelete(DeleteBehavior.Restrict);
+        counts.HasOne(item => item.ReviewedByUser).WithMany().HasForeignKey(item => item.ReviewedByUserId).OnDelete(DeleteBehavior.Restrict);
+    }
+
+    private static void ConfigureSupplierInvoices(ModelBuilder modelBuilder)
+    {
+        var invoices = modelBuilder.Entity<SupplierInvoice>();
+        invoices.Property(item => item.InvoiceNumber).HasMaxLength(100);
+        invoices.Property(item => item.Quantity).HasPrecision(18, 3);
+        invoices.Property(item => item.UnitPrice).HasPrecision(18, 2);
+        invoices.Property(item => item.Amount).HasPrecision(18, 2);
+        invoices.Property(item => item.ReceivedQuantitySnapshot).HasPrecision(18, 3);
+        invoices.Property(item => item.DocumentReference).HasMaxLength(500);
+        invoices.Property(item => item.Status).HasMaxLength(30);
+        invoices.Property(item => item.MatchNotes).HasMaxLength(1_000);
+        invoices.Property(item => item.CeoDecision).HasMaxLength(20);
+        invoices.Property(item => item.CeoDecisionNotes).HasMaxLength(1_000);
+        invoices.HasIndex(item => item.PurchaseOrderId)
+            .HasFilter("\"Status\" IN ('PendingReview', 'Matched', 'AwaitingCeoApproval', 'ReadyForAuthorization', 'Authorized', 'Paid')")
+            .IsUnique();
+        invoices.HasIndex(item => new { item.SupplierId, item.InvoiceNumber }).IsUnique();
+        invoices.ToTable(table =>
+        {
+            table.HasCheckConstraint("CK_SupplierInvoices_Amounts", "\"Quantity\" > 0 AND \"UnitPrice\" > 0 AND \"Amount\" > 0");
+            table.HasCheckConstraint("CK_SupplierInvoices_Status",
+                "\"Status\" IN ('PendingReview', 'Matched', 'Mismatch', 'AwaitingCeoApproval', 'ReadyForAuthorization', 'Authorized', 'Paid', 'Returned', 'Rejected')");
+        });
+        invoices.HasOne(item => item.PurchaseOrder).WithMany().HasForeignKey(item => item.PurchaseOrderId).OnDelete(DeleteBehavior.Restrict);
+        invoices.HasOne(item => item.Project).WithMany().HasForeignKey(item => item.ProjectId).OnDelete(DeleteBehavior.Restrict);
+        invoices.HasOne(item => item.Supplier).WithMany().HasForeignKey(item => item.SupplierId).OnDelete(DeleteBehavior.Restrict);
+        invoices.HasOne(item => item.CapturedByUser).WithMany().HasForeignKey(item => item.CapturedByUserId).OnDelete(DeleteBehavior.Restrict);
+        invoices.HasOne(item => item.ReviewedByUser).WithMany().HasForeignKey(item => item.ReviewedByUserId).OnDelete(DeleteBehavior.Restrict);
+        invoices.HasOne(item => item.CeoDecisionByUser).WithMany().HasForeignKey(item => item.CeoDecisionByUserId).OnDelete(DeleteBehavior.Restrict);
+    }
+
+    private static void ConfigurePaymentAuthorizations(ModelBuilder modelBuilder)
+    {
+        var authorizations = modelBuilder.Entity<PaymentAuthorization>();
+        authorizations.Property(item => item.AuthorizationNumber).HasMaxLength(30);
+        authorizations.Property(item => item.Amount).HasPrecision(18, 2);
+        authorizations.Property(item => item.Notes).HasMaxLength(1_000);
+        authorizations.HasIndex(item => item.AuthorizationNumber).IsUnique();
+        authorizations.HasIndex(item => item.SupplierInvoiceId).IsUnique();
+        authorizations.ToTable(table => table.HasCheckConstraint("CK_PaymentAuthorizations_Amount", "\"Amount\" > 0"));
+        authorizations.HasOne(item => item.SupplierInvoice).WithMany().HasForeignKey(item => item.SupplierInvoiceId).OnDelete(DeleteBehavior.Restrict);
+        authorizations.HasOne(item => item.AuthorizedByUser).WithMany().HasForeignKey(item => item.AuthorizedByUserId).OnDelete(DeleteBehavior.Restrict);
+    }
+
+    private static void ConfigurePayments(ModelBuilder modelBuilder)
+    {
+        var payments = modelBuilder.Entity<Payment>();
+        payments.Property(item => item.PaymentNumber).HasMaxLength(30);
+        payments.Property(item => item.Amount).HasPrecision(18, 2);
+        payments.Property(item => item.Method).HasMaxLength(30);
+        payments.Property(item => item.ExternalReference).HasMaxLength(100);
+        payments.Property(item => item.EvidenceReference).HasMaxLength(500);
+        payments.HasIndex(item => item.PaymentNumber).IsUnique();
+        payments.HasIndex(item => item.PaymentAuthorizationId).IsUnique();
+        payments.HasIndex(item => item.ExternalReference).IsUnique();
+        payments.ToTable(table =>
+        {
+            table.HasCheckConstraint("CK_Payments_Amount", "\"Amount\" > 0");
+            table.HasCheckConstraint("CK_Payments_Method", "\"Method\" IN ('BankTransfer', 'MPesa', 'Cheque', 'Cash')");
+        });
+        payments.HasOne(item => item.PaymentAuthorization).WithMany().HasForeignKey(item => item.PaymentAuthorizationId).OnDelete(DeleteBehavior.Restrict);
+        payments.HasOne(item => item.PaidByUser).WithMany().HasForeignKey(item => item.PaidByUserId).OnDelete(DeleteBehavior.Restrict);
+    }
+
+    private static void ConfigurePaymentReceipts(ModelBuilder modelBuilder)
+    {
+        var receipts = modelBuilder.Entity<PaymentReceipt>();
+        receipts.Property(item => item.ReceiptNumber).HasMaxLength(30);
+        receipts.Property(item => item.Amount).HasPrecision(18, 2);
+        receipts.HasIndex(item => item.ReceiptNumber).IsUnique();
+        receipts.HasIndex(item => item.PaymentId).IsUnique();
+        receipts.ToTable(table => table.HasCheckConstraint("CK_PaymentReceipts_Amount", "\"Amount\" > 0"));
+        receipts.HasOne(item => item.Payment).WithOne(item => item.Receipt).HasForeignKey<PaymentReceipt>(item => item.PaymentId).OnDelete(DeleteBehavior.Restrict);
+        receipts.HasOne(item => item.IssuedByUser).WithMany().HasForeignKey(item => item.IssuedByUserId).OnDelete(DeleteBehavior.Restrict);
+    }
+
+    private static void ConfigureControlEvents(ModelBuilder modelBuilder)
+    {
+        var events = modelBuilder.Entity<ControlEvent>();
+        events.Property(item => item.ChainKey).HasMaxLength(80);
+        events.Property(item => item.EntityType).HasMaxLength(50);
+        events.Property(item => item.ReferenceNumber).HasMaxLength(100);
+        events.Property(item => item.EventType).HasMaxLength(60);
+        events.Property(item => item.ActorRole).HasMaxLength(80);
+        events.Property(item => item.DetailsJson).HasColumnType("jsonb");
+        events.Property(item => item.PreviousEventHash).HasMaxLength(64);
+        events.Property(item => item.EventHash).HasMaxLength(64);
+        events.HasIndex(item => new { item.ChainKey, item.SequenceNumber }).IsUnique();
+        events.HasIndex(item => item.EventHash).IsUnique();
+        events.HasIndex(item => new { item.ProjectId, item.OccurredAt });
+        events.HasOne(item => item.Requisition).WithMany().HasForeignKey(item => item.RequisitionId).OnDelete(DeleteBehavior.Restrict);
+        events.HasOne(item => item.Project).WithMany().HasForeignKey(item => item.ProjectId).OnDelete(DeleteBehavior.Restrict);
+        events.HasOne(item => item.ActorUser).WithMany().HasForeignKey(item => item.ActorUserId).OnDelete(DeleteBehavior.Restrict);
     }
 }

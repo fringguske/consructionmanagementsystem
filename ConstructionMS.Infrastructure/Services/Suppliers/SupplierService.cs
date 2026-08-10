@@ -44,33 +44,6 @@ public class SupplierService : ISupplierService
         return supplier is null ? null : ToDto(supplier);
     }
 
-    public async Task<SupplierResponseDto> CreateAsync(CreateSupplierRequestDto dto)
-    {
-        var kraPin = InputNormalizer.OptionalUppercase(dto.KraPin, nameof(dto.KraPin), 20);
-        if (kraPin is not null && await _db.Suppliers.AnyAsync(supplier =>
-                EF.Property<string?>(supplier, NormalizedKraPinProperty) == kraPin))
-        {
-            throw new InvalidOperationException("A supplier with that KRA PIN already exists.");
-        }
-
-        var supplier = new Supplier
-        {
-            Name = InputNormalizer.RequiredText(dto.Name, nameof(dto.Name), 2, 200),
-            ContactPerson = InputNormalizer.OptionalText(dto.ContactPerson, nameof(dto.ContactPerson), 150),
-            PhoneNumber = InputNormalizer.OptionalText(dto.PhoneNumber, nameof(dto.PhoneNumber), 30),
-            Email = InputNormalizer.OptionalEmail(dto.Email, nameof(dto.Email)),
-            KraPin = kraPin,
-            MpesaNumber = InputNormalizer.OptionalText(dto.MpesaNumber, nameof(dto.MpesaNumber), 30),
-            Category = InputNormalizer.OptionalText(dto.Category, nameof(dto.Category), 100),
-            IsBlacklisted = false,
-            CreatedAt = DateTime.UtcNow
-        };
-
-        _db.Suppliers.Add(supplier);
-        await _db.SaveChangesAsync();
-        return ToDto(supplier);
-    }
-
     public async Task<SupplierResponseDto?> UpdateAsync(int id, UpdateSupplierRequestDto dto)
     {
         var supplier = await _db.Suppliers.FindAsync(id);
