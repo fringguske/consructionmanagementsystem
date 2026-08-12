@@ -236,7 +236,7 @@ export function LiveAccessView({ currentUser }: LiveAccessViewProps) {
         roleId: approvalRoleId,
         projectIds: approvalProjectIds,
       })
-      setMessage(`${request.username} was approved and can now sign in.`)
+      setMessage(`${request.username} approved.`)
       setApprovalProjectIds([])
       setRefreshKey(value => value + 1)
     } catch (requestError) {

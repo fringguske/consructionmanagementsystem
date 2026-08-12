@@ -123,7 +123,7 @@ export function LiveSuppliersView({ currentUser }: LiveSuppliersViewProps) {
         <SupplierApplicationForm
           onSubmitted={request => {
             setRequests(current => [request, ...current])
-            setMessage('Supplier application sent. Wait for Finance or the CEO to complete the independent review.')
+            setMessage('Supplier application submitted.')
           }}
         />
       )}

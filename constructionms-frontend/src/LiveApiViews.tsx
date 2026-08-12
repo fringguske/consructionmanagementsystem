@@ -1452,7 +1452,6 @@ export function LiveRequisitionsView({ currentUser }: LiveRequisitionsViewProps)
         <div>
           <span className="lav-kicker">Controlled material requests</span>
           <h1>Requisitions</h1>
-          <p>Site-use requests go through Engineer and Supervisor. Store replenishment goes directly to the Supervisor.</p>
         </div>
         {['Foreman', 'Engineer', 'Supervisor'].includes(currentUser.role) && (
           <span className={`lav-count-chip ${queueCount > 0 ? 'attention' : ''}`}>
@@ -1600,7 +1599,7 @@ function CreateRequisitionForm({ projects, materials, onCreated }: CreateRequisi
       setNeededByDate('')
       setPurpose('')
       setNotes('')
-      setMessage({ tone: 'success', text: 'Request sent. Wait for the Engineer assigned to this project to complete the technical check.' })
+      setMessage({ tone: 'success', text: 'Request submitted.' })
     } catch (requestError) {
       setMessage({ tone: 'error', text: errorMessage(requestError) })
     } finally {
@@ -1748,7 +1747,7 @@ function CreateRequisitionForm({ projects, materials, onCreated }: CreateRequisi
             </label>
           </div>
           <div className="lav-form-actions">
-            <span>The engineer must check this before the supervisor can decide.</span>
+            <span />
             <button className="lav-button primary" type="submit" disabled={busy || !hasMaterials}>
               {busy ? 'Sending…' : 'Send request'}
             </button>
@@ -1815,10 +1814,6 @@ function RequisitionCard({
         </div>
         <div><span>Request for</span><strong>{requisition.requestType === 'StockReplenishment' ? 'Store stock' : 'Site use'}</strong></div>
       </div>
-
-      {requisition.currentActionMessage && (
-        <p className="lav-action-message">{requisition.currentActionMessage}</p>
-      )}
 
       {requisition.latestTechnicalCheck?.comments && (
         <div className="lav-review-note">

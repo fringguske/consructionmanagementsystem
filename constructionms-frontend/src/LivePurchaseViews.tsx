@@ -268,7 +268,7 @@ export function LiveProcurementView({ currentUser }: LiveProcurementViewProps) {
 
   function addRound(created: SourcingRound) {
     setRounds((current) => [created, ...current])
-    setNotice('Sourcing round opened. Supplier quotes can now be recorded.')
+    setNotice('Sourcing opened.')
   }
 
   function addQuote(roundId: number, quote: SupplierQuote) {
@@ -284,12 +284,12 @@ export function LiveProcurementView({ currentUser }: LiveProcurementViewProps) {
           : round,
       ),
     )
-    setNotice('Supplier quote added. Add other comparable quotes, then prepare the order when the comparison is complete.')
+    setNotice('Quote saved.')
   }
 
   function addOrder(order: PurchaseOrder) {
     setOrders((current) => [order, ...current])
-    setNotice('Draft order prepared. Submit it next, then wait for the assigned Supervisor to approve it.')
+    setNotice('Draft order created.')
   }
 
   if (!allowed) {
@@ -1348,14 +1348,7 @@ function OrderActionForm({
           reason: reason.trim(),
         })
       }
-      const next = updated.status === 'Submitted'
-        ? ' Wait for the assigned Supervisor to approve it.'
-        : updated.status === 'Approved'
-          ? ' Procurement can issue it to the supplier now.'
-          : updated.status === 'Issued'
-            ? ' Wait for the Storekeeper to count the delivery.'
-            : ''
-      onChanged(updated, `Purchase order is now ${orderStatusLabel(updated.status).toLowerCase()}.${next}`)
+      onChanged(updated, `Order ${orderStatusLabel(updated.status).toLowerCase()}.`)
     } catch (requestError) {
       setError(errorMessage(requestError))
     } finally {

@@ -1070,7 +1070,7 @@ public sealed class RequisitionWorkflowService : IRequisitionWorkflowService
                 },
             DecidedByUserId = includeHistory ? requisition.ApprovedByUserId : null,
             DecidedByUserName = includeHistory ? requisition.ApprovedByUser?.FullName : null,
-            CurrentActionMessage = NextActionMessage(requisition),
+            CurrentActionMessage = string.Empty,
             History = includeHistory
                 ? requisition.ApprovalEvents
                     .OrderBy(workflowEvent => workflowEvent.SequenceNumber)
@@ -1091,25 +1091,6 @@ public sealed class RequisitionWorkflowService : IRequisitionWorkflowService
                 : []
         };
     }
-
-    private static string NextActionMessage(Requisition requisition) => requisition.Status switch
-    {
-        RequisitionWorkflowStates.AwaitingTechnicalCheck =>
-            "Waiting for the Engineer assigned to this project to complete the technical check.",
-        RequisitionWorkflowStates.AwaitingSupervisorDecision when requisition.RequestType == RequisitionTypes.StockReplenishment =>
-            "Waiting for the Supervisor assigned to this project to approve the store replenishment.",
-        RequisitionWorkflowStates.AwaitingSupervisorDecision =>
-            "The Engineer check is complete. Waiting for the Supervisor assigned to this project.",
-        RequisitionWorkflowStates.ReturnedForRevision =>
-            "Returned to the Foreman who raised it for correction and resubmission.",
-        RequisitionWorkflowStates.Approved when requisition.RequestType == RequisitionTypes.StockReplenishment =>
-            "Approved for store replenishment. Waiting for Procurement to open supplier sourcing.",
-        RequisitionWorkflowStates.Approved =>
-            "Approved for site use. Stores may issue available stock; Procurement may source any shortage.",
-        RequisitionWorkflowStates.Rejected =>
-            "Closed after the Supervisor rejected the request. Raise a new request if the need changes.",
-        _ => string.Empty
-    };
 
     private static OperationResult<T> Failure<T>(OperationErrorKind kind, string error) =>
         OperationResult<T>.Failure(kind, error);
