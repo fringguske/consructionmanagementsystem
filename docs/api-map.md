@@ -47,7 +47,7 @@ steps on the same requisition, order, transfer or payment.
 | Method and path | Role | Purpose |
 |---|---|---|
 | `POST /auth/register` | Anonymous | Reserve a unique username and create a pending access request. Email addresses may be shared. |
-| `POST /auth/login` | Anonymous | Validate email, username and password and issue the session cookie. Rate limited per forwarded client IP. |
+| `POST /auth/login` | Anonymous | Validate the unique username and password and issue the session cookie. Rate limited per forwarded client IP. |
 | `GET /auth/me` | Any signed-in user | Return actual/effective role metadata and projects in the current workspace scope. |
 | `POST /auth/role-context` | Configured IT verifier only | Select a temporary effective workspace role without changing the account's database role. |
 | `POST /auth/logout` | Any signed-in user | Remove the session cookie. |
@@ -181,6 +181,27 @@ Accepted GRN → Procurement invoice capture → Finance three-way match
 | `POST /finance/authorizations/{id}/pay` | Cashier | Execute exactly the authorized amount with a unique external bank/M-Pesa/cheque/cash reference. |
 | `GET /finance/payments` | Finance, Cashier, CEO, Auditor | Read immutable payments and system receipt numbers. |
 | `GET /finance/control-events` | CEO, Auditor | Read the full chronological chain for a project or requisition across request, sourcing, PO, stock and payment. |
+
+### Petty cash
+
+```text
+Supervisor request → Finance approval → Cashier handover
+                   → requesting Supervisor receipts/return → Finance reconciliation
+```
+
+Petty cash is restricted to KES 100,000 per request and an active project cost code.
+The CEO observes the full chain but does not approve routine requests. The requesting
+Supervisor cannot approve or disburse, Finance cannot execute the handover, and the
+Cashier cannot alter the approved amount.
+
+| Method and path | Role | Purpose |
+|---|---|---|
+| `GET /finance/petty-cash` | Supervisor, Finance, Cashier, CEO, Auditor | Read role- and project-scoped requests, handovers and reconciliations. |
+| `POST /finance/petty-cash` | Supervisor | Request a capped amount for one specific purpose and budget area. |
+| `POST /finance/petty-cash/{id}/decision` | Finance | Independently approve a locked amount or reject with notes. |
+| `POST /finance/petty-cash/{id}/disburse` | Cashier | Record the exact handover, external reference, recipient acknowledgement and proof. |
+| `POST /finance/petty-cash/{id}/reconciliation` | Requesting Supervisor | Account for the full amount with receipt evidence and any cash-return reference. |
+| `POST /finance/petty-cash/{id}/reconciliation-decision` | Finance | Close the evidence or return it for correction. |
 
 New operational evidence is protected twice: application guards reject deletion/source-field rewrites, and PostgreSQL triggers independently reject the same mutations. `ControlEvents` are append-only and SHA-256 linked within each requisition chain.
 

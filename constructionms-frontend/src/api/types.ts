@@ -66,7 +66,6 @@ export interface SetUserActiveRequest {
 }
 
 export interface LoginRequest {
-  email: string
   username: string
   password: string
 }
@@ -75,6 +74,7 @@ export interface RegisterAccessRequest {
   email: string
   username: string
   password: string
+  confirmPassword: string
 }
 
 export interface AccessRequest {
@@ -659,6 +659,39 @@ export interface Payment {
   id: number; paymentNumber: string; paymentAuthorizationId: number; amount: number; method: string
   externalReference: string; evidenceReference: string | null; paidByName: string
   paidAt: IsoDateTime; receiptNumber: string
+}
+
+export type PettyCashStatus =
+  | 'PendingFinanceApproval'
+  | 'Rejected'
+  | 'Approved'
+  | 'Disbursed'
+  | 'ReconciliationSubmitted'
+  | 'Reconciled'
+
+export interface PettyCashDisbursement {
+  id: number; disbursementNumber: string; amount: number; method: string
+  externalReference: string; recipientName: string; recipientAcknowledgementReference: string
+  evidenceReference: string; disbursedByName: string; disbursedAt: IsoDateTime
+}
+
+export interface PettyCashReconciliation {
+  id: number; reconciliationNumber: string; amountSpent: number; amountReturned: number
+  amountUnaccounted: number; amountExpensed: number | null; evidenceReference: string; returnReference: string | null
+  notes: string | null; submittedByName: string; submittedAt: IsoDateTime
+  status: 'PendingReview' | 'Approved' | 'Returned'; reviewedByName: string | null
+  reviewedAt: IsoDateTime | null; reviewNotes: string | null
+}
+
+export interface PettyCashRequest {
+  id: number; requestNumber: string; projectId: number; projectName: string
+  costCodeId: number; costCode: string; costCodeName: string; purpose: string
+  amountRequested: number; amountApproved: number | null; amountCommitted: number | null; neededByDate: IsoDate
+  status: PettyCashStatus; requestedByName: string; requestedByUserId: number
+  requestedAt: IsoDateTime; financeApprovedByName: string | null
+  financeDecisionAt: IsoDateTime | null; financeDecisionNotes: string | null
+  disbursement: PettyCashDisbursement | null
+  latestReconciliation: PettyCashReconciliation | null
 }
 
 export interface ControlEvent {

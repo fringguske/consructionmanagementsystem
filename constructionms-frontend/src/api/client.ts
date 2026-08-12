@@ -62,6 +62,7 @@ import type {
   SupplierInvoice,
   PaymentAuthorization,
   Payment,
+  PettyCashRequest,
   ControlEvent,
 } from './types'
 
@@ -739,4 +740,18 @@ export const financeApi = {
     request<Payment>(`/finance/authorizations/${id}/pay`, { method: 'POST', body, signal }),
   payments: (signal?: AbortSignal) => request<PaginatedResult<Payment>>('/finance/payments', { signal }, { page: 1, pageSize: 100 }),
   controlEvents: (signal?: AbortSignal) => request<PaginatedResult<ControlEvent>>('/finance/control-events', { signal }, { page: 1, pageSize: 100 }),
+}
+
+export const pettyCashApi = {
+  list: (signal?: AbortSignal) => request<PaginatedResult<PettyCashRequest>>('/finance/petty-cash', { signal }, { page: 1, pageSize: 100 }),
+  create: (body: { projectId: number; costCodeId: number; purpose: string; amount: number; neededByDate: string }, signal?: AbortSignal) =>
+    request<PettyCashRequest>('/finance/petty-cash', { method: 'POST', body, signal }),
+  decide: (id: number, body: { approve: boolean; amountApproved?: number | null; notes: string }, signal?: AbortSignal) =>
+    request<PettyCashRequest>(`/finance/petty-cash/${id}/decision`, { method: 'POST', body, signal }),
+  disburse: (id: number, body: { method: string; externalReference: string; recipientName: string; recipientAcknowledgementReference: string; evidenceReference: string }, signal?: AbortSignal) =>
+    request<PettyCashRequest>(`/finance/petty-cash/${id}/disburse`, { method: 'POST', body, signal }),
+  reconcile: (id: number, body: { amountSpent: number; amountReturned: number; evidenceReference: string; returnReference?: string | null; notes?: string | null }, signal?: AbortSignal) =>
+    request<PettyCashRequest>(`/finance/petty-cash/${id}/reconciliation`, { method: 'POST', body, signal }),
+  reviewReconciliation: (id: number, body: { approve: boolean; notes: string }, signal?: AbortSignal) =>
+    request<PettyCashRequest>(`/finance/petty-cash/${id}/reconciliation-decision`, { method: 'POST', body, signal }),
 }

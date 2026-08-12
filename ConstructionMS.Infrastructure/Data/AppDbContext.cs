@@ -61,6 +61,10 @@ public class AppDbContext : DbContext
     public DbSet<PaymentAuthorization> PaymentAuthorizations => Set<PaymentAuthorization>();
     public DbSet<Payment> Payments => Set<Payment>();
     public DbSet<PaymentReceipt> PaymentReceipts => Set<PaymentReceipt>();
+    public DbSet<PettyCashRequest> PettyCashRequests => Set<PettyCashRequest>();
+    public DbSet<PettyCashDisbursement> PettyCashDisbursements => Set<PettyCashDisbursement>();
+    public DbSet<PettyCashReconciliation> PettyCashReconciliations => Set<PettyCashReconciliation>();
+    public DbSet<PettyCashReconciliationEvent> PettyCashReconciliationEvents => Set<PettyCashReconciliationEvent>();
     public DbSet<ControlEvent> ControlEvents => Set<ControlEvent>();
 
     private void GuardAppendOnlyEvidence()
@@ -88,6 +92,8 @@ public class AppDbContext : DbContext
                     or PaymentAuthorization
                     or Payment
                     or PaymentReceipt
+                    or PettyCashDisbursement
+                    or PettyCashReconciliationEvent
                     or ControlEvent);
 
         if (changedEvidence is not null)
@@ -167,7 +173,8 @@ public class AppDbContext : DbContext
     {
         var deletedControlRecord = ChangeTracker.Entries()
             .FirstOrDefault(entry => entry.State == EntityState.Deleted
-                && entry.Entity is MaterialIssue or StockTransfer or StockCount or SupplierInvoice);
+                && entry.Entity is MaterialIssue or StockTransfer or StockCount or SupplierInvoice
+                    or PettyCashRequest or PettyCashReconciliation);
         if (deletedControlRecord is not null)
         {
             throw new InvalidOperationException(
@@ -194,6 +201,21 @@ public class AppDbContext : DbContext
             nameof(SupplierInvoice.Quantity), nameof(SupplierInvoice.UnitPrice), nameof(SupplierInvoice.Amount),
             nameof(SupplierInvoice.DocumentReference), nameof(SupplierInvoice.CapturedByUserId),
             nameof(SupplierInvoice.CapturedAt));
+        RejectProtectedChanges<PettyCashRequest>(
+            nameof(PettyCashRequest.RequestNumber), nameof(PettyCashRequest.ProjectId),
+            nameof(PettyCashRequest.CostCodeId), nameof(PettyCashRequest.Purpose),
+            nameof(PettyCashRequest.AmountRequested), nameof(PettyCashRequest.NeededByDate),
+            nameof(PettyCashRequest.RequestedByUserId), nameof(PettyCashRequest.RequestedAt));
+        RejectProtectedChanges<PettyCashReconciliation>(
+            nameof(PettyCashReconciliation.ReconciliationNumber),
+            nameof(PettyCashReconciliation.PettyCashRequestId),
+            nameof(PettyCashReconciliation.AmountSpent),
+            nameof(PettyCashReconciliation.AmountReturned),
+            nameof(PettyCashReconciliation.EvidenceReference),
+            nameof(PettyCashReconciliation.ReturnReference),
+            nameof(PettyCashReconciliation.Notes),
+            nameof(PettyCashReconciliation.SubmittedByUserId),
+            nameof(PettyCashReconciliation.SubmittedAt));
     }
 
     private void RejectProtectedChanges<TEntity>(params string[] propertyNames)
@@ -286,6 +308,10 @@ public class AppDbContext : DbContext
         ConfigurePaymentAuthorizations(modelBuilder);
         ConfigurePayments(modelBuilder);
         ConfigurePaymentReceipts(modelBuilder);
+        ConfigurePettyCashRequests(modelBuilder);
+        ConfigurePettyCashDisbursements(modelBuilder);
+        ConfigurePettyCashReconciliations(modelBuilder);
+        ConfigurePettyCashReconciliationEvents(modelBuilder);
         ConfigureControlEvents(modelBuilder);
     }
 
@@ -1265,6 +1291,107 @@ public class AppDbContext : DbContext
         receipts.ToTable(table => table.HasCheckConstraint("CK_PaymentReceipts_Amount", "\"Amount\" > 0"));
         receipts.HasOne(item => item.Payment).WithOne(item => item.Receipt).HasForeignKey<PaymentReceipt>(item => item.PaymentId).OnDelete(DeleteBehavior.Restrict);
         receipts.HasOne(item => item.IssuedByUser).WithMany().HasForeignKey(item => item.IssuedByUserId).OnDelete(DeleteBehavior.Restrict);
+    }
+
+    private static void ConfigurePettyCashRequests(ModelBuilder modelBuilder)
+    {
+        var requests = modelBuilder.Entity<PettyCashRequest>();
+        requests.Property(item => item.RequestNumber).HasMaxLength(30);
+        requests.Property(item => item.Purpose).HasMaxLength(500);
+        requests.Property(item => item.AmountRequested).HasPrecision(18, 2);
+        requests.Property(item => item.AmountApproved).HasPrecision(18, 2);
+        requests.Property(item => item.AmountCommitted).HasPrecision(18, 2);
+        requests.Property(item => item.Status).HasMaxLength(40);
+        requests.Property(item => item.FinanceDecisionNotes).HasMaxLength(1_000);
+        requests.HasIndex(item => item.RequestNumber).IsUnique();
+        requests.HasIndex(item => new { item.ProjectId, item.Status, item.RequestedAt });
+        requests.HasIndex(item => item.RequestedByUserId)
+            .HasFilter("\"Status\" NOT IN ('Reconciled', 'Rejected')")
+            .IsUnique();
+        requests.ToTable(table =>
+        {
+            table.HasCheckConstraint(
+                "CK_PettyCashRequests_Amounts",
+                "\"AmountRequested\" > 0 AND \"AmountRequested\" <= 100000 AND (\"AmountApproved\" IS NULL OR (\"AmountApproved\" > 0 AND \"AmountApproved\" <= \"AmountRequested\")) AND (\"AmountCommitted\" IS NULL OR \"AmountCommitted\" > 0)");
+            table.HasCheckConstraint(
+                "CK_PettyCashRequests_Status",
+                "\"Status\" IN ('PendingFinanceApproval', 'Rejected', 'Approved', 'Disbursed', 'ReconciliationSubmitted', 'Reconciled')");
+        });
+        requests.HasOne(item => item.Project).WithMany().HasForeignKey(item => item.ProjectId).OnDelete(DeleteBehavior.Restrict);
+        requests.HasOne(item => item.CostCode).WithMany().HasForeignKey(item => item.CostCodeId).OnDelete(DeleteBehavior.Restrict);
+        requests.HasOne(item => item.RequestedByUser).WithMany().HasForeignKey(item => item.RequestedByUserId).OnDelete(DeleteBehavior.Restrict);
+        requests.HasOne(item => item.FinanceApprovedByUser).WithMany().HasForeignKey(item => item.FinanceApprovedByUserId).OnDelete(DeleteBehavior.Restrict);
+    }
+
+    private static void ConfigurePettyCashDisbursements(ModelBuilder modelBuilder)
+    {
+        var disbursements = modelBuilder.Entity<PettyCashDisbursement>();
+        disbursements.Property(item => item.DisbursementNumber).HasMaxLength(30);
+        disbursements.Property(item => item.Amount).HasPrecision(18, 2);
+        disbursements.Property(item => item.Method).HasMaxLength(30);
+        disbursements.Property(item => item.ExternalReference).HasMaxLength(100);
+        disbursements.Property(item => item.RecipientName).HasMaxLength(150);
+        disbursements.Property(item => item.RecipientAcknowledgementReference).HasMaxLength(500);
+        disbursements.Property(item => item.EvidenceReference).HasMaxLength(500);
+        disbursements.HasIndex(item => item.DisbursementNumber).IsUnique();
+        disbursements.HasIndex(item => item.PettyCashRequestId).IsUnique();
+        disbursements.HasIndex(item => item.ExternalReference).IsUnique();
+        disbursements.ToTable(table =>
+        {
+            table.HasCheckConstraint("CK_PettyCashDisbursements_Amount", "\"Amount\" > 0");
+            table.HasCheckConstraint(
+                "CK_PettyCashDisbursements_Method",
+                "\"Method\" IN ('MPesa', 'BankTransfer', 'Cheque', 'Cash')");
+        });
+        disbursements.HasOne(item => item.PettyCashRequest).WithOne(item => item.Disbursement)
+            .HasForeignKey<PettyCashDisbursement>(item => item.PettyCashRequestId).OnDelete(DeleteBehavior.Restrict);
+        disbursements.HasOne(item => item.DisbursedByUser).WithMany().HasForeignKey(item => item.DisbursedByUserId).OnDelete(DeleteBehavior.Restrict);
+    }
+
+    private static void ConfigurePettyCashReconciliations(ModelBuilder modelBuilder)
+    {
+        var reconciliations = modelBuilder.Entity<PettyCashReconciliation>();
+        reconciliations.Property(item => item.ReconciliationNumber).HasMaxLength(30);
+        reconciliations.Property(item => item.AmountSpent).HasPrecision(18, 2);
+        reconciliations.Property(item => item.AmountReturned).HasPrecision(18, 2);
+        reconciliations.Property(item => item.AmountExpensed).HasPrecision(18, 2);
+        reconciliations.Property(item => item.EvidenceReference).HasMaxLength(500);
+        reconciliations.Property(item => item.ReturnReference).HasMaxLength(100);
+        reconciliations.Property(item => item.Notes).HasMaxLength(1_000);
+        reconciliations.Property(item => item.Status).HasMaxLength(30);
+        reconciliations.Property(item => item.ReviewNotes).HasMaxLength(1_000);
+        reconciliations.HasIndex(item => item.ReconciliationNumber).IsUnique();
+        reconciliations.HasIndex(item => new { item.PettyCashRequestId, item.Status });
+        reconciliations.HasIndex(item => item.PettyCashRequestId)
+            .HasFilter("\"Status\" = 'PendingReview'").IsUnique();
+        reconciliations.ToTable(table =>
+        {
+            table.HasCheckConstraint(
+                "CK_PettyCashReconciliations_Amounts",
+                "\"AmountSpent\" >= 0 AND \"AmountReturned\" >= 0 AND (\"AmountExpensed\" IS NULL OR \"AmountExpensed\" >= 0)");
+            table.HasCheckConstraint(
+                "CK_PettyCashReconciliations_Status",
+                "\"Status\" IN ('PendingReview', 'Approved', 'Returned')");
+        });
+        reconciliations.HasOne(item => item.PettyCashRequest).WithMany(item => item.Reconciliations)
+            .HasForeignKey(item => item.PettyCashRequestId).OnDelete(DeleteBehavior.Restrict);
+        reconciliations.HasOne(item => item.SubmittedByUser).WithMany().HasForeignKey(item => item.SubmittedByUserId).OnDelete(DeleteBehavior.Restrict);
+        reconciliations.HasOne(item => item.ReviewedByUser).WithMany().HasForeignKey(item => item.ReviewedByUserId).OnDelete(DeleteBehavior.Restrict);
+    }
+
+    private static void ConfigurePettyCashReconciliationEvents(ModelBuilder modelBuilder)
+    {
+        var events = modelBuilder.Entity<PettyCashReconciliationEvent>();
+        events.Property(item => item.EventType).HasMaxLength(40);
+        events.Property(item => item.ActorRole).HasMaxLength(80);
+        events.Property(item => item.Notes).HasMaxLength(1_000);
+        events.HasIndex(item => new { item.PettyCashReconciliationId, item.OccurredAt });
+        events.ToTable(table => table.HasCheckConstraint(
+            "CK_PettyCashReconciliationEvents_Type",
+            "\"EventType\" IN ('Approved', 'Returned')"));
+        events.HasOne(item => item.PettyCashReconciliation).WithMany(item => item.Events)
+            .HasForeignKey(item => item.PettyCashReconciliationId).OnDelete(DeleteBehavior.Restrict);
+        events.HasOne(item => item.ActorUser).WithMany().HasForeignKey(item => item.ActorUserId).OnDelete(DeleteBehavior.Restrict);
     }
 
     private static void ConfigureControlEvents(ModelBuilder modelBuilder)

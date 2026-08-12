@@ -130,6 +130,21 @@ public sealed class ProjectService : IProjectService
                 or PurchaseOrderWorkflowStates.Issued)
             .GroupBy(row => row.CostCodeId)
             .ToDictionary(group => group.Key, group => group.Sum(row => row.Amount));
+        var pettyCashRows = canViewFinancials
+            ? await _db.PettyCashRequests
+                .AsNoTracking()
+                .Where(item => item.ProjectId == id
+                    && item.AmountCommitted != null
+                    && item.Status != PettyCashStatuses.Rejected)
+                .GroupBy(item => item.CostCodeId)
+                .Select(group => new
+                {
+                    CostCodeId = group.Key,
+                    Amount = group.Sum(item => item.AmountCommitted ?? 0m)
+                })
+                .ToListAsync()
+            : [];
+        var pettyCashCommitments = pettyCashRows.ToDictionary(row => row.CostCodeId, row => row.Amount);
 
         var costCodes = await _db.Set<CostCode>()
             .AsNoTracking()
@@ -151,7 +166,8 @@ public sealed class ProjectService : IProjectService
             {
                 var allocation = currentAllocations.GetValueOrDefault(costCode.Id);
                 var pending = pendingCommitments.GetValueOrDefault(costCode.Id);
-                var approved = approvedCommitments.GetValueOrDefault(costCode.Id);
+                var approved = approvedCommitments.GetValueOrDefault(costCode.Id)
+                    + pettyCashCommitments.GetValueOrDefault(costCode.Id);
                 return new CostCodeResponseDto
                 {
                     Id = costCode.Id,
@@ -190,10 +206,10 @@ public sealed class ProjectService : IProjectService
                 ? pendingCommitments.Values.Sum()
                 : null,
             ApprovedCommitmentAmount = canViewFinancials
-                ? approvedCommitments.Values.Sum()
+                ? approvedCommitments.Values.Sum() + pettyCashCommitments.Values.Sum()
                 : null,
             RemainingAfterCommitments = canViewFinancials && currentBudget is not null
-                ? currentBudget.ApprovedAmount - approvedCommitments.Values.Sum()
+                ? currentBudget.ApprovedAmount - approvedCommitments.Values.Sum() - pettyCashCommitments.Values.Sum()
                 : null
         };
     }

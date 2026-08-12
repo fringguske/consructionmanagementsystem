@@ -9,9 +9,8 @@ using Microsoft.Extensions.Logging;
 
 public sealed class AuthenticationService : IAuthenticationService
 {
-    private const string NormalizedEmailProperty = "NormalizedEmail";
     private const string NormalizedUsernameProperty = "NormalizedUsername";
-    // A valid BCrypt hash used only to keep unknown-email work comparable to
+    // A valid BCrypt hash used only to keep unknown-username work comparable to
     // wrong-password work. It is not an application credential.
     private const string DummyPasswordHash =
         "$2a$12$R9h/cIPz0gi.URNNX3kh2OPST9/PgBkqquzi.Ss7KIUgO2t0jWMUW";
@@ -31,14 +30,12 @@ public sealed class AuthenticationService : IAuthenticationService
 
     public async Task<CurrentUserDto?> AuthenticateAsync(LoginRequestDto request)
     {
-        var normalizedEmail = InputNormalizer.Email(request.Email, nameof(request.Email));
         var normalizedUsername = InputNormalizer.Username(request.Username, nameof(request.Username));
         var user = await _db.Users
             .Include(candidate => candidate.Role)
             .AsNoTracking()
             .FirstOrDefaultAsync(candidate =>
                 candidate.IsActive
-                && EF.Property<string>(candidate, NormalizedEmailProperty) == normalizedEmail
                 && EF.Property<string>(candidate, NormalizedUsernameProperty) == normalizedUsername);
 
         if (user is null)

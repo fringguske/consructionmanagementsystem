@@ -312,7 +312,7 @@ export function LiveProcurementView({ currentUser }: LiveProcurementViewProps) {
   }
 
   return (
-    <div className="lav-view">
+    <div className={`lav-view lav-procurement-view ${currentUser.role === 'CEO' ? 'ceo-readable' : ''}`}>
       <header className="lav-page-head">
         <div>
           <span className="lav-kicker">Controlled purchasing</span>

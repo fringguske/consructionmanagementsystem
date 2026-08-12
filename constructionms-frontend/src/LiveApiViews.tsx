@@ -331,10 +331,12 @@ export function LiveLoginView({ onAuthenticated }: LiveLoginViewProps) {
   const emailId = useId()
   const usernameId = useId()
   const passwordId = useId()
+  const confirmPasswordId = useId()
   const [mode, setMode] = useState<'signin' | 'signup'>('signin')
   const [email, setEmail] = useState('')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
@@ -349,12 +351,17 @@ export function LiveLoginView({ onAuthenticated }: LiveLoginViewProps) {
 
     try {
       if (mode === 'signup') {
-        await authApi.register({ email: email.trim(), username: username.trim(), password })
+        if (password !== confirmPassword) {
+          setError('Passwords do not match.')
+          return
+        }
+        await authApi.register({ email: email.trim(), username: username.trim(), password, confirmPassword })
         setPassword('')
+        setConfirmPassword('')
         setMode('signin')
         setMessage('Request sent. An Administrator must approve your role before you can sign in.')
       } else {
-        const user = await authApi.login({ email: email.trim(), username: username.trim(), password })
+        const user = await authApi.login({ username: username.trim(), password })
         onAuthenticated(user)
       }
     } catch (requestError) {
@@ -384,32 +391,34 @@ export function LiveLoginView({ onAuthenticated }: LiveLoginViewProps) {
       <section className="lav-login-panel">
         <form className="lav-login-card" onSubmit={submit}>
           <div className="lav-login-tabs" role="tablist" aria-label="Account access">
-            <button type="button" className={mode === 'signin' ? 'active' : ''} onClick={() => { setMode('signin'); setError(null) }}>Sign in</button>
-            <button type="button" className={mode === 'signup' ? 'active' : ''} onClick={() => { setMode('signup'); setError(null) }}>Request access</button>
+            <button type="button" className={mode === 'signin' ? 'active' : ''} onClick={() => { setMode('signin'); setError(null); setMessage(null); setPassword(''); setConfirmPassword('') }}>Sign in</button>
+            <button type="button" className={mode === 'signup' ? 'active' : ''} onClick={() => { setMode('signup'); setError(null); setMessage(null); setPassword(''); setConfirmPassword('') }}>Request access</button>
           </div>
           <header>
             <span className="lav-kicker">{mode === 'signin' ? 'Welcome back' : 'New account'}</span>
             <h2>{mode === 'signin' ? 'Sign in' : 'Request to join'}</h2>
-            <p>{mode === 'signin' ? 'Use your email, set a username and password.' : ''}</p>
+            <p>{mode === 'signin' ? 'Use the username and password for your approved account.' : 'Choose the login details you will use after approval.'}</p>
           </header>
 
           {error && <Notice tone="error">{error}</Notice>}
           {message && <Notice tone="success">{message}</Notice>}
 
-          <label className="lav-field" htmlFor={emailId}>
-            <span>Email address</span>
-            <input
-              id={emailId}
-              type="email"
-              value={email}
-              onChange={(event) => setEmail(event.currentTarget.value)}
-              autoComplete="email"
-              inputMode="email"
-              placeholder="name@company.co.ke"
-              required
-              autoFocus
-            />
-          </label>
+          {mode === 'signup' && (
+            <label className="lav-field" htmlFor={emailId}>
+              <span>Email address</span>
+              <input
+                id={emailId}
+                type="email"
+                value={email}
+                onChange={(event) => setEmail(event.currentTarget.value)}
+                autoComplete="email"
+                inputMode="email"
+                placeholder="name@company.co.ke"
+                required
+                autoFocus
+              />
+            </label>
+          )}
 
           <label className="lav-field" htmlFor={usernameId}>
             <span>Username</span>
@@ -424,30 +433,47 @@ export function LiveLoginView({ onAuthenticated }: LiveLoginViewProps) {
               pattern="[A-Za-z0-9][A-Za-z0-9._-]*"
               placeholder="your.username"
               required
+              autoFocus={mode === 'signin'}
             />
           </label>
 
           <label className="lav-field" htmlFor={passwordId}>
-            <span>Password</span>
+            <span>{mode === 'signup' ? 'Set password' : 'Password'}</span>
             <input
               id={passwordId}
               type="password"
               value={password}
               onChange={(event) => setPassword(event.currentTarget.value)}
-              autoComplete="current-password"
+              autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
               minLength={mode === 'signup' ? 12 : 1}
               maxLength={72}
               required
             />
           </label>
 
+          {mode === 'signup' && (
+            <label className="lav-field" htmlFor={confirmPasswordId}>
+              <span>Confirm password</span>
+              <input
+                id={confirmPasswordId}
+                type="password"
+                value={confirmPassword}
+                onChange={(event) => setConfirmPassword(event.currentTarget.value)}
+                autoComplete="new-password"
+                minLength={12}
+                maxLength={72}
+                required
+              />
+            </label>
+          )}
+
           <button className="lav-button primary wide" type="submit" disabled={busy}>
             {busy ? (mode === 'signin' ? 'Signing in…' : 'Sending request…') : (mode === 'signin' ? 'Sign in securely' : 'Send access request')}
           </button>
 
-          <p className="lav-login-help">
-            {mode === 'signin' ? 'Cannot sign in? Ask the Administrator to confirm that your request is approved.' : 'Email addresses may be shared; usernames must be unique.'}
-          </p>
+          {mode === 'signin' && (
+            <p className="lav-login-help">Cannot sign in? Ask the Administrator to confirm that your request is approved.</p>
+          )}
         </form>
       </section>
     </main>
@@ -1478,7 +1504,7 @@ export function LiveRequisitionsView({ currentUser }: LiveRequisitionsViewProps)
             <header className="lav-panel-head lav-request-toolbar">
               <div>
                 <span className="lav-kicker">Live records</span>
-                <h2>{currentUser.role === 'CEO' || currentUser.role === 'Auditor' ? 'Complete request trail' : 'Your request queue'}</h2>
+                <h2>{currentUser.role === 'CEO' || currentUser.role === 'Auditor' ? 'Material request records' : 'Your request queue'}</h2>
               </div>
               <div className="lav-filter-row">
                 <label>
@@ -2193,10 +2219,10 @@ function RequisitionHistory({ requisition }: { requisition: Requisition }) {
     <details className="lav-history">
       <summary>
         <span>
-          <strong>Complete history</strong>
+          <strong>Approval history</strong>
           <small>{requisition.history.length} recorded steps</small>
         </span>
-        <b>View chain</b>
+        <b>Show steps</b>
       </summary>
       <ol>
         {requisition.history.length ? (

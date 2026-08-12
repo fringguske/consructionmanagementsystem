@@ -189,6 +189,7 @@ builder.Services.AddScoped<ISourcingService, SourcingService>();
 builder.Services.AddScoped<IPurchaseOrderService, PurchaseOrderService>();
 builder.Services.AddScoped<IInventoryWorkflowService, InventoryWorkflowService>();
 builder.Services.AddScoped<IFinanceWorkflowService, FinanceWorkflowService>();
+builder.Services.AddScoped<IPettyCashService, PettyCashService>();
 
 var app = builder.Build();
 

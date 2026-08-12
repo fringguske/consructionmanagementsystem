@@ -25,6 +25,7 @@ The existing React demonstration remains the default. Set the frontend to `live`
 - Draft → submit → independent approval → issue purchase-order workflow, including return, rejection, correction and cancellation paths.
 - Storekeeper GRNs, store balances, immutable movement ledger, Foreman issue confirmation/use/wastage, dual-confirmed transfers and independently reviewed stock counts.
 - Supplier invoice capture after full receipt, Finance three-way matching/authorization, CEO high-value exceptions, Cashier execution and system receipts.
+- Supervisor-requested petty cash with Finance approval, Cashier handover evidence, Supervisor accountability and Finance reconciliation.
 - One CEO/Auditor material-and-money trace backed by hash-linked control events.
 - PostgreSQL triggers that reject updates or deletes to approval/evidence records.
 

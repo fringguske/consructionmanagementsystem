@@ -6,6 +6,7 @@ export {
   materialsApi,
   inventoryApi,
   financeApi,
+  pettyCashApi,
   projectsApi,
   purchaseOrdersApi,
   requisitionsApi,

@@ -15,6 +15,9 @@ public sealed class RegisterAccessRequestDto : IValidatableObject
     [Required, StringLength(72, MinimumLength = 12)]
     public string Password { get; init; } = string.Empty;
 
+    [Required, Compare(nameof(Password), ErrorMessage = "Passwords do not match.")]
+    public string ConfirmPassword { get; init; } = string.Empty;
+
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
     {
         if (Password is not null && Encoding.UTF8.GetByteCount(Password) > 72)
@@ -22,6 +25,13 @@ public sealed class RegisterAccessRequestDto : IValidatableObject
             yield return new ValidationResult(
                 "Password cannot exceed 72 UTF-8 bytes.",
                 [nameof(Password)]);
+        }
+
+        if (ConfirmPassword is not null && Encoding.UTF8.GetByteCount(ConfirmPassword) > 72)
+        {
+            yield return new ValidationResult(
+                "Password confirmation cannot exceed 72 UTF-8 bytes.",
+                [nameof(ConfirmPassword)]);
         }
     }
 }

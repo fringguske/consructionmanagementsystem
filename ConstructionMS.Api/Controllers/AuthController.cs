@@ -51,7 +51,7 @@ public sealed class AuthController : ControllerBase
         var user = await _authenticationService.AuthenticateAsync(request);
         if (user is null)
         {
-            return Unauthorized(ApiResponse<CurrentUserDto>.Fail("Invalid email or password."));
+            return Unauthorized(ApiResponse<CurrentUserDto>.Fail("Invalid username or password."));
         }
 
         await SignInAsync(user);

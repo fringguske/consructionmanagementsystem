@@ -207,7 +207,9 @@ public sealed class FinanceWorkflowService : IFinanceWorkflowService
         if (authorization.AuthorizedByUserId == actorUserId) throw new UnauthorizedAccessException("The Finance authorizer cannot execute the payment.");
         await RequireProjectAccessAsync(actorUserId, authorization.SupplierInvoice.ProjectId);
         if (await _db.Payments.AnyAsync(item => item.PaymentAuthorizationId == authorization.Id)) throw new InvalidOperationException("This authorization has already been paid.");
-        if (await _db.Payments.AnyAsync(item => item.ExternalReference == externalReference)) throw new InvalidOperationException("That external payment reference is already recorded.");
+        if (await _db.Payments.AnyAsync(item => item.ExternalReference == externalReference)
+            || await _db.PettyCashDisbursements.AnyAsync(item => item.ExternalReference == externalReference))
+            throw new InvalidOperationException("That external payment reference is already recorded.");
         var now = DateTime.UtcNow;
         var payment = new Payment
         {

@@ -30,6 +30,7 @@ const LiveAccessView = lazy(() => import('./LiveAccessView').then(module => ({ d
 const LiveSuppliersView = lazy(() => import('./LiveSuppliersView').then(module => ({ default: module.LiveSuppliersView })))
 const LiveInventoryView = lazy(() => import('./LiveOperationsViews').then(module => ({ default: module.LiveInventoryView })))
 const LiveFinanceView = lazy(() => import('./LiveOperationsViews').then(module => ({ default: module.LiveFinanceView })))
+const LivePettyCashView = lazy(() => import('./LiveOperationsViews').then(module => ({ default: module.LivePettyCashView })))
 const LiveAuditView = lazy(() => import('./LiveOperationsViews').then(module => ({ default: module.LiveAuditView })))
 
 const liveDestinationPaths: Record<LiveDestination, string> = {
@@ -386,6 +387,7 @@ const liveRoleNavigation: Record<ConstructionRole, readonly { to: string; label:
     { to: '/purchase-orders', label: 'Purchase orders', icon: 'file' },
     { to: '/inventory', label: 'Stock & movement', icon: 'boxes' },
     { to: '/finance', label: 'Money path', icon: 'wallet' },
+    { to: '/petty-cash', label: 'Petty cash', icon: 'receipt' },
     { to: '/audit', label: 'Complete chain', icon: 'shield' },
   ],
   Supervisor: [
@@ -395,6 +397,7 @@ const liveRoleNavigation: Record<ConstructionRole, readonly { to: string; label:
     { to: '/sourcing', label: 'Sourcing exceptions', icon: 'users' },
     { to: '/purchase-orders', label: 'Purchase orders', icon: 'file' },
     { to: '/inventory', label: 'Stock controls', icon: 'boxes' },
+    { to: '/petty-cash', label: 'Petty cash', icon: 'wallet' },
   ],
   Engineer: [
     { to: '/', label: 'Overview', icon: 'grid' },
@@ -409,6 +412,7 @@ const liveRoleNavigation: Record<ConstructionRole, readonly { to: string; label:
   Cashier: [
     { to: '/', label: 'Overview', icon: 'grid' },
     { to: '/finance', label: 'Approved payments', icon: 'wallet' },
+    { to: '/petty-cash', label: 'Petty cash', icon: 'receipt' },
   ],
   Storekeeper: [
     { to: '/', label: 'Overview', icon: 'grid' },
@@ -429,6 +433,7 @@ const liveRoleNavigation: Record<ConstructionRole, readonly { to: string; label:
     { to: '/suppliers', label: 'Supplier approvals', icon: 'users' },
     { to: '/finance', label: 'Match & authorize', icon: 'check' },
     { to: '/inventory', label: 'GRNs & stock', icon: 'boxes' },
+    { to: '/petty-cash', label: 'Petty cash control', icon: 'receipt' },
   ],
   Auditor: [
     { to: '/', label: 'Overview', icon: 'grid' },
@@ -439,6 +444,7 @@ const liveRoleNavigation: Record<ConstructionRole, readonly { to: string; label:
     { to: '/purchase-orders', label: 'Order trail', icon: 'file' },
     { to: '/inventory', label: 'Material trail', icon: 'boxes' },
     { to: '/finance', label: 'Payment trail', icon: 'wallet' },
+    { to: '/petty-cash', label: 'Petty cash trail', icon: 'receipt' },
     { to: '/audit', label: 'Complete chain', icon: 'shield' },
   ],
 }
@@ -531,6 +537,7 @@ function Shell({ authenticatedUser, onLogout, onSwitchRole }: ShellProps = {}) {
     '/finance-matching': ['Three-way matching', 'Compare purchase orders, physical receipts and supplier invoices'],
     '/finance-approvals': ['Payment authorisation', 'Release only fully supported invoices to the Cashier'],
     '/finance-reconciliation': ['Reconciliation', 'Prove that ledgers, statements and project cash agree'],
+    '/petty-cash': ['Petty cash', 'Request, approve, disburse and reconcile small site expenses'],
     '/audit-samples': ['Evidence review', 'Trace selected transactions from request to final movement'],
     '/audit-reports': ['Reports & exports', 'Independent read-only audit outputs'],
     '/audit': role === 'CEO' ? ['Records', 'Important problems and traceable purchase records'] : ['Audit & controls', 'Exceptions, compliance and activity'],
@@ -654,6 +661,7 @@ function Shell({ authenticatedUser, onLogout, onSwitchRole }: ShellProps = {}) {
             <Route path="/suppliers" element={canAccess('/suppliers') ? <LiveSuppliersView currentUser={authenticatedUser!}/> : <AccessRestricted role={role}/>}/>
             <Route path="/inventory" element={canAccess('/inventory') ? <LiveInventoryView currentUser={authenticatedUser!}/> : <AccessRestricted role={role}/>}/>
             <Route path="/finance" element={canAccess('/finance') ? <LiveFinanceView currentUser={authenticatedUser!}/> : <AccessRestricted role={role}/>}/>
+            <Route path="/petty-cash" element={canAccess('/petty-cash') ? <LivePettyCashView currentUser={authenticatedUser!}/> : <AccessRestricted role={role}/>}/>
             <Route path="/audit" element={canAccess('/audit') ? <LiveAuditView/> : <AccessRestricted role={role}/>}/>
             <Route path="*" element={<LiveDashboardView currentUser={authenticatedUser!}/>}/>
           </>}

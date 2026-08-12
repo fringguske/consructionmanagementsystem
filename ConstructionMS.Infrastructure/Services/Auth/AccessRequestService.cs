@@ -22,6 +22,10 @@ public sealed class AccessRequestService(AppDbContext db) : IAccessRequestServic
         var username = InputNormalizer.Username(request.Username, nameof(request.Username));
         var email = InputNormalizer.Email(request.Email, nameof(request.Email));
         var password = InputNormalizer.Password(request.Password, nameof(request.Password), 12, 72, 72);
+        if (!string.Equals(password, request.ConfirmPassword, StringComparison.Ordinal))
+        {
+            throw new ArgumentException("Passwords do not match.", nameof(request.ConfirmPassword));
+        }
 
         await using var transaction = await db.Database.BeginTransactionAsync(
             IsolationLevel.Serializable,

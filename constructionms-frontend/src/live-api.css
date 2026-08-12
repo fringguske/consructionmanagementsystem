@@ -1667,6 +1667,10 @@
   list-style: none;
 }
 
+.lav-history summary > span {
+  min-width: 0;
+}
+
 .lav-history summary::-webkit-details-marker {
   display: none;
 }
@@ -1687,8 +1691,10 @@
 }
 
 .lav-history summary b {
+  flex: 0 0 auto;
   color: var(--lav-clay-dark);
   font-size: 10px;
+  white-space: nowrap;
 }
 
 .lav-history[open] summary {
@@ -1762,6 +1768,37 @@
 }
 
 /* Live supplier sourcing and purchase orders */
+.lav-procurement-view.ceo-readable .lav-page-head p {
+  font-size: 13px;
+}
+
+.lav-procurement-view.ceo-readable .lav-panel-head h2,
+.lav-procurement-view.ceo-readable .lav-purchase-card .lav-request-id strong {
+  font-size: 14px;
+}
+
+.lav-procurement-view.ceo-readable .lav-purchase-facts span,
+.lav-procurement-view.ceo-readable .lav-quote-table thead th,
+.lav-procurement-view.ceo-readable .lav-price-check {
+  font-size: 10px;
+}
+
+.lav-procurement-view.ceo-readable .lav-purchase-facts strong,
+.lav-procurement-view.ceo-readable .lav-quote-table th,
+.lav-procurement-view.ceo-readable .lav-quote-table td,
+.lav-procurement-view.ceo-readable .lav-quote-table td strong {
+  font-size: 12px;
+}
+
+.lav-procurement-view.ceo-readable .lav-quote-table td small,
+.lav-procurement-view.ceo-readable .lav-order-milestones span {
+  font-size: 11px;
+}
+
+.lav-procurement-view.ceo-readable .lav-order-milestones small {
+  font-size: 10px;
+}
+
 .lav-purchase-list {
   display: grid;
 }
@@ -2842,4 +2879,4 @@
   }
 }
 .lav-login-tabs{display:grid;grid-template-columns:1fr 1fr;gap:5px;padding:4px;border-radius:7px;background:#eef2ef}.lav-login-tabs button{min-height:36px;border:0;border-radius:5px;background:transparent;color:#66736e;font-size:11px;font-weight:700}.lav-login-tabs button.active{background:#fff;color:#285f50;box-shadow:0 1px 4px rgba(25,50,43,.12)}
-.lav-access-requests{margin-bottom:16px}.lav-request-list>article{display:grid;grid-template-columns:minmax(180px,1fr) 180px minmax(260px,1.3fr) auto;gap:14px;align-items:center;padding:14px 16px;border-top:1px solid #e2e7e3}.lav-request-list strong,.lav-request-list span,.lav-request-list small{display:block}.lav-request-list strong{font-size:13px}.lav-request-list span,.lav-request-list small{font-size:10.5px;color:#6f7c76;margin-top:3px}.lav-request-list article>label>span{font-weight:700;margin-bottom:5px}.lav-request-list select{width:100%;min-height:38px;border:1px solid #d6ddd8;border-radius:5px;background:#fff;padding:0 9px}.lav-request-projects{display:flex;flex-wrap:wrap;gap:6px}.lav-request-projects label{display:flex;align-items:center;gap:5px;padding:6px 8px;border:1px solid #dce2de;border-radius:5px;background:#f8faf8}.lav-request-projects label span{margin:0;color:#405049}.lav-request-actions{display:flex;gap:7px}@media(max-width:1000px){.lav-request-list>article{grid-template-columns:1fr 1fr}.lav-request-projects{grid-column:1/-1}.lav-request-actions{justify-content:flex-end}}@media(max-width:600px){.lav-request-list>article{grid-template-columns:1fr}.lav-request-projects,.lav-request-actions{grid-column:1}.lav-request-actions{justify-content:flex-start}}
+.lav-access-requests{margin-bottom:16px}.lav-access-requests .lav-request-list>article{display:grid;grid-template-columns:minmax(180px,1fr) 180px minmax(260px,1.3fr) auto;gap:14px;align-items:center;padding:14px 16px;border-top:1px solid #e2e7e3}.lav-access-requests .lav-request-list strong,.lav-access-requests .lav-request-list span,.lav-access-requests .lav-request-list small{display:block}.lav-access-requests .lav-request-list strong{font-size:13px}.lav-access-requests .lav-request-list span,.lav-access-requests .lav-request-list small{font-size:10.5px;color:#6f7c76;margin-top:3px}.lav-access-requests .lav-request-list article>label>span{font-weight:700;margin-bottom:5px}.lav-access-requests .lav-request-list select{width:100%;min-height:38px;border:1px solid #d6ddd8;border-radius:5px;background:#fff;padding:0 9px}.lav-request-projects{display:flex;flex-wrap:wrap;gap:6px}.lav-request-projects label{display:flex;align-items:center;gap:5px;padding:6px 8px;border:1px solid #dce2de;border-radius:5px;background:#f8faf8}.lav-request-projects label span{margin:0;color:#405049}.lav-request-actions{display:flex;gap:7px}@media(max-width:1000px){.lav-access-requests .lav-request-list>article{grid-template-columns:1fr 1fr}.lav-request-projects{grid-column:1/-1}.lav-request-actions{justify-content:flex-end}}@media(max-width:600px){.lav-access-requests .lav-request-list>article{grid-template-columns:1fr}.lav-request-projects,.lav-request-actions{grid-column:1}.lav-request-actions{justify-content:flex-start}}

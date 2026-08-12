@@ -5,9 +5,6 @@ using System.Text;
 
 public sealed class LoginRequestDto : IValidatableObject
 {
-    [Required, StringLength(254), EmailAddress]
-    public string Email { get; set; } = string.Empty;
-
     [Required, StringLength(50, MinimumLength = 3)]
     [RegularExpression("^[a-zA-Z0-9][a-zA-Z0-9._-]*$")]
     public string Username { get; set; } = string.Empty;

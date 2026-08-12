@@ -4,6 +4,8 @@ import {
   financeApi,
   inventoryApi,
   materialsApi,
+  pettyCashApi,
+  projectsApi,
   purchaseOrdersApi,
   requisitionsApi,
   type ControlEvent,
@@ -13,6 +15,8 @@ import {
   type MaterialIssue,
   type Payment,
   type PaymentAuthorization,
+  type PettyCashRequest,
+  type ProjectSummary,
   type PurchaseOrder,
   type Requisition,
   type StockBalance,
@@ -259,6 +263,101 @@ function CashierActions({ authorizations, run }: { authorizations: PaymentAuthor
   const [form, setForm] = useState({ method: 'BankTransfer', reference: '', evidence: '' })
   const selected = authorizations.find(item => item.id === selectedId)
   return <section className="lav-panel ops-panel"><header className="lav-panel-head"><div><span className="lav-kicker">READY TO PAY</span><h2>Locked Finance instructions</h2></div></header><div className="ops-issue-grid">{authorizations.filter(item => !item.isPaid).map(item => <article key={item.id}><div><span>{item.projectName}</span><b>{item.supplierName}</b><strong>{money(item.amount)}</strong></div><p>{item.authorizationNumber} · authorised by {item.authorizedByName}</p><button type="button" className="lav-button primary" onClick={() => { setSelectedId(item.id); setForm({ method: 'BankTransfer', reference: '', evidence: '' }) }}>Record payment</button></article>)}{!authorizations.some(item => !item.isPaid) && <Empty>No Finance-authorized payment is waiting.</Empty>}</div>{selected && <div className="ops-modal-wrap" role="presentation"><button type="button" className="ops-modal-backdrop" aria-label="Close payment form" onClick={() => setSelectedId(null)}/><form className="lav-panel ops-form ops-modal" onSubmit={event => { event.preventDefault(); void run(() => financeApi.pay(selected.id, { method: form.method, externalReference: form.reference, evidenceReference: form.evidence.trim() || null }), `Payment executed. External reference ${form.reference} locked.`).then(saved => { if (saved) setSelectedId(null) }) }}><header><div><span className="lav-kicker">{selected.authorizationNumber}</span><h2>Execute approved payment</h2><p>{selected.supplierName} · {selected.projectName}</p></div><button type="button" className="ops-modal-close" onClick={() => setSelectedId(null)}>×</button></header><div className="ops-payment-lock"><span>Finance-locked amount</span><strong>{money(selected.amount)}</strong><small>You cannot change this amount.</small></div><label><span>Payment method</span><select value={form.method} onChange={event => setForm({ ...form, method: event.target.value })}><option value="BankTransfer">Bank transfer</option><option value="MPesa">M-Pesa</option><option value="Cheque">Cheque</option><option value="Cash">Cash</option></select></label><label><span>External transaction reference</span><input required minLength={3} maxLength={100} value={form.reference} onChange={event => setForm({ ...form, reference: event.target.value })} placeholder="Bank, M-Pesa or cheque reference"/></label><label><span>Evidence reference (optional)</span><input maxLength={500} value={form.evidence} onChange={event => setForm({ ...form, evidence: event.target.value })} placeholder="Receipt or confirmation file"/></label><div className="ops-buttons"><button type="button" className="lav-button secondary" onClick={() => setSelectedId(null)}>Cancel</button><button className="lav-button primary">Execute locked payment</button></div></form></div>}</section>
+}
+
+export function LivePettyCashView({ currentUser }: { currentUser: CurrentUser }) {
+  const [items, setItems] = useState<PettyCashRequest[]>([])
+  const [projectSummaries, setProjectSummaries] = useState<ProjectSummary[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
+  const [refresh, setRefresh] = useState(0)
+  const role = currentUser.role
+
+  useEffect(() => {
+    const controller = new AbortController()
+    Promise.all([
+      pettyCashApi.list(controller.signal),
+      role === 'Supervisor'
+        ? Promise.all(currentUser.projects.map(project => projectsApi.getSummary(project.id, controller.signal)))
+        : Promise.resolve([]),
+    ]).then(([result, summaries]) => {
+      setItems(result.items)
+      setProjectSummaries(summaries)
+      setError(null)
+    }).catch(requestError => {
+      if (!(requestError instanceof DOMException && requestError.name === 'AbortError')) setError(messageOf(requestError))
+    }).finally(() => { if (!controller.signal.aborted) setLoading(false) })
+    return () => controller.abort()
+  }, [currentUser.projects, refresh, role])
+
+  const run = async (action: () => Promise<unknown>, text: string) => {
+    try { await action(); setNotice(text); setError(null); setRefresh(value => value + 1); return true }
+    catch (requestError) { setError(messageOf(requestError)); return false }
+  }
+
+  if (loading) return <div className="lav-loading"><span/><p>Loading petty cash records…</p></div>
+  return <div className="lav-view ops-view petty-cash-view">
+    <header className="lav-page-head"><div><span className="lav-kicker">SMALL SITE EXPENSES</span><h1>Petty cash</h1><p>Supervisor requests, Finance approves, Cashier pays, and Finance closes the evidence.</p></div></header>
+    {error && <Notice tone="error">{error}</Notice>}{notice && <Notice tone="success">{notice}</Notice>}
+    {role === 'Supervisor' && <PettyCashRequestForm summaries={projectSummaries} run={run}/>}
+    <section className="lav-panel ops-panel"><header className="lav-panel-head"><div><span className="lav-kicker">ACCOUNTABILITY QUEUE</span><h2>Petty cash records</h2></div><strong>{items.length} records</strong></header>
+      {items.length ? <div className="petty-cash-list">{items.map(item => <PettyCashCard key={item.id} item={item} currentUser={currentUser} run={run}/>)}</div> : <Empty>No petty cash has been requested.</Empty>}
+    </section>
+  </div>
+}
+
+function PettyCashRequestForm({ summaries, run }: { summaries: ProjectSummary[]; run: (action: () => Promise<unknown>, text: string) => Promise<boolean> }) {
+  const [form, setForm] = useState({ projectId: '', costCodeId: '', purpose: '', amount: '', neededByDate: '' })
+  const selected = summaries.find(item => item.project.id === Number(form.projectId))
+  return <form className="lav-panel ops-form" onSubmit={event => { event.preventDefault(); void run(() => pettyCashApi.create({ projectId: Number(form.projectId), costCodeId: Number(form.costCodeId), purpose: form.purpose, amount: Number(form.amount), neededByDate: form.neededByDate }), 'Petty-cash request sent to Finance.').then(saved => { if (saved) setForm({ projectId: '', costCodeId: '', purpose: '', amount: '', neededByDate: '' }) }) }}>
+    <h2>Request petty cash</h2><p>For small urgent site costs only. The maximum is KES 100,000.</p>
+    <div className="ops-fields"><label><span>Project</span><select required value={form.projectId} onChange={event => setForm({ ...form, projectId: event.target.value, costCodeId: '' })}><option value="">Choose project</option>{summaries.map(item => <option key={item.project.id} value={item.project.id}>{item.project.name}</option>)}</select></label><label><span>Budget area</span><select required disabled={!selected} value={form.costCodeId} onChange={event => setForm({ ...form, costCodeId: event.target.value })}><option value="">Choose budget area</option>{selected?.costCodes.filter(item => item.isActive).map(item => <option key={item.id} value={item.id}>{item.code} · {item.name}</option>)}</select></label></div>
+    <div className="ops-fields"><label><span>Amount</span><input type="number" min="1" max="100000" step="0.01" required value={form.amount} onChange={event => setForm({ ...form, amount: event.target.value })}/></label><label><span>Needed by</span><input type="date" required value={form.neededByDate} onChange={event => setForm({ ...form, neededByDate: event.target.value })}/></label></div>
+    <label><span>Specific purpose</span><input minLength={3} maxLength={500} required value={form.purpose} onChange={event => setForm({ ...form, purpose: event.target.value })} placeholder="What will this cash pay for?"/></label><button className="lav-button primary">Send to Finance</button>
+  </form>
+}
+
+function PettyCashCard({ item, currentUser, run }: { item: PettyCashRequest; currentUser: CurrentUser; run: (action: () => Promise<unknown>, text: string) => Promise<boolean> }) {
+  const [open, setOpen] = useState<'decision' | 'disburse' | 'reconcile' | 'review' | null>(null)
+  const role = currentUser.role
+  return <article className="petty-cash-card">
+    <header><div><span>{item.requestNumber} · {item.projectName}</span><h3>{item.purpose}</h3><small>{item.costCode} · requested by {item.requestedByName}</small></div><b className={`ops-status ${item.status.toLowerCase()}`}>{item.status.replaceAll(/([A-Z])/g, ' $1').trim()}</b></header>
+    <div className="petty-cash-facts"><span>Requested<strong>{money(item.amountRequested)}</strong></span><span>Approved<strong>{item.amountApproved ? money(item.amountApproved) : '—'}</strong></span><span>Needed<strong>{new Intl.DateTimeFormat('en-KE', { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(`${item.neededByDate}T00:00:00`))}</strong></span><span>Evidence<strong>{item.latestReconciliation?.evidenceReference ?? item.disbursement?.evidenceReference ?? 'Waiting'}</strong></span></div>
+    {item.disbursement && <p className="petty-cash-proof">Paid {money(item.disbursement.amount)} by {item.disbursement.method} · {item.disbursement.externalReference} · received by {item.disbursement.recipientName}</p>}
+    {item.latestReconciliation && <p className="petty-cash-proof">Accounted: {money(item.latestReconciliation.amountSpent)} spent + {money(item.latestReconciliation.amountReturned)} returned · {item.latestReconciliation.status}</p>}
+    <div className="ops-buttons petty-cash-actions">
+      {role === 'Finance Officer' && item.status === 'PendingFinanceApproval' && <button className="lav-button primary" onClick={() => setOpen('decision')}>Review request</button>}
+      {role === 'Cashier' && item.status === 'Approved' && <button className="lav-button primary" onClick={() => setOpen('disburse')}>Record handover</button>}
+      {role === 'Supervisor' && item.status === 'Disbursed' && item.requestedByUserId === currentUser.id && <button className="lav-button primary" onClick={() => setOpen('reconcile')}>Submit receipts</button>}
+      {role === 'Finance Officer' && item.status === 'ReconciliationSubmitted' && <button className="lav-button primary" onClick={() => setOpen('review')}>Review evidence</button>}
+    </div>
+    {open === 'decision' && <PettyCashDecision item={item} close={() => setOpen(null)} run={run}/>}
+    {open === 'disburse' && <PettyCashDisbursementForm item={item} close={() => setOpen(null)} run={run}/>}
+    {open === 'reconcile' && <PettyCashReconciliationForm item={item} close={() => setOpen(null)} run={run}/>}
+    {open === 'review' && <PettyCashReview item={item} close={() => setOpen(null)} run={run}/>}
+  </article>
+}
+
+function PettyCashDecision({ item, close, run }: { item: PettyCashRequest; close: () => void; run: (action: () => Promise<unknown>, text: string) => Promise<boolean> }) {
+  const [amount, setAmount] = useState(String(item.amountRequested)); const [notes, setNotes] = useState('')
+  const decide = (approve: boolean) => void run(() => pettyCashApi.decide(item.id, { approve, amountApproved: approve ? Number(amount) : null, notes }), approve ? 'Petty cash approved for Cashier disbursement.' : 'Petty cash rejected.').then(saved => { if (saved) close() })
+  return <div className="petty-cash-inline"><label><span>Approved amount</span><input type="number" min="1" max={item.amountRequested} step="0.01" value={amount} onChange={event => setAmount(event.target.value)}/></label><label><span>Decision notes</span><input required minLength={3} value={notes} onChange={event => setNotes(event.target.value)}/></label><div className="ops-buttons"><button className="lav-button secondary" disabled={notes.trim().length < 3} onClick={() => decide(false)}>Reject</button><button className="lav-button primary" disabled={notes.trim().length < 3} onClick={() => decide(true)}>Approve</button><button className="lav-button secondary" onClick={close}>Cancel</button></div></div>
+}
+
+function PettyCashDisbursementForm({ item, close, run }: { item: PettyCashRequest; close: () => void; run: (action: () => Promise<unknown>, text: string) => Promise<boolean> }) {
+  const [form, setForm] = useState({ method: 'MPesa', reference: '', recipient: item.requestedByName, acknowledgement: '', evidence: '' })
+  return <form className="petty-cash-inline" onSubmit={event => { event.preventDefault(); void run(() => pettyCashApi.disburse(item.id, { method: form.method, externalReference: form.reference, recipientName: form.recipient, recipientAcknowledgementReference: form.acknowledgement, evidenceReference: form.evidence }), 'Petty cash handover recorded; receipts are now required.').then(saved => { if (saved) close() }) }}><div className="ops-fields"><label><span>Method</span><select value={form.method} onChange={event => setForm({ ...form, method: event.target.value })}><option>MPesa</option><option>BankTransfer</option><option>Cheque</option><option>Cash</option></select></label><label><span>Payment reference</span><input required minLength={3} value={form.reference} onChange={event => setForm({ ...form, reference: event.target.value })}/></label></div><label><span>Recipient</span><input required minLength={3} value={form.recipient} onChange={event => setForm({ ...form, recipient: event.target.value })}/></label><label><span>Recipient acknowledgement</span><input required minLength={3} value={form.acknowledgement} onChange={event => setForm({ ...form, acknowledgement: event.target.value })} placeholder="Signed voucher, PIN or message reference"/></label><label><span>Cash-out evidence</span><input required minLength={3} value={form.evidence} onChange={event => setForm({ ...form, evidence: event.target.value })}/></label><div className="ops-buttons"><button className="lav-button secondary" type="button" onClick={close}>Cancel</button><button className="lav-button primary">Record handover</button></div></form>
+}
+
+function PettyCashReconciliationForm({ item, close, run }: { item: PettyCashRequest; close: () => void; run: (action: () => Promise<unknown>, text: string) => Promise<boolean> }) {
+  const total = item.disbursement?.amount ?? 0; const [form, setForm] = useState({ spent: '', returned: '', evidence: '', returnReference: '', notes: '' })
+  return <form className="petty-cash-inline" onSubmit={event => { event.preventDefault(); void run(() => pettyCashApi.reconcile(item.id, { amountSpent: Number(form.spent), amountReturned: Number(form.returned), evidenceReference: form.evidence, returnReference: form.returnReference || null, notes: form.notes || null }), 'Receipts and returned balance sent to Finance.').then(saved => { if (saved) close() }) }}><p>Account for the complete {money(total)} disbursement.</p><div className="ops-fields"><label><span>Spent</span><input type="number" min="0" max={total} step="0.01" required value={form.spent} onChange={event => setForm({ ...form, spent: event.target.value })}/></label><label><span>Returned</span><input type="number" min="0" max={total} step="0.01" required value={form.returned} onChange={event => setForm({ ...form, returned: event.target.value })}/></label></div><label><span>Receipt bundle reference</span><input required minLength={3} value={form.evidence} onChange={event => setForm({ ...form, evidence: event.target.value })}/></label><label><span>Cash-return reference</span><input value={form.returnReference} onChange={event => setForm({ ...form, returnReference: event.target.value })}/></label><label><span>Notes</span><input value={form.notes} onChange={event => setForm({ ...form, notes: event.target.value })}/></label><div className="ops-buttons"><button className="lav-button secondary" type="button" onClick={close}>Cancel</button><button className="lav-button primary">Submit accountability</button></div></form>
+}
+
+function PettyCashReview({ item, close, run }: { item: PettyCashRequest; close: () => void; run: (action: () => Promise<unknown>, text: string) => Promise<boolean> }) {
+  const [notes, setNotes] = useState(''); const decide = (approve: boolean) => void run(() => pettyCashApi.reviewReconciliation(item.id, { approve, notes }), approve ? 'Petty cash reconciled and closed.' : 'Accountability returned for correction.').then(saved => { if (saved) close() })
+  return <div className="petty-cash-inline"><p>{item.latestReconciliation?.evidenceReference} · {money(item.latestReconciliation?.amountSpent ?? 0)} spent · {money(item.latestReconciliation?.amountReturned ?? 0)} returned</p><label><span>Review notes</span><input minLength={3} required value={notes} onChange={event => setNotes(event.target.value)}/></label><div className="ops-buttons"><button className="lav-button secondary" disabled={notes.trim().length < 3} onClick={() => decide(false)}>Return</button><button className="lav-button primary" disabled={notes.trim().length < 3} onClick={() => decide(true)}>Reconcile and close</button><button className="lav-button secondary" onClick={close}>Cancel</button></div></div>
 }
 
 export function LiveAuditView() {
