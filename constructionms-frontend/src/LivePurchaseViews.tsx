@@ -587,13 +587,6 @@ function SourcingRoundCard({
       </div>
 
       {round.notes && <p className="lav-action-message">{round.notes}</p>}
-      {liveOrder && (
-        <Notice>
-          The purchase order is {orderStatusLabel(liveOrder.status).toLowerCase()} for this request.
-          Further quote selection is locked.
-        </Notice>
-      )}
-
       <QuoteComparison
         quotes={round.quotes}
         unit={round.materialUnit}
@@ -974,10 +967,10 @@ function RoundActionForm({
       }
       const message =
         action === 'reopen'
-          ? 'The sourcing round was reopened.'
+          ? 'Sourcing reopened.'
           : action === 'close'
-            ? 'The sourcing round was closed without an award.'
-            : 'The sourcing round was cancelled.'
+            ? 'Sourcing closed.'
+            : 'Sourcing cancelled.'
       onChanged(updated, message)
     } catch (requestError) {
       setError(errorMessage(requestError))
@@ -1224,10 +1217,6 @@ function PurchaseOrderCard({
       </div>
 
       {order.notes && <p className="lav-action-message">{order.notes}</p>}
-      {currentUser.role === 'Storekeeper' && (
-        <Notice>Use this issued order for receiving preparation. Commercial and private approval details are intentionally hidden.</Notice>
-      )}
-
       <OrderMilestones order={order} />
 
       {action && (
@@ -1245,7 +1234,6 @@ function PurchaseOrderCard({
 
       {showActions && (
         <div className="lav-card-action-row lav-multi-actions">
-          <span>{reviewer ? 'Your decision is independent from Procurement.' : 'Only valid next steps are available.'}</span>
           {canCorrect && <button className="lav-button secondary" type="button" onClick={() => setAction('correct')}>Correct details</button>}
           {canSubmit && <button className="lav-button primary" type="button" onClick={() => setAction('submit')}>Submit for approval</button>}
           {canIssue && <button className="lav-button primary" type="button" onClick={() => setAction('issue')}>Issue to supplier</button>}
@@ -1391,7 +1379,7 @@ function OrderActionForm({
         </label>
       )}
       <div className="lav-form-actions">
-        <span>{reasonRequired ? 'The reason is permanent and visible in oversight history.' : 'This step will be added to the order record.'}</span>
+        <span />
         <button className={`lav-button ${action === 'reject' || action === 'cancel' ? 'danger' : 'primary'}`} type="submit" disabled={busy}>
           {busy ? 'Saving…' : 'Confirm action'}
         </button>
