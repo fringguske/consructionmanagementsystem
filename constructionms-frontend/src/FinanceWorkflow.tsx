@@ -80,7 +80,7 @@ export const transactionChains: TransactionChain[] = [
   {
     id: 'P2P-0248',
     item: 'Y12 reinforcement steel · 240 lengths',
-    project: 'Gilgal 2',
+    project: 'Gilgal 3',
     supplier: 'Apex Steel Ltd',
     amount: 412800,
     status: 'Finance review',
@@ -356,7 +356,7 @@ export function FinanceOfficerDashboard() {
         </article>)}
         <article>
           <span className="fw-queue-index">03</span>
-          <div><span>RECONCILIATION</span><h3>Gilgal 2 petty cash difference</h3><p>REC-0132 · Cashier evidence received</p><small>KES 1,150 cash count difference</small></div>
+          <div><span>RECONCILIATION</span><h3>Gilgal 3 petty cash difference</h3><p>REC-0132 · Cashier evidence received</p><small>KES 1,150 cash count difference</small></div>
           <strong>KES 1,150</strong>
           <button className="fw-text-button" type="button">Open difference<WorkflowIcon name="arrow" size={14}/></button>
         </article>
@@ -383,8 +383,8 @@ export function FinanceOfficerDashboard() {
 }
 
 const projectControls = [
-  { project: 'Gilgal 1', budget: 48.2, paid: 31.4, committed: 5.7, payable: 2.16, exposure: 'Healthy' },
-  { project: 'Gilgal 2', budget: 36.5, paid: 28.9, committed: 3.2, payable: 1.42, exposure: 'Watch structural works' },
+  { project: 'Gilgal 2', budget: 48.2, paid: 31.4, committed: 5.7, payable: 2.16, exposure: 'Healthy' },
+  { project: 'Gilgal 3', budget: 36.5, paid: 28.9, committed: 3.2, payable: 1.42, exposure: 'Watch structural works' },
   { project: 'SNEP HQ', budget: 72.0, paid: 20.6, committed: 9.8, payable: 3.84, exposure: 'Healthy' },
   { project: 'Church', budget: 25.8, paid: 8.3, committed: 2.1, payable: 1.09, exposure: 'Roofing exception' },
 ]
@@ -420,7 +420,7 @@ export function FinanceControl() {
       <aside className="panel fw-liability-watch">
         <PanelHead title="Liability watch" copy="What can affect the next payment run"/>
         <div><span className="fw-risk-label high">HIGH</span><section><b>Church roofing package</b><p>KES 784,500 exceeds owner threshold and reference price.</p><TraceButton onClick={() => setSelectedChain(transactionChains[2])}/></section></div>
-        <div><span className="fw-risk-label medium">MATCH</span><section><b>Gilgal 2 structural steel</b><p>Documents align; Finance is reviewing the 8.4% unit-price variance.</p><TraceButton onClick={() => setSelectedChain(transactionChains[1])}/></section></div>
+        <div><span className="fw-risk-label medium">MATCH</span><section><b>Gilgal 3 structural steel</b><p>Documents align; Finance is reviewing the 8.4% unit-price variance.</p><TraceButton onClick={() => setSelectedChain(transactionChains[1])}/></section></div>
         <div><span className="fw-risk-label low">CLOSED</span><section><b>SNEP HQ cement</b><p>Paid and independently sampled with a verified evidence chain.</p><TraceButton onClick={() => setSelectedChain(transactionChains[0])}/></section></div>
       </aside>
     </section>
@@ -443,8 +443,8 @@ type MatchCase = {
 }
 
 const matchCases: MatchCase[] = [
-  { id: 'MAT-0108', chainId: 'P2P-0248', supplier: 'Apex Steel Ltd', project: 'Gilgal 2', item: 'Y12 steel lengths', po: { ref: 'PO-0192', quantity: 240, unitPrice: 1720, total: 412800 }, grn: { ref: 'GRN-0296', quantity: 240, condition: 'Accepted' }, invoice: { ref: 'INV-8831', quantity: 240, unitPrice: 1720, total: 412800 }, compliance: 'KRA valid · bank account verified', result: 'matched', issue: 'Price is 8.4% above reference; within Finance delegated review.' },
-  { id: 'MAT-0112', chainId: 'P2P-0252', supplier: 'Eastern Quarry Ltd', project: 'Gilgal 1', item: 'Machine-cut stones', po: { ref: 'PO-0198', quantity: 1200, unitPrice: 70, total: 84000 }, grn: { ref: 'GRN-0303', quantity: 1160, condition: '40 pieces short' }, invoice: { ref: 'INV-4482', quantity: 1200, unitPrice: 70, total: 84000 }, compliance: 'KRA valid · bank account verified', result: 'mismatch', issue: 'Invoice bills 40 pieces that the Storekeeper did not receive.' },
+  { id: 'MAT-0108', chainId: 'P2P-0248', supplier: 'Apex Steel Ltd', project: 'Gilgal 3', item: 'Y12 steel lengths', po: { ref: 'PO-0192', quantity: 240, unitPrice: 1720, total: 412800 }, grn: { ref: 'GRN-0296', quantity: 240, condition: 'Accepted' }, invoice: { ref: 'INV-8831', quantity: 240, unitPrice: 1720, total: 412800 }, compliance: 'KRA valid · bank account verified', result: 'matched', issue: 'Price is 8.4% above reference; within Finance delegated review.' },
+  { id: 'MAT-0112', chainId: 'P2P-0252', supplier: 'Eastern Quarry Ltd', project: 'Gilgal 2', item: 'Machine-cut stones', po: { ref: 'PO-0198', quantity: 1200, unitPrice: 70, total: 84000 }, grn: { ref: 'GRN-0303', quantity: 1160, condition: '40 pieces short' }, invoice: { ref: 'INV-4482', quantity: 1200, unitPrice: 70, total: 84000 }, compliance: 'KRA valid · bank account verified', result: 'mismatch', issue: 'Invoice bills 40 pieces that the Storekeeper did not receive.' },
 ]
 
 function MatchDocument({ kind, title, reference, rows, tone }: { kind: string; title: string; reference: string; rows: [string, string][]; tone: 'good' | 'warning' | 'danger' }) {
@@ -601,7 +601,7 @@ type ReconciliationItem = {
 const reconciliationItems: ReconciliationItem[] = [
   { id: 'REC-0134', account: 'Operating bank · 4481', project: 'All projects', statement: 8264500, ledger: 8264500, difference: 0, owner: 'Eunice Ngumbi', evidence: 'Statement imported · 18 entries', linkedChain: 'P2P-0244' },
   { id: 'REC-0133', account: 'Supplier payments clearing', project: 'SNEP HQ', statement: 684000, ledger: 684000, difference: 0, owner: 'Eunice Ngumbi', evidence: 'Bank ref and receipt linked', linkedChain: 'P2P-0244' },
-  { id: 'REC-0132', account: 'Petty cash float', project: 'Gilgal 2', statement: 94850, ledger: 96000, difference: -1150, owner: 'Eunice Ngumbi', evidence: 'Count sheet attached · receipt missing' },
+  { id: 'REC-0132', account: 'Petty cash float', project: 'Gilgal 3', statement: 94850, ledger: 96000, difference: -1150, owner: 'Eunice Ngumbi', evidence: 'Count sheet attached · receipt missing' },
   { id: 'REC-0131', account: 'M-Pesa disbursements', project: 'Church', statement: 120000, ledger: 137300, difference: -17300, owner: 'Eunice Ngumbi', evidence: 'Two references awaiting import' },
 ]
 

@@ -1355,7 +1355,7 @@ function ProgressVerificationForm({
             value={evidenceReference}
             onChange={(event) => setEvidenceReference(event.currentTarget.value)}
             maxLength={500}
-            placeholder="Example: Site photos G1-2026-08-03"
+            placeholder="Example: Site photos G2-2026-08-03"
           />
         </label>
       </div>
@@ -1375,8 +1375,7 @@ export function LiveRequisitionsView({ currentUser }: LiveRequisitionsViewProps)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
-  const [query, setQuery] = useState('')
-  const [statusFilter, setStatusFilter] = useState<RequisitionStatus | 'All'>('All')
+  const [projectFilter, setProjectFilter] = useState('')
 
   useEffect(() => {
     const controller = new AbortController()
@@ -1423,22 +1422,11 @@ export function LiveRequisitionsView({ currentUser }: LiveRequisitionsViewProps)
     return () => controller.abort()
   }, [refreshKey])
 
-  const filteredRequisitions = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase()
-    return requisitions.filter((requisition) => {
-      if (statusFilter !== 'All' && requisition.status !== statusFilter) return false
-      if (!normalizedQuery) return true
-
-      return [
-        requisition.projectName,
-        requisition.materialName,
-        requisition.purpose,
-        requisition.costCode,
-        requisition.costCodeName,
-        `mr-${requisition.id}`,
-      ].some((value) => value.toLowerCase().includes(normalizedQuery))
-    })
-  }, [query, requisitions, statusFilter])
+  const filteredRequisitions = useMemo(
+    () => requisitions.filter(requisition =>
+      !projectFilter || requisition.projectId === Number(projectFilter)),
+    [projectFilter, requisitions],
+  )
 
   const queueCount = requisitions.filter((requisition) => {
     if (currentUser.role === 'Foreman') return requisition.status === 'ReturnedForRevision'
@@ -1464,7 +1452,7 @@ export function LiveRequisitionsView({ currentUser }: LiveRequisitionsViewProps)
         <div>
           <span className="lav-kicker">Controlled material requests</span>
           <h1>Requisitions</h1>
-          <p>Foreman request → engineer check → supervisor decision.</p>
+          <p>Site-use requests go through Engineer and Supervisor. Store replenishment goes directly to the Supervisor.</p>
         </div>
         {['Foreman', 'Engineer', 'Supervisor'].includes(currentUser.role) && (
           <span className={`lav-count-chip ${queueCount > 0 ? 'attention' : ''}`}>
@@ -1508,28 +1496,17 @@ export function LiveRequisitionsView({ currentUser }: LiveRequisitionsViewProps)
               </div>
               <div className="lav-filter-row">
                 <label>
-                  <span className="lav-visually-hidden">Search requisitions</span>
-                  <input
-                    type="search"
-                    value={query}
-                    onChange={(event) => setQuery(event.currentTarget.value)}
-                    placeholder="Search project or material"
-                  />
-                </label>
-                <label>
-                  <span className="lav-visually-hidden">Filter by status</span>
+                  <span className="lav-visually-hidden">Filter by project</span>
                   <select
-                    value={statusFilter}
-                    onChange={(event) =>
-                      setStatusFilter(event.currentTarget.value as RequisitionStatus | 'All')
-                    }
+                    value={projectFilter}
+                    onChange={(event) => setProjectFilter(event.currentTarget.value)}
                   >
-                    <option value="All">All statuses</option>
-                    <option value="AwaitingTechnicalCheck">Engineer check</option>
-                    <option value="AwaitingSupervisorDecision">Supervisor decision</option>
-                    <option value="ReturnedForRevision">Returned</option>
-                    <option value="Approved">Approved</option>
-                    <option value="Rejected">Rejected</option>
+                    <option value="">All projects</option>
+                    {Object.values(projectSummaries).map(summary => (
+                      <option key={summary.project.id} value={summary.project.id}>
+                        {summary.project.name}
+                      </option>
+                    ))}
                   </select>
                 </label>
               </div>
@@ -1551,7 +1528,7 @@ export function LiveRequisitionsView({ currentUser }: LiveRequisitionsViewProps)
                   title="No requests match"
                   detail={
                     requisitions.length
-                      ? 'Clear the search or choose a different status.'
+                      ? 'Choose another project.'
                       : 'There are no material requests visible to this account.'
                   }
                 />
@@ -1623,7 +1600,7 @@ function CreateRequisitionForm({ projects, materials, onCreated }: CreateRequisi
       setNeededByDate('')
       setPurpose('')
       setNotes('')
-      setMessage({ tone: 'success', text: `Request MR-${created.id} sent for engineer check.` })
+      setMessage({ tone: 'success', text: 'Request sent. Wait for the Engineer assigned to this project to complete the technical check.' })
     } catch (requestError) {
       setMessage({ tone: 'error', text: errorMessage(requestError) })
     } finally {
@@ -1809,7 +1786,7 @@ function RequisitionCard({
     <article className="lav-request-card">
       <header>
         <div className="lav-request-id">
-          <span>MR-{String(requisition.id).padStart(4, '0')}</span>
+          <span>{requisition.requestType === 'StockReplenishment' ? 'STORE REPLENISHMENT' : 'SITE MATERIAL REQUEST'}</span>
           <strong>{requisition.materialName}</strong>
           <small>
             {formatNumber(requisition.quantity)} {requisition.materialUnit} · needed{' '}
@@ -1836,10 +1813,7 @@ function RequisitionCard({
           <span>Purpose</span>
           <strong>{requisition.purpose}</strong>
         </div>
-        <div>
-          <span>Revision</span>
-          <strong>{requisition.workflowRevision}</strong>
-        </div>
+        <div><span>Request for</span><strong>{requisition.requestType === 'StockReplenishment' ? 'Store stock' : 'Site use'}</strong></div>
       </div>
 
       {requisition.currentActionMessage && (
@@ -2133,10 +2107,10 @@ function SupervisorDecisionForm({ requisition, onChanged }: WorkflowFormProps) {
           <span className="lav-kicker">Supervisor action</span>
           <h3>Independent decision</h3>
         </div>
-        <span className="lav-separation-note">Engineer check: verified</span>
+        <span className="lav-separation-note">{requisition.requestType === 'StockReplenishment' ? 'Store stock request' : 'Engineer check: verified'}</span>
       </header>
       {error && <Notice tone="error">{error}</Notice>}
-      <div className="lav-decision-options three" role="radiogroup" aria-label="Decision">
+      <div className={`lav-decision-options ${requisition.requestType === 'StockReplenishment' ? 'two' : 'three'}`} role="radiogroup" aria-label="Decision">
         <label>
           <input
             type="radio"
@@ -2150,7 +2124,7 @@ function SupervisorDecisionForm({ requisition, onChanged }: WorkflowFormProps) {
             <small>Release to procurement.</small>
           </span>
         </label>
-        <label>
+        {requisition.requestType !== 'StockReplenishment' && <label>
           <input
             type="radio"
             name={`decision-${requisition.id}`}
@@ -2162,7 +2136,7 @@ function SupervisorDecisionForm({ requisition, onChanged }: WorkflowFormProps) {
             <strong>Return</strong>
             <small>Foreman can correct it.</small>
           </span>
-        </label>
+        </label>}
         <label>
           <input
             type="radio"
@@ -2237,7 +2211,6 @@ function RequisitionHistory({ requisition }: { requisition: Requisition }) {
                 {event.comments && <blockquote>{event.comments}</blockquote>}
                 <small>{formatDateTime(event.occurredAt)}</small>
               </div>
-              <code title={event.eventHash}>#{event.eventHash.slice(0, 10)}</code>
             </li>
           ))
         ) : (

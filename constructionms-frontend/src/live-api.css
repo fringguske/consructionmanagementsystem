@@ -67,7 +67,7 @@
   gap: 10px;
   padding: 10px 13px;
   border: 1px solid var(--lav-line);
-  border-radius: 8px;
+  border-radius: 0;
   background: var(--lav-paper);
 }
 
@@ -77,7 +77,7 @@
   height: 36px;
   flex: 0 0 auto;
   place-items: center;
-  border-radius: 50%;
+  border-radius: 0;
   background: var(--lav-forest);
   color: white;
   font-size: 11px;
@@ -104,7 +104,7 @@
 .lav-notice {
   padding: 11px 13px;
   border: 1px solid #d7e1dc;
-  border-radius: 7px;
+  border-radius: 0;
   background: #eff4f1;
   color: #3f5b53;
   font-size: 12px;
@@ -138,7 +138,7 @@
   min-height: 38px;
   padding: 0 15px;
   border: 1px solid transparent;
-  border-radius: 6px;
+  border-radius: 0;
   font-size: 11.5px;
   font-weight: 750;
   line-height: 1;
@@ -156,7 +156,7 @@
   border-color: var(--lav-clay);
   background: var(--lav-clay);
   color: white;
-  box-shadow: 0 1px 1px rgba(72, 33, 17, 0.18);
+  box-shadow: none;
 }
 
 .lav-button.primary:hover:not(:disabled) {
@@ -215,7 +215,7 @@
   min-width: 0;
   overflow: hidden;
   border: 1px solid var(--lav-line);
-  border-radius: 8px;
+  border-radius: 0;
   background: var(--lav-paper);
 }
 
@@ -246,7 +246,7 @@
   align-items: center;
   padding: 0 11px;
   border: 1px solid #d3ddd8;
-  border-radius: 999px;
+  border-radius: 0;
   background: #eef3f0;
   color: #49635b;
   font-size: 10.5px;
@@ -268,7 +268,7 @@
   align-content: center;
   padding: 30px;
   border: 1px solid var(--lav-line);
-  border-radius: 8px;
+  border-radius: 0;
   background: var(--lav-paper);
   text-align: center;
 }
@@ -278,7 +278,7 @@
   height: 27px;
   border: 3px solid #dce5e1;
   border-top-color: var(--lav-green);
-  border-radius: 50%;
+  border-radius: 0;
   animation: lav-spin 0.75s linear infinite;
 }
 
@@ -293,7 +293,7 @@
   width: 36px;
   height: 36px;
   place-items: center;
-  border-radius: 50%;
+  border-radius: 0;
   background: #edf1ee;
   color: #84918b;
   font-weight: 700;
@@ -334,25 +334,11 @@
   justify-content: center;
   overflow: hidden;
   padding: clamp(42px, 8vw, 108px);
-  background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.045), transparent 48%),
-    var(--lav-forest-dark);
+  background: var(--lav-forest-dark);
   color: white;
 }
 
-.lav-login-brand::after {
-  position: absolute;
-  right: -110px;
-  bottom: -150px;
-  width: 360px;
-  height: 360px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 50%;
-  box-shadow:
-    0 0 0 45px rgba(255, 255, 255, 0.025),
-    0 0 0 90px rgba(255, 255, 255, 0.018);
-  content: '';
-}
+.lav-login-brand::after { content: none; }
 
 .lav-login-mark {
   display: flex;
@@ -412,9 +398,9 @@
   gap: 4px;
   margin-top: 64px;
   padding: 15px 17px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 7px;
-  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid #49605a;
+  border-radius: 0;
+  background: #213a35;
 }
 
 .lav-login-assurance strong {
@@ -438,9 +424,9 @@
   width: min(410px, 100%);
   padding: 32px;
   border: 1px solid var(--lav-line);
-  border-radius: 10px;
+  border-radius: 0;
   background: white;
-  box-shadow: 0 24px 70px rgba(29, 49, 43, 0.08);
+  box-shadow: none;
 }
 
 .lav-login-card header {
@@ -489,7 +475,7 @@
   overflow: hidden;
   padding: 17px 18px;
   border: 1px solid var(--lav-line);
-  border-radius: 8px;
+  border-radius: 0;
   background: var(--lav-paper);
 }
 
@@ -554,7 +540,7 @@
   min-height: 112px;
   padding: 16px;
   border: 1px solid var(--lav-line);
-  border-radius: 7px;
+  border-radius: 0;
   background: #fbfcfb;
   text-align: left;
   transition:
@@ -578,7 +564,7 @@
   min-height: 112px;
   padding: 18px;
   border: 1px solid var(--lav-line);
-  border-radius: 7px;
+  border-radius: 0;
   background: #f7f8f6;
 }
 
@@ -646,7 +632,7 @@
   width: 29px;
   height: 29px;
   place-items: center;
-  border-radius: 5px;
+  border-radius: 0;
   background: #e8eeeb;
   color: #45675e;
   font-size: 9px;
@@ -669,7 +655,7 @@
 .lav-project-create {
   overflow: hidden;
   border: 1px solid #cfdad5;
-  border-radius: 8px;
+  border-radius: 0;
   background: var(--lav-paper);
 }
 
@@ -700,7 +686,7 @@
   width: 34px;
   height: 34px;
   place-items: center;
-  border-radius: 50%;
+  border-radius: 0;
   background: var(--lav-green-soft);
   color: var(--lav-forest);
   font-size: 21px;
@@ -753,7 +739,7 @@
 .lav-project-list {
   overflow: hidden;
   border: 1px solid var(--lav-line);
-  border-radius: 8px;
+  border-radius: 0;
   background: var(--lav-paper);
 }
 
@@ -782,7 +768,7 @@
 }
 
 .lav-project-list > button.active {
-  box-shadow: inset 3px 0 var(--lav-green);
+  box-shadow: none;
 }
 
 .lav-project-monogram {
@@ -790,7 +776,7 @@
   width: 35px;
   height: 35px;
   place-items: center;
-  border-radius: 6px;
+  border-radius: 0;
   background: var(--lav-forest);
   color: white;
   font-size: 9.5px;
@@ -823,14 +809,14 @@
   height: 4px;
   margin-top: 7px;
   overflow: hidden;
-  border-radius: 3px;
+  border-radius: 0;
   background: #e3e9e6;
 }
 
 .lav-project-list-copy i b {
   display: block;
   height: 100%;
-  border-radius: inherit;
+  border-radius: 0;
   background: var(--lav-green);
 }
 
@@ -844,7 +830,7 @@
   min-width: 0;
   overflow: hidden;
   border: 1px solid var(--lav-line);
-  border-radius: 8px;
+  border-radius: 0;
   background: var(--lav-paper);
 }
 
@@ -876,7 +862,7 @@
   min-height: 24px;
   align-items: center;
   padding: 0 8px;
-  border-radius: 999px;
+  border-radius: 0;
   background: #eef1ef;
   color: #5b6964;
   font-size: 9.5px;
@@ -969,14 +955,14 @@
   height: 7px;
   margin-top: 9px;
   overflow: hidden;
-  border-radius: 6px;
+  border-radius: 0;
   background: #e6ebe8;
 }
 
 .lav-progress-track i {
   display: block;
   height: 100%;
-  border-radius: inherit;
+  border-radius: 0;
   background: var(--lav-green);
 }
 
@@ -984,7 +970,7 @@
   margin-top: 14px;
   padding: 12px 13px;
   border-left: 3px solid #9eb9af;
-  border-radius: 0 5px 5px 0;
+  border-radius: 0;
   background: #f5f8f6;
 }
 
@@ -1017,7 +1003,7 @@
   grid-template-columns: repeat(3, 1fr);
   margin: 0 21px 20px;
   border: 1px solid var(--lav-line);
-  border-radius: 7px;
+  border-radius: 0;
   background: #fbfcfb;
 }
 
@@ -1089,7 +1075,7 @@
 .lav-ceo-tool-card {
   padding: 15px;
   border: 1px solid #d9e1dd;
-  border-radius: 7px;
+  border-radius: 0;
   background: white;
 }
 
@@ -1131,7 +1117,7 @@
 .lav-current-budget {
   flex: 0 0 auto;
   padding: 7px 9px;
-  border-radius: 999px;
+  border-radius: 0;
   background: var(--lav-green-soft);
   color: #2d6757;
   font-size: 10.5px;
@@ -1146,7 +1132,7 @@
 .lav-budget-allocations {
   overflow: hidden;
   border: 1px solid var(--lav-line);
-  border-radius: 7px;
+  border-radius: 0;
 }
 
 .lav-budget-row {
@@ -1183,7 +1169,7 @@
   height: 39px;
   padding: 0 10px;
   border: 1px solid #cfd8d3;
-  border-radius: 6px;
+  border-radius: 0;
   color: var(--lav-ink);
   font-size: 12px;
   text-align: right;
@@ -1192,7 +1178,7 @@
 
 .lav-budget-row input:focus {
   border-color: #698f83;
-  box-shadow: 0 0 0 3px rgba(47, 119, 100, 0.12);
+  box-shadow: none;
 }
 
 .lav-budget-check {
@@ -1219,7 +1205,7 @@
 .lav-budget-empty {
   margin: 0;
   padding: 14px;
-  border-radius: 6px;
+  border-radius: 0;
   background: #f4f6f4;
   color: var(--lav-muted);
   font-size: 11.5px;
@@ -1250,7 +1236,7 @@
 .lav-filter-row select {
   width: 100%;
   border: 1px solid #cfd8d3;
-  border-radius: 6px;
+  border-radius: 0;
   background: white;
   color: var(--lav-ink);
   font-size: 12px;
@@ -1281,7 +1267,7 @@
 .lav-filter-row input:focus,
 .lav-filter-row select:focus {
   border-color: #698f83;
-  box-shadow: 0 0 0 3px rgba(47, 119, 100, 0.12);
+  box-shadow: none;
 }
 
 .lav-field input:disabled,
@@ -1371,13 +1357,13 @@
 .lav-create-request {
   overflow: hidden;
   border: 1px solid #cddbd5;
-  border-radius: 8px;
+  border-radius: 0;
   background: white;
 }
 
 .lav-create-request.open {
   border-color: #9eb9af;
-  box-shadow: 0 8px 28px rgba(31, 66, 56, 0.045);
+  box-shadow: none;
 }
 
 .lav-create-toggle {
@@ -1399,7 +1385,7 @@
   width: 35px;
   height: 35px;
   place-items: center;
-  border-radius: 50%;
+  border-radius: 0;
   background: var(--lav-green);
   color: white;
   font-size: 20px;
@@ -1510,7 +1496,7 @@
   margin-top: 14px;
   padding: 11px 12px;
   border: 1px solid #e2e7e4;
-  border-radius: 6px;
+  border-radius: 0;
   background: #fafbfa;
 }
 
@@ -1547,7 +1533,7 @@
 .lav-review-note {
   margin-top: 10px;
   padding: 10px 11px;
-  border-radius: 5px;
+  border-radius: 0;
   background: var(--lav-clay-soft);
 }
 
@@ -1586,7 +1572,7 @@
   margin-top: 14px;
   padding: 15px;
   border: 1px solid #d8e2dd;
-  border-radius: 7px;
+  border-radius: 0;
   background: #f8faf9;
 }
 
@@ -1614,7 +1600,7 @@
   gap: 8px;
   padding: 10px;
   border: 1px solid #d7dfda;
-  border-radius: 6px;
+  border-radius: 0;
   background: white;
   cursor: pointer;
 }
@@ -1622,7 +1608,7 @@
 .lav-decision-options label:has(input:checked) {
   border-color: #6d988a;
   background: #edf5f1;
-  box-shadow: inset 0 0 0 1px #6d988a;
+  box-shadow: none;
 }
 
 .lav-decision-options input {
@@ -1652,7 +1638,7 @@
   margin-top: 13px;
   overflow: hidden;
   border: 1px solid #dce3df;
-  border-radius: 7px;
+  border-radius: 0;
   background: white;
 }
 
@@ -1727,7 +1713,7 @@
   width: 24px;
   height: 24px;
   place-items: center;
-  border-radius: 50%;
+  border-radius: 0;
   background: var(--lav-green-soft);
   color: #356b5c;
   font-size: 9px;
@@ -1801,6 +1787,9 @@
 
 .lav-purchase-list {
   display: grid;
+  gap: 14px;
+  padding: 14px;
+  background: #f2f5f3;
 }
 
 .lav-purchase-list > .lav-empty {
@@ -1812,11 +1801,23 @@
 .lav-purchase-card {
   min-width: 0;
   padding: 18px;
-  border-top: 1px solid var(--lav-soft-line);
+  border: 1px solid var(--lav-soft-line);
+  background: #fff;
 }
 
 .lav-purchase-card:first-child {
-  border-top: 0;
+  border-top: 1px solid var(--lav-soft-line);
+}
+
+.lav-purchase-card.status-cancelled {
+  border-left: 4px solid #a54d45;
+  background: #fffafa;
+}
+
+.lav-purchase-card.status-awarded,
+.lav-purchase-card.status-approved,
+.lav-purchase-card.status-issued {
+  border-left: 4px solid #2d6958;
 }
 
 .lav-purchase-card > header {
@@ -1833,7 +1834,7 @@
   margin-top: 15px;
   overflow: hidden;
   border: 1px solid #e0e6e3;
-  border-radius: 6px;
+  border-radius: 0;
   background: #fafbfa;
 }
 
@@ -1885,7 +1886,7 @@
   margin-top: 13px;
   overflow-x: auto;
   border: 1px solid #dce4e0;
-  border-radius: 6px;
+  border-radius: 0;
 }
 
 .lav-quote-table {
@@ -1935,7 +1936,7 @@
   min-height: 23px;
   align-items: center;
   padding: 0 7px;
-  border-radius: 999px;
+  border-radius: 0;
   background: #eef1ef;
   color: #65736e;
   font-size: 8.5px;
@@ -2014,14 +2015,14 @@
   height: 15px;
   grid-row: span 2;
   border: 2px solid #c9d4cf;
-  border-radius: 50%;
+  border-radius: 0;
   background: white;
 }
 
 .lav-order-milestones li.done i {
   border-color: var(--lav-green);
   background: var(--lav-green);
-  box-shadow: inset 0 0 0 3px white;
+  box-shadow: none;
 }
 
 .lav-order-milestones span,
@@ -2435,7 +2436,7 @@
 .lav-session-state > span {
   animation: lav-spin 0.8s linear infinite;
   border: 3px solid #cfd8d3;
-  border-radius: 50%;
+  border-radius: 0;
   border-top-color: #1c5d52;
   height: 28px;
   width: 28px;
@@ -2508,7 +2509,7 @@
   min-height: 36px;
   padding: 0 11px;
   border: 1px solid #cad5d0;
-  border-radius: 6px;
+  border-radius: 0;
   background: white;
   color: var(--lav-ink);
   font: inherit;
@@ -2558,7 +2559,7 @@
 }
 
 .lav-access-user-list button.active {
-  box-shadow: inset 3px 0 var(--lav-green);
+  box-shadow: none;
 }
 
 .lav-access-avatar {
@@ -2566,7 +2567,7 @@
   width: 36px;
   height: 36px;
   place-items: center;
-  border-radius: 50%;
+  border-radius: 0;
   background: #dfeae5;
   color: #2b6254;
   font-size: 10px;
@@ -2618,7 +2619,7 @@
   min-height: 22px;
   align-items: center;
   padding: 0 7px;
-  border-radius: 999px;
+  border-radius: 0;
   font-size: 8.5px;
   font-weight: 800;
   font-style: normal;
@@ -2723,7 +2724,7 @@
   gap: 9px;
   padding: 9px 11px;
   border: 1px solid var(--lav-line);
-  border-radius: 6px;
+  border-radius: 0;
   background: #fbfcfb;
 }
 
@@ -2764,7 +2765,7 @@
 .lav-access-self-note {
   padding: 13px 14px;
   border: 1px solid #d9e2de;
-  border-radius: 6px;
+  border-radius: 0;
   background: #f5f8f6;
   color: #486159;
   font-size: 11px;
@@ -2808,7 +2809,7 @@
   gap: 16px;
   padding: 13px 14px;
   border: 1px solid #e4c5c1;
-  border-radius: 6px;
+  border-radius: 0;
   background: var(--lav-red-soft);
 }
 
@@ -2878,5 +2879,5 @@
     width: 100%;
   }
 }
-.lav-login-tabs{display:grid;grid-template-columns:1fr 1fr;gap:5px;padding:4px;border-radius:7px;background:#eef2ef}.lav-login-tabs button{min-height:36px;border:0;border-radius:5px;background:transparent;color:#66736e;font-size:11px;font-weight:700}.lav-login-tabs button.active{background:#fff;color:#285f50;box-shadow:0 1px 4px rgba(25,50,43,.12)}
-.lav-access-requests{margin-bottom:16px}.lav-access-requests .lav-request-list>article{display:grid;grid-template-columns:minmax(180px,1fr) 180px minmax(260px,1.3fr) auto;gap:14px;align-items:center;padding:14px 16px;border-top:1px solid #e2e7e3}.lav-access-requests .lav-request-list strong,.lav-access-requests .lav-request-list span,.lav-access-requests .lav-request-list small{display:block}.lav-access-requests .lav-request-list strong{font-size:13px}.lav-access-requests .lav-request-list span,.lav-access-requests .lav-request-list small{font-size:10.5px;color:#6f7c76;margin-top:3px}.lav-access-requests .lav-request-list article>label>span{font-weight:700;margin-bottom:5px}.lav-access-requests .lav-request-list select{width:100%;min-height:38px;border:1px solid #d6ddd8;border-radius:5px;background:#fff;padding:0 9px}.lav-request-projects{display:flex;flex-wrap:wrap;gap:6px}.lav-request-projects label{display:flex;align-items:center;gap:5px;padding:6px 8px;border:1px solid #dce2de;border-radius:5px;background:#f8faf8}.lav-request-projects label span{margin:0;color:#405049}.lav-request-actions{display:flex;gap:7px}@media(max-width:1000px){.lav-access-requests .lav-request-list>article{grid-template-columns:1fr 1fr}.lav-request-projects{grid-column:1/-1}.lav-request-actions{justify-content:flex-end}}@media(max-width:600px){.lav-access-requests .lav-request-list>article{grid-template-columns:1fr}.lav-request-projects,.lav-request-actions{grid-column:1}.lav-request-actions{justify-content:flex-start}}
+.lav-login-tabs{display:grid;grid-template-columns:1fr 1fr;gap:5px;padding:4px;border-radius: 0;background:#eef2ef}.lav-login-tabs button{min-height:36px;border:0;border-radius: 0;background:transparent;color:#66736e;font-size:11px;font-weight:700}.lav-login-tabs button.active{background:#fff;color:#285f50;box-shadow: none}
+.lav-access-requests{margin-bottom:16px}.lav-access-requests .lav-request-list>article{display:grid;grid-template-columns:minmax(180px,1fr) 180px minmax(260px,1.3fr) auto;gap:14px;align-items:center;padding:14px 16px;border-top:1px solid #e2e7e3}.lav-access-requests .lav-request-list strong,.lav-access-requests .lav-request-list span,.lav-access-requests .lav-request-list small{display:block}.lav-access-requests .lav-request-list strong{font-size:13px}.lav-access-requests .lav-request-list span,.lav-access-requests .lav-request-list small{font-size:10.5px;color:#6f7c76;margin-top:3px}.lav-access-requests .lav-request-list article>label>span{font-weight:700;margin-bottom:5px}.lav-access-requests .lav-request-list select{width:100%;min-height:38px;border:1px solid #d6ddd8;border-radius: 0;background:#fff;padding:0 9px}.lav-request-projects{display:flex;flex-wrap:wrap;gap:6px}.lav-request-projects label{display:flex;align-items:center;gap:5px;padding:6px 8px;border:1px solid #dce2de;border-radius: 0;background:#f8faf8}.lav-request-projects label span{margin:0;color:#405049}.lav-request-actions{display:flex;gap:7px}@media(max-width:1000px){.lav-access-requests .lav-request-list>article{grid-template-columns:1fr 1fr}.lav-request-projects{grid-column:1/-1}.lav-request-actions{justify-content:flex-end}}@media(max-width:600px){.lav-access-requests .lav-request-list>article{grid-template-columns:1fr}.lav-request-projects,.lav-request-actions{grid-column:1}.lav-request-actions{justify-content:flex-start}}

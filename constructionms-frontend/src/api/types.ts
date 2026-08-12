@@ -359,6 +359,7 @@ export interface Requisition {
   costCodeId: number
   costCode: string
   costCodeName: string
+  requestType: 'SiteUse' | 'StockReplenishment'
   quantity: number
   neededByDate: IsoDate
   purpose: string
@@ -389,6 +390,16 @@ export interface CreateRequisitionRequest {
   quantity: number
   neededByDate: IsoDate
   purpose: string
+  notes?: string | null
+}
+
+export interface CreateStockReplenishmentRequest {
+  projectId: number
+  materialId: number
+  costCodeId: number
+  quantity: number
+  neededByDate: IsoDate
+  reason: string
   notes?: string | null
 }
 

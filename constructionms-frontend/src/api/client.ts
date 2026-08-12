@@ -13,6 +13,7 @@ import type {
   CreatePurchaseOrderRequest,
   CreateRequisitionRequest,
   CreateSourcingRoundRequest,
+  CreateStockReplenishmentRequest,
   CreateSupplierOnboardingRequest,
   CurrentUser,
   DashboardResponse,
@@ -495,6 +496,13 @@ export const requisitionsApi = {
 
   create: (payload: CreateRequisitionRequest, signal?: AbortSignal) =>
     request<Requisition>('/requisitions', { method: 'POST', body: payload, signal }),
+
+  createStockReplenishment: (payload: CreateStockReplenishmentRequest, signal?: AbortSignal) =>
+    request<Requisition>('/requisitions/stock-replenishment', {
+      method: 'POST',
+      body: payload,
+      signal,
+    }),
 
   update: (
     requisitionId: number,

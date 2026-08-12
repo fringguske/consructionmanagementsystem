@@ -216,6 +216,7 @@ public class AppDbContext : DbContext
             nameof(PettyCashReconciliation.Notes),
             nameof(PettyCashReconciliation.SubmittedByUserId),
             nameof(PettyCashReconciliation.SubmittedAt));
+        RejectProtectedChanges<Requisition>(nameof(Requisition.RequestType));
     }
 
     private void RejectProtectedChanges<TEntity>(params string[] propertyNames)
@@ -472,8 +473,8 @@ public class AppDbContext : DbContext
         });
 
         projects.HasData(
-            new Project { Id = 1, Name = "Gilgal 1", Budget = 0, StartDate = seedProjectDate, Status = "Active", CreatedAt = seedDate },
-            new Project { Id = 2, Name = "Gilgal 2", Budget = 0, StartDate = seedProjectDate, Status = "Active", CreatedAt = seedDate },
+            new Project { Id = 1, Name = "Gilgal 2", Budget = 0, StartDate = seedProjectDate, Status = "Active", CreatedAt = seedDate },
+            new Project { Id = 2, Name = "Gilgal 3", Budget = 0, StartDate = seedProjectDate, Status = "Active", CreatedAt = seedDate },
             new Project { Id = 3, Name = "SNEP HQ", Budget = 0, StartDate = seedProjectDate, Status = "Active", CreatedAt = seedDate },
             new Project { Id = 4, Name = "Church", Budget = 0, StartDate = seedProjectDate, Status = "Active", CreatedAt = seedDate }
         );
@@ -585,6 +586,7 @@ public class AppDbContext : DbContext
         var requisitions = modelBuilder.Entity<Requisition>();
 
         requisitions.Property(requisition => requisition.Status).HasMaxLength(40);
+        requisitions.Property(requisition => requisition.RequestType).HasMaxLength(30);
         requisitions.Property(requisition => requisition.Notes).HasMaxLength(1_000);
         requisitions.Property(requisition => requisition.Purpose).HasMaxLength(500);
         requisitions.Property(requisition => requisition.Quantity).HasPrecision(18, 3);
@@ -598,6 +600,9 @@ public class AppDbContext : DbContext
                 "CK_Requisitions_Status_Valid",
                 "\"Status\" IN ('AwaitingTechnicalCheck', 'AwaitingSupervisorDecision', " +
                 "'ReturnedForRevision', 'Approved', 'Rejected')");
+            table.HasCheckConstraint(
+                "CK_Requisitions_RequestType_Valid",
+                "\"RequestType\" IN ('SiteUse', 'StockReplenishment')");
             table.HasCheckConstraint(
                 "CK_Requisitions_ActionFields_Consistent",
                 "(\"Status\" IN ('AwaitingTechnicalCheck', 'AwaitingSupervisorDecision', " +

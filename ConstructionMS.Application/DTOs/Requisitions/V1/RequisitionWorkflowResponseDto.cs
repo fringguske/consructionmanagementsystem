@@ -12,6 +12,7 @@ public sealed class RequisitionWorkflowResponseDto
     public int CostCodeId { get; set; }
     public string CostCode { get; set; } = string.Empty;
     public string CostCodeName { get; set; } = string.Empty;
+    public string RequestType { get; set; } = string.Empty;
     public decimal Quantity { get; set; }
     public DateOnly NeededByDate { get; set; }
     public string Purpose { get; set; } = string.Empty;

@@ -20,6 +20,7 @@ using System.Text.Json;
 public sealed class RequisitionWorkflowService : IRequisitionWorkflowService
 {
     private const string ForemanRole = "Foreman";
+    private const string StorekeeperRole = "Storekeeper";
     private const string EngineerRole = "Engineer";
     private const string SupervisorRole = "Supervisor";
     private const string CeoRole = "CEO";
@@ -33,7 +34,7 @@ public sealed class RequisitionWorkflowService : IRequisitionWorkflowService
         EngineerRole,
         SupervisorRole,
         "Procurement Officer",
-        "Storekeeper"
+        StorekeeperRole
     };
 
     private readonly AppDbContext _db;
@@ -260,6 +261,112 @@ public sealed class RequisitionWorkflowService : IRequisitionWorkflowService
         await _db.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
 
+        return await LoadCommandResultAsync(actorResult.Value!, requisition.Id, cancellationToken);
+    }
+
+    public async Task<OperationResult<RequisitionWorkflowResponseDto>> CreateStockReplenishmentAsync(
+        int actorUserId,
+        CreateStockReplenishmentRequestDto request,
+        CancellationToken cancellationToken = default)
+    {
+        var actorResult = await RequireActorAsync(actorUserId, StorekeeperRole, cancellationToken);
+        if (!actorResult.Succeeded)
+        {
+            return Failure<RequisitionWorkflowResponseDto>(actorResult.ErrorKind, actorResult.Error!);
+        }
+
+        var validation = ValidateRequestFields(
+            request.ProjectId,
+            request.MaterialId,
+            request.CostCodeId,
+            request.Quantity,
+            request.NeededByDate,
+            request.Reason,
+            request.Notes);
+        if (!validation.Succeeded)
+        {
+            return Failure<RequisitionWorkflowResponseDto>(validation.ErrorKind, validation.Error!);
+        }
+
+        if (!await HasProjectAccessAsync(actorUserId, request.ProjectId, cancellationToken))
+        {
+            return Failure<RequisitionWorkflowResponseDto>(
+                OperationErrorKind.Forbidden,
+                "You are not assigned to the selected project store.");
+        }
+
+        if (!await IsProjectOperationalAsync(request.ProjectId, cancellationToken))
+        {
+            return Failure<RequisitionWorkflowResponseDto>(
+                OperationErrorKind.Conflict,
+                "Stock replenishment can be requested only for an active project.");
+        }
+
+        if (!await _db.Materials.AsNoTracking()
+                .AnyAsync(material => material.Id == request.MaterialId, cancellationToken))
+        {
+            return Failure<RequisitionWorkflowResponseDto>(
+                OperationErrorKind.Validation,
+                "The selected material does not exist.");
+        }
+
+        if (!await _db.Set<CostCode>().AsNoTracking()
+                .AnyAsync(costCode => costCode.Id == request.CostCodeId
+                    && costCode.ProjectId == request.ProjectId
+                    && costCode.IsActive,
+                    cancellationToken))
+        {
+            return Failure<RequisitionWorkflowResponseDto>(
+                OperationErrorKind.Validation,
+                "The selected cost code is not active for this project.");
+        }
+
+        var now = DateTime.UtcNow;
+        var reason = InputNormalizer.RequiredText(request.Reason, nameof(request.Reason), 3, 500);
+        var notes = InputNormalizer.OptionalText(request.Notes, nameof(request.Notes), 1_000);
+        var requisition = new Requisition
+        {
+            ProjectId = request.ProjectId,
+            MaterialId = request.MaterialId,
+            CostCodeId = request.CostCodeId,
+            RequestType = RequisitionTypes.StockReplenishment,
+            Quantity = request.Quantity,
+            NeededByDate = request.NeededByDate,
+            Purpose = reason,
+            Notes = notes,
+            RequestedByUserId = actorUserId,
+            Status = RequisitionWorkflowStates.AwaitingSupervisorDecision,
+            WorkflowRevision = 1,
+            CreatedAt = now,
+            UpdatedAt = now
+        };
+
+        await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
+        _db.Requisitions.Add(requisition);
+        await _db.SaveChangesAsync(cancellationToken);
+
+        _db.Set<RequisitionApprovalEvent>().Add(CreateEvent(
+            requisition.Id,
+            sequenceNumber: 1,
+            eventType: "StockReplenishmentRequested",
+            actorResult.Value!,
+            fromStatus: null,
+            toStatus: RequisitionWorkflowStates.AwaitingSupervisorDecision,
+            comments: reason,
+            eventDataJson: SerializeRequisitionSnapshot(
+                request.ProjectId,
+                request.MaterialId,
+                request.CostCodeId,
+                request.Quantity,
+                request.NeededByDate,
+                reason,
+                notes,
+                RequisitionTypes.StockReplenishment),
+            occurredAt: now,
+            previousHash: null));
+
+        await _db.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
         return await LoadCommandResultAsync(actorResult.Value!, requisition.Id, cancellationToken);
     }
 
@@ -542,12 +649,22 @@ public sealed class RequisitionWorkflowService : IRequisitionWorkflowService
             return accessError;
         }
 
-        var technicalCheck = await _db.Set<EngineerTechnicalCheck>()
-            .AsNoTracking()
-            .Where(check => check.RequisitionId == requisition.Id)
-            .OrderByDescending(check => check.Id)
-            .FirstOrDefaultAsync(cancellationToken);
-        if (technicalCheck is null || technicalCheck.Outcome != "Verified")
+        var isStockReplenishment = requisition.RequestType == RequisitionTypes.StockReplenishment;
+        if (isStockReplenishment && decision == "ReturnForRevision")
+        {
+            return Failure<RequisitionWorkflowResponseDto>(
+                OperationErrorKind.Validation,
+                "Approve or reject a store replenishment request. A rejected request can be raised again with corrected quantities.");
+        }
+
+        var technicalCheck = isStockReplenishment
+            ? null
+            : await _db.Set<EngineerTechnicalCheck>()
+                .AsNoTracking()
+                .Where(check => check.RequisitionId == requisition.Id)
+                .OrderByDescending(check => check.Id)
+                .FirstOrDefaultAsync(cancellationToken);
+        if (!isStockReplenishment && (technicalCheck is null || technicalCheck.Outcome != "Verified"))
         {
             return Failure<RequisitionWorkflowResponseDto>(
                 OperationErrorKind.Conflict,
@@ -555,7 +672,7 @@ public sealed class RequisitionWorkflowService : IRequisitionWorkflowService
         }
 
         if (actorUserId == requisition.RequestedByUserId
-            || actorUserId == technicalCheck.EngineerUserId)
+            || (!isStockReplenishment && actorUserId == technicalCheck!.EngineerUserId))
         {
             return Failure<RequisitionWorkflowResponseDto>(
                 OperationErrorKind.Forbidden,
@@ -598,7 +715,7 @@ public sealed class RequisitionWorkflowService : IRequisitionWorkflowService
             requisition.Status,
             toStatus,
             comments,
-            JsonSerializer.Serialize(new { decision, comments }),
+            JsonSerializer.Serialize(new { decision, comments, requisition.RequestType }),
             now,
             previousHash));
 
@@ -634,6 +751,11 @@ public sealed class RequisitionWorkflowService : IRequisitionWorkflowService
             assignment.UserId == actor.UserId
             && assignment.ProjectId == requisition.ProjectId
             && assignment.IsActive));
+
+        if (actor.Role == EngineerRole)
+        {
+            query = query.Where(requisition => requisition.RequestType == RequisitionTypes.SiteUse);
+        }
 
         return actor.Role == ForemanRole
             ? query.Where(requisition => requisition.RequestedByUserId == actor.UserId)
@@ -833,7 +955,8 @@ public sealed class RequisitionWorkflowService : IRequisitionWorkflowService
         decimal quantity,
         DateOnly neededByDate,
         string purpose,
-        string? notes) =>
+        string? notes,
+        string requestType = RequisitionTypes.SiteUse) =>
         JsonSerializer.Serialize(new
         {
             projectId,
@@ -842,7 +965,8 @@ public sealed class RequisitionWorkflowService : IRequisitionWorkflowService
             quantity,
             neededByDate,
             purpose,
-            notes
+            notes,
+            requestType
         });
 
     private static OperationResult<bool> ValidateRequestFields(
@@ -920,6 +1044,7 @@ public sealed class RequisitionWorkflowService : IRequisitionWorkflowService
             CostCodeId = requisition.CostCodeId,
             CostCode = requisition.CostCode?.Code ?? string.Empty,
             CostCodeName = requisition.CostCode?.Name ?? string.Empty,
+            RequestType = requisition.RequestType,
             Quantity = requisition.Quantity,
             NeededByDate = requisition.NeededByDate,
             Purpose = requisition.Purpose,
@@ -945,9 +1070,7 @@ public sealed class RequisitionWorkflowService : IRequisitionWorkflowService
                 },
             DecidedByUserId = includeHistory ? requisition.ApprovedByUserId : null,
             DecidedByUserName = includeHistory ? requisition.ApprovedByUser?.FullName : null,
-            CurrentActionMessage = actorRole is ForemanRole or EngineerRole or SupervisorRole
-                ? latestEvent?.Comments
-                : null,
+            CurrentActionMessage = NextActionMessage(requisition),
             History = includeHistory
                 ? requisition.ApprovalEvents
                     .OrderBy(workflowEvent => workflowEvent.SequenceNumber)
@@ -968,6 +1091,25 @@ public sealed class RequisitionWorkflowService : IRequisitionWorkflowService
                 : []
         };
     }
+
+    private static string NextActionMessage(Requisition requisition) => requisition.Status switch
+    {
+        RequisitionWorkflowStates.AwaitingTechnicalCheck =>
+            "Waiting for the Engineer assigned to this project to complete the technical check.",
+        RequisitionWorkflowStates.AwaitingSupervisorDecision when requisition.RequestType == RequisitionTypes.StockReplenishment =>
+            "Waiting for the Supervisor assigned to this project to approve the store replenishment.",
+        RequisitionWorkflowStates.AwaitingSupervisorDecision =>
+            "The Engineer check is complete. Waiting for the Supervisor assigned to this project.",
+        RequisitionWorkflowStates.ReturnedForRevision =>
+            "Returned to the Foreman who raised it for correction and resubmission.",
+        RequisitionWorkflowStates.Approved when requisition.RequestType == RequisitionTypes.StockReplenishment =>
+            "Approved for store replenishment. Waiting for Procurement to open supplier sourcing.",
+        RequisitionWorkflowStates.Approved =>
+            "Approved for site use. Stores may issue available stock; Procurement may source any shortage.",
+        RequisitionWorkflowStates.Rejected =>
+            "Closed after the Supervisor rejected the request. Raise a new request if the need changes.",
+        _ => string.Empty
+    };
 
     private static OperationResult<T> Failure<T>(OperationErrorKind kind, string error) =>
         OperationResult<T>.Failure(kind, error);

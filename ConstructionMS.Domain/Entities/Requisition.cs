@@ -1,5 +1,11 @@
 namespace ConstructionMS.Domain.Entities;
 
+public static class RequisitionTypes
+{
+    public const string SiteUse = "SiteUse";
+    public const string StockReplenishment = "StockReplenishment";
+}
+
 public class Requisition
 {
     public int Id { get; set; }
@@ -12,6 +18,12 @@ public class Requisition
 
     public int CostCodeId { get; set; }
     public CostCode CostCode { get; set; } = null!;
+
+    /// <summary>
+    /// SiteUse is handed to a foreman after approval. StockReplenishment is received
+    /// into the project store and must never be issued as one bulk foreman handover.
+    /// </summary>
+    public string RequestType { get; set; } = RequisitionTypes.SiteUse;
 
     public decimal Quantity { get; set; }
 

@@ -19,7 +19,7 @@ The existing React demonstration remains the default. Set the frontend to `live`
 - CEO-managed user-to-project assignment periods with retained history.
 - Role-scoped dashboards and project records.
 - CEO project/cost-area setup, append-only budget revisions and Engineer progress verifications.
-- Foreman → Engineer → Supervisor requisition workflow with a hash-chained event history.
+- Foreman → Engineer → Supervisor site-use requests, plus Storekeeper → Supervisor bulk store-replenishment requests, with hash-chained event history.
 - Procurement sourcing rounds, immutable supplier quotes and snapshotted reference prices.
 - Procurement supplier applications with independent Finance/CEO approval before a company becomes available for quotations.
 - Draft → submit → independent approval → issue purchase-order workflow, including return, rejection, correction and cancellation paths.

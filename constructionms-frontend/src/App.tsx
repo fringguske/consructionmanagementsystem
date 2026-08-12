@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useRef, useState, type FormEvent } from 'react'
 import { BrowserRouter, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router'
 import './App.css'
+import './flat-ui.css'
 import {
   ApiError,
   authApi,
@@ -77,11 +78,11 @@ type PaymentCandidate = {
 
 const demoProfiles: readonly DemoProfile[] = [
   { id: 'ceo', role: 'CEO', name: 'JOSEPHINE CHARLES', initials: 'JC', workspace: 'Executive workspace', subtitle: 'CEO', description: 'All projects · executive oversight', projects: null },
-  { id: 'supervisor-gilgal', role: 'Supervisor', name: 'GILGAL SITES SUPERVISOR', initials: 'S1', workspace: 'Gilgal 1 & 2 operations', subtitle: 'Supervisor', description: 'Gilgal 1 & Gilgal 2', projects: ['Gilgal 1', 'Gilgal 2'] },
+  { id: 'supervisor-gilgal', role: 'Supervisor', name: 'GILGAL SITES SUPERVISOR', initials: 'S1', workspace: 'Gilgal 2 & 3 operations', subtitle: 'Supervisor', description: 'Gilgal 2 & Gilgal 3', projects: ['Gilgal 2', 'Gilgal 3'] },
   { id: 'supervisor-church-hq', role: 'Supervisor', name: 'CHURCH & SNEP SUPERVISOR', initials: 'S2', workspace: 'Church & SNEP HQ operations', subtitle: 'Supervisor', description: 'Church & SNEP HQ', projects: ['Church', 'SNEP HQ'] },
-  { id: 'engineer-gilgal', role: 'Engineer', name: 'GILGAL SITES ENGINEER', initials: 'E1', workspace: 'Gilgal 1 & 2 technical', subtitle: 'Engineer', description: 'Gilgal 1 & Gilgal 2', projects: ['Gilgal 1', 'Gilgal 2'] },
+  { id: 'engineer-gilgal', role: 'Engineer', name: 'GILGAL SITES ENGINEER', initials: 'E1', workspace: 'Gilgal 2 & 3 technical', subtitle: 'Engineer', description: 'Gilgal 2 & Gilgal 3', projects: ['Gilgal 2', 'Gilgal 3'] },
   { id: 'engineer-church-hq', role: 'Engineer', name: 'CHURCH & SNEP ENGINEER', initials: 'E2', workspace: 'Church & SNEP HQ technical', subtitle: 'Engineer', description: 'Church & SNEP HQ', projects: ['Church', 'SNEP HQ'] },
-  { id: 'foreman-gilgal', role: 'Foreman', name: 'GILGAL SITES FOREMAN', initials: 'F1', workspace: 'Gilgal 1 & 2 field work', subtitle: 'Foreman', description: 'Gilgal 1 & Gilgal 2', projects: ['Gilgal 1', 'Gilgal 2'] },
+  { id: 'foreman-gilgal', role: 'Foreman', name: 'GILGAL SITES FOREMAN', initials: 'F1', workspace: 'Gilgal 2 & 3 field work', subtitle: 'Foreman', description: 'Gilgal 2 & Gilgal 3', projects: ['Gilgal 2', 'Gilgal 3'] },
   { id: 'foreman-church-hq', role: 'Foreman', name: 'CHURCH & SNEP FOREMAN', initials: 'F2', workspace: 'Church & SNEP HQ field work', subtitle: 'Foreman', description: 'Church & SNEP HQ', projects: ['Church', 'SNEP HQ'] },
   { id: 'cashier', role: 'Cashier', name: 'EUNICE NGUMBI', initials: 'EN', workspace: 'Payments workspace', subtitle: 'Cashier', description: 'Payments and accountable cash', projects: null },
   { id: 'storekeeper', role: 'Storekeeper', name: 'LUCY NJERI', initials: 'LN', workspace: 'Stores workspace', subtitle: 'Storekeeper', description: 'Stock and material movement', projects: null },
@@ -90,7 +91,7 @@ const demoProfiles: readonly DemoProfile[] = [
   { id: 'auditor', role: 'Auditor', name: 'MARY ATIENZA', initials: 'MA', workspace: 'Read-only audit workspace', subtitle: 'Auditor', description: 'All projects · independent review', projects: null },
 ]
 
-const allProjectNames: readonly ProjectName[] = ['Gilgal 1', 'Gilgal 2', 'SNEP HQ', 'Church']
+const allProjectNames: readonly ProjectName[] = ['Gilgal 2', 'Gilgal 3', 'SNEP HQ', 'Church']
 
 function projectScopeLabel(projectScope: readonly ProjectName[]) {
   return projectScope.join(' & ')
@@ -139,8 +140,8 @@ function Icon({ name, size = 18 }: { name: IconName; size?: number }) {
 }
 
 const projects = [
-  { name: 'Gilgal 1', location: 'Sweet-Waters, Machakos', supervisor: 'Gilgal Sites Supervisor', budget: 48.2, spent: 31.4, committed: 5.7, progress: 68, status: 'On track', code: 'G1', color: '#1c5d52' },
-  { name: 'Gilgal 2', location: 'Sweet-Waters, Machakos', supervisor: 'Gilgal Sites Supervisor', budget: 36.5, spent: 28.9, committed: 3.2, progress: 74, status: 'At risk', code: 'G2', color: '#bc6a35' },
+  { name: 'Gilgal 2', location: 'Sweet-Waters, Machakos', supervisor: 'Gilgal Sites Supervisor', budget: 48.2, spent: 31.4, committed: 5.7, progress: 68, status: 'On track', code: 'G2', color: '#1c5d52' },
+  { name: 'Gilgal 3', location: 'Sweet-Waters, Machakos', supervisor: 'Gilgal Sites Supervisor', budget: 36.5, spent: 28.9, committed: 3.2, progress: 74, status: 'At risk', code: 'G3', color: '#bc6a35' },
   { name: 'SNEP HQ', location: 'Mumbuni, Machakos', supervisor: 'Church & SNEP Supervisor', budget: 72.0, spent: 20.6, committed: 9.8, progress: 39, status: 'On track', code: 'HQ', color: '#3d5b86' },
   { name: 'Church', location: 'Vota, Machakos', supervisor: 'Church & SNEP Supervisor', budget: 25.8, spent: 8.3, committed: 2.1, progress: 31, status: 'On track', code: 'CH', color: '#765b8e' },
 ]
@@ -195,21 +196,21 @@ type MaterialTraceBranch = {
 }
 
 const storeStockRecords: readonly StoreStockRecord[] = [
-  { material: 'River sand', category: 'Aggregates', project: 'Gilgal 1', store: 'Gilgal 1 store', unit: 'tonnes', onHand: '42.5', reorderAt: '18', level: 'Healthy' },
-  { material: 'Y12 reinforcement steel', category: 'Steel', project: 'Gilgal 2', store: 'Gilgal 2 store', unit: 'lengths', onHand: '186', reorderAt: '220', level: 'Low stock' },
+  { material: 'River sand', category: 'Aggregates', project: 'Gilgal 2', store: 'Gilgal 2 store', unit: 'tonnes', onHand: '42.5', reorderAt: '18', level: 'Healthy' },
+  { material: 'Y12 reinforcement steel', category: 'Steel', project: 'Gilgal 3', store: 'Gilgal 3 store', unit: 'lengths', onHand: '186', reorderAt: '220', level: 'Low stock' },
   { material: 'Bamburi cement', category: 'Cement', project: 'SNEP HQ', store: 'Central store · SNEP HQ', unit: 'bags', onHand: '1,248', reorderAt: '320', level: 'Healthy' },
   { material: 'PVC conduit 25mm', category: 'Electrical', project: 'SNEP HQ', store: 'Central store · SNEP HQ', unit: 'lengths', onHand: '64', reorderAt: '100', level: 'Low stock' },
   { material: 'Marine plywood 18mm', category: 'Formwork', project: 'Church', store: 'Church store', unit: 'sheets', onHand: '38', reorderAt: '30', level: 'Watch' },
 ]
 
 const storeTransferRecords: readonly StoreTransferRecord[] = [
-  { reference: 'TR-0063', fromProject: 'Gilgal 1', toProject: 'Church', material: 'Timber', quantity: '32 pieces', status: 'Awaiting receipt', age: '3 days overdue' },
-  { reference: 'TR-0065', fromProject: 'SNEP HQ', toProject: 'Gilgal 2', material: 'PVC conduit', quantity: '40 lengths', status: 'In transit', age: '4 hours' },
-  { reference: 'TR-0066', fromProject: 'Church', toProject: 'Gilgal 1', material: 'Binding wire', quantity: '6 rolls', status: 'Ready to dispatch', age: 'Not dispatched' },
+  { reference: 'TR-0063', fromProject: 'Gilgal 2', toProject: 'Church', material: 'Timber', quantity: '32 pieces', status: 'Awaiting receipt', age: '3 days overdue' },
+  { reference: 'TR-0065', fromProject: 'SNEP HQ', toProject: 'Gilgal 3', material: 'PVC conduit', quantity: '40 lengths', status: 'In transit', age: '4 hours' },
+  { reference: 'TR-0066', fromProject: 'Church', toProject: 'Gilgal 2', material: 'Binding wire', quantity: '6 rolls', status: 'Ready to dispatch', age: 'Not dispatched' },
 ]
 
 const siteTeamMaterialRecords: readonly SiteTeamMaterialRecord[] = [
-  { material: 'Y12 reinforcement steel', project: 'Gilgal 2', quantity: '38 lengths', holder: 'Gilgal Sites Foreman' },
+  { material: 'Y12 reinforcement steel', project: 'Gilgal 3', quantity: '38 lengths', holder: 'Gilgal Sites Foreman' },
   { material: 'Bamburi cement', project: 'SNEP HQ', quantity: '124 bags', holder: 'Church & SNEP Foreman' },
   { material: 'Marine plywood 18mm', project: 'Church', quantity: '18 sheets', holder: 'Church & SNEP Foreman' },
 ]
@@ -241,12 +242,12 @@ const cementMaterialTrace = {
       ],
     },
     {
-      id: 'gilgal-1', project: 'Gilgal 1', purpose: 'Roof ring-beam concrete', requested: 340, released: 320, used: 320, remaining: 0,
+      id: 'gilgal-2', project: 'Gilgal 2', purpose: 'Roof ring-beam concrete', requested: 340, released: 320, used: 320, remaining: 0,
       steps: [
         { title: 'Foreman requested cement', actor: 'Samuel Kariuki', role: 'Foreman', quantity: '340 bags requested', date: '17 Jul, 07:48', reference: 'MR-0208' },
         { title: 'Engineer checked the quantity', actor: 'Gilgal Sites Engineer', role: 'Technical check', quantity: '320 bags confirmed', date: '17 Jul, 08:35', reference: 'TEC-0103', note: 'The technical check reduced the request by 20 bags.' },
         { title: 'Supervisor approved release', actor: 'Gilgal Sites Supervisor', role: 'Supervisor', quantity: '320 bags approved', date: '17 Jul, 09:02', reference: 'APR-0362' },
-        { title: 'Central store dispatched the bags', actor: 'Lucy Njeri', role: 'Storekeeper', quantity: '320 bags sent directly to the Gilgal 1 team', date: '17 Jul, 10:18', reference: 'MIV-0070' },
+        { title: 'Central store dispatched the bags', actor: 'Lucy Njeri', role: 'Storekeeper', quantity: '320 bags sent directly to the Gilgal 2 team', date: '17 Jul, 10:18', reference: 'MIV-0070' },
         { title: 'Foreman counted and confirmed', actor: 'Samuel Kariuki', role: 'Foreman', quantity: '320 bags received', date: '17 Jul, 12:06', reference: 'ACK-0070' },
         { title: 'Use was recorded', actor: 'Samuel Kariuki', role: 'Foreman', quantity: '320 used · 0 remaining', date: '24 Jul, 17:12', reference: 'USE-0149' },
       ],
@@ -266,10 +267,10 @@ const cementMaterialTrace = {
 } as const
 
 const requisitions = [
-  { id: 'MR-0248', item: 'Y12 reinforcement steel', qty: '240 lengths', site: 'Gilgal 2', requester: 'Samuel K.', date: 'Today, 09:42', value: 'KES 412,800', status: 'Needs approval', risk: 'Price +8.4%' },
+  { id: 'MR-0248', item: 'Y12 reinforcement steel', qty: '240 lengths', site: 'Gilgal 3', requester: 'Samuel K.', date: 'Today, 09:42', value: 'KES 412,800', status: 'Needs approval', risk: 'Price +8.4%' },
   { id: 'MR-0247', item: 'Bamburi cement', qty: '180 bags', site: 'SNEP HQ', requester: 'Daniel O.', date: 'Today, 08:16', value: 'KES 171,000', status: 'Needs approval', risk: '' },
   { id: 'MR-0246', item: 'Machine-cut stones', qty: '1,200 pcs', site: 'Church', requester: 'John M.', date: 'Yesterday, 16:25', value: 'KES 84,000', status: 'PO created', risk: '' },
-  { id: 'MR-0245', item: 'River sand', qty: '18 tonnes', site: 'Gilgal 1', requester: 'Joseph N.', date: 'Yesterday, 11:40', value: 'KES 63,000', status: 'Approved', risk: '' },
+  { id: 'MR-0245', item: 'River sand', qty: '18 tonnes', site: 'Gilgal 2', requester: 'Joseph N.', date: 'Yesterday, 11:40', value: 'KES 63,000', status: 'Approved', risk: '' },
   { id: 'MR-0244', item: 'PVC conduit 25mm', qty: '150 lengths', site: 'SNEP HQ', requester: 'Daniel O.', date: '23 Jul, 14:05', value: 'KES 33,750', status: 'Fulfilled', risk: '' },
 ]
 
@@ -452,7 +453,6 @@ const liveRoleNavigation: Record<ConstructionRole, readonly { to: string; label:
 function Shell({ authenticatedUser, onLogout, onSwitchRole }: ShellProps = {}) {
   const [navOpen, setNavOpen] = useState(false)
   const [site, setSite] = useState('All projects')
-  const [searchOpen, setSearchOpen] = useState(false)
   const [roleMenuOpen, setRoleMenuOpen] = useState(false)
   const [switchingRole, setSwitchingRole] = useState<ConstructionRole | null>(null)
   const [roleSwitchError, setRoleSwitchError] = useState<string | null>(null)
@@ -603,7 +603,6 @@ function Shell({ authenticatedUser, onLogout, onSwitchRole }: ShellProps = {}) {
         <div className="page-title"><h1>{title}</h1><p>{subtitle}</p></div>
         <div className="top-actions">
           <label className={`site-picker ${profile.projects ? 'assigned-site' : ''}`}><Icon name="building" size={16}/><select value={site} onChange={e => setSite(e.target.value)}><option>{aggregateSiteLabel}</option>{liveMode ? authenticatedUser?.projects.map(project => <option key={project.id}>{project.name}</option>) : projects.filter(project => availableProjects.includes(project.name as ProjectName)).map(project => <option key={project.name}>{project.name}</option>)}</select><span>{profile.projects ? <Icon name="lock" size={12}/> : '⌄'}</span></label>
-          {!liveMode && <button className="icon-button" onClick={() => setSearchOpen(!searchOpen)} aria-label="Search"><Icon name="search"/></button>}
           {!liveMode && <button className="icon-button notification" aria-label="Notifications"><Icon name="bell"/><i>5</i></button>}
           <div className="role-switcher">
             <button className="profile" onClick={() => setRoleMenuOpen(!roleMenuOpen)} aria-expanded={roleMenuOpen}>
@@ -647,7 +646,6 @@ function Shell({ authenticatedUser, onLogout, onSwitchRole }: ShellProps = {}) {
           </div>
         </div>
       </header>
-      {searchOpen && !liveMode && <div className="search-panel"><Icon name="search"/><input autoFocus placeholder="Search requisitions, suppliers, sites or payments…"/><kbd>ESC</kbd></div>}
       <div className="page-content">
         <Routes>
           {liveMode && <>
@@ -761,7 +759,7 @@ function Dashboard() {
         </article>
         <article>
           <div className="simple-action-icon warning"><Icon name="wallet" size={18}/></div>
-          <div><h3>Gilgal 2 is using money faster than planned</h3><p>Work done 74% · Money used 79%</p></div>
+          <div><h3>Gilgal 3 is using money faster than planned</h3><p>Work done 74% · Money used 79%</p></div>
           <Button variant="secondary" onClick={() => navigate('/finance')}>See money</Button>
         </article>
       </div>
@@ -783,8 +781,8 @@ function Dashboard() {
       <div className="panel">
         <PanelHead title="Inside the stores" subtitle="Still held by the storekeeper" action="See all stores" onClick={() => navigate('/inventory')}/>
         <div className="ceo-stock-preview">
-          <article><div><strong>Gilgal 1 store</strong><span>River sand</span></div><b>42.5 tonnes</b><Status tone="accepted">Enough</Status></article>
-          <article><div><strong>Gilgal 2 store</strong><span>Y12 steel</span></div><b>186 lengths</b><Status tone="at-risk">Refill soon</Status></article>
+          <article><div><strong>Gilgal 2 store</strong><span>River sand</span></div><b>42.5 tonnes</b><Status tone="accepted">Enough</Status></article>
+          <article><div><strong>Gilgal 3 store</strong><span>Y12 steel</span></div><b>186 lengths</b><Status tone="at-risk">Refill soon</Status></article>
           <article><div><strong>SNEP HQ store</strong><span>Cement · 1,248 bags</span></div><b>PVC · 64 lengths</b><Status tone="at-risk">1 low</Status></article>
           <article><div><strong>Church store</strong><span>Marine plywood</span></div><b>38 sheets</b><Status tone="at-risk">Watch</Status></article>
         </div>
@@ -792,8 +790,8 @@ function Dashboard() {
       <div className="panel">
         <PanelHead title="Materials moving" subtitle="Dispatched from one store to another" action="See all movement" onClick={() => navigate('/inventory')}/>
         <div className="ceo-movement-preview">
-          <article><i><Icon name="truck" size={18}/></i><div><strong>Timber · 32 pieces</strong><span>Gilgal 1 store → Church store</span></div><Status tone="at-risk">Arrival late</Status></article>
-          <article><i><Icon name="swap" size={18}/></i><div><strong>PVC conduit · 40 lengths</strong><span>SNEP HQ store → Gilgal 2 store</span></div><Status tone="issued">On the way</Status></article>
+          <article><i><Icon name="truck" size={18}/></i><div><strong>Timber · 32 pieces</strong><span>Gilgal 2 store → Church store</span></div><Status tone="at-risk">Arrival late</Status></article>
+          <article><i><Icon name="swap" size={18}/></i><div><strong>PVC conduit · 40 lengths</strong><span>SNEP HQ store → Gilgal 3 store</span></div><Status tone="issued">On the way</Status></article>
         </div>
       </div>
     </section>
@@ -804,14 +802,14 @@ function Dashboard() {
 function SupervisorDashboard({ projectScope }: { projectScope: ProjectName[] }) {
   const navigate = useNavigate()
   const milestones = [
-    { project: 'Gilgal 1', code: 'G1', progress: 68, money: 65, next: 'Roof ring beam', date: '31 Jul', tone: '#1c5d52', status: 'On schedule' },
-    { project: 'Gilgal 2', code: 'G2', progress: 74, money: 79, next: 'First-floor slab', date: '28 Jul', tone: '#bc6a35', status: 'Watch budget' },
+    { project: 'Gilgal 2', code: 'G2', progress: 68, money: 65, next: 'Roof ring beam', date: '31 Jul', tone: '#1c5d52', status: 'On schedule' },
+    { project: 'Gilgal 3', code: 'G3', progress: 74, money: 79, next: 'First-floor slab', date: '28 Jul', tone: '#bc6a35', status: 'Watch budget' },
     { project: 'SNEP HQ', code: 'HQ', progress: 39, money: 29, next: 'Ground floor walls', date: '04 Aug', tone: '#3d5b86', status: 'On schedule' },
     { project: 'Church', code: 'CH', progress: 31, money: 32, next: 'Column casting', date: '02 Aug', tone: '#765b8e', status: 'On schedule' },
   ].filter(project => projectScope.includes(project.project as ProjectName))
   const priorities = [
-    { project: 'Gilgal 1', kind: 'PROGRAMME', title: 'Confirm roof ring-beam readiness', copy: 'The next milestone is due on 31 July.', action: 'Open project', route: '/projects' },
-    { project: 'Gilgal 2', kind: 'BUDGET', title: 'Check the remaining structural budget', copy: 'Approved orders are growing faster than site progress.', action: 'See budget position', route: '/finance' },
+    { project: 'Gilgal 2', kind: 'PROGRAMME', title: 'Confirm roof ring-beam readiness', copy: 'The next milestone is due on 31 July.', action: 'Open project', route: '/projects' },
+    { project: 'Gilgal 3', kind: 'BUDGET', title: 'Check the remaining structural budget', copy: 'Approved orders are growing faster than site progress.', action: 'See budget position', route: '/finance' },
     { project: 'SNEP HQ', kind: 'DELIVERY', title: 'Decide on a short cement delivery', copy: '40 bags were not delivered; the storekeeper recorded the evidence.', action: 'Review the issue', route: '/inventory' },
     { project: 'Church', kind: 'APPROVAL', title: 'Review the column-work request', copy: 'The site needs approval before the next activity is committed.', action: 'Review request', route: '/procurement' },
   ].filter(item => projectScope.includes(item.project as ProjectName))
@@ -858,22 +856,22 @@ function SupervisorDashboard({ projectScope }: { projectScope: ProjectName[] }) 
 function EngineerDashboard({ profile, projectScope }: { profile: DemoProfile; projectScope: ProjectName[] }) {
   const navigate = useNavigate()
   const sites = [
-    ['Gilgal 1','68%','67%','Roof ring beam','On track'],
-    ['Gilgal 2','74%','71%','First-floor slab','Verification due'],
+    ['Gilgal 2','68%','67%','Roof ring beam','On track'],
+    ['Gilgal 3','74%','71%','First-floor slab','Verification due'],
     ['SNEP HQ','39%','39%','Ground-floor masonry','On track'],
     ['Church','31%','28%','Column casting','Inspection due'],
   ].filter(site => projectScope.includes(site[0] as ProjectName))
   const actions = [
-    ['Gilgal 1','PROGRESS','Verify roof ring-beam completion','The field report is ready for measurement.','/projects'],
-    ['Gilgal 2','BEFORE CONCRETE','Inspect first-floor slab reinforcement','Pour is planned for Monday at 07:00.','/quality'],
+    ['Gilgal 2','PROGRESS','Verify roof ring-beam completion','The field report is ready for measurement.','/projects'],
+    ['Gilgal 3','BEFORE CONCRETE','Inspect first-floor slab reinforcement','Pour is planned for Monday at 07:00.','/quality'],
     ['Church','PROGRESS','Verify column-work progress','Reported progress is ahead of the last verified value.','/projects'],
     ['SNEP HQ','DRAWING','Issue revised electrical layout','Revision C is reviewed and ready for construction.','/drawings'],
   ].filter(action => projectScope.includes(action[0] as ProjectName))
   const inspections = [
-    ['INS-0184','Gilgal 1','Roof ring-beam formwork','Passed','Today, 08:20'],
+    ['INS-0184','Gilgal 2','Roof ring-beam formwork','Passed','Today, 08:20'],
     ['INS-0183','SNEP HQ','Blockwork line and level','Passed with note','Yesterday, 15:10'],
     ['INS-0182','Church','Column starter bars','Correction required','Yesterday, 11:35'],
-    ['INS-0181','Gilgal 2','Slab reinforcement','Verification due','Yesterday, 09:10'],
+    ['INS-0181','Gilgal 3','Slab reinforcement','Verification due','Yesterday, 09:10'],
   ].filter(row => projectScope.includes(row[1] as ProjectName))
   const scope = projectScopeLabel(projectScope)
   return <>
@@ -910,9 +908,9 @@ function ForemanDashboard({ profile, projectScope }: { profile: DemoProfile; pro
   const isGilgalTeam = profile.id === 'foreman-gilgal'
   const workPlan = isGilgalTeam
     ? [
-      { project: 'Gilgal 2', task: 'Fix slab reinforcement', crew: '9 people', progress: '65%', status: 'In progress' },
-      { project: 'Gilgal 1', task: 'Complete roof ring-beam formwork', crew: '6 people', progress: '40%', status: 'In progress' },
-      { project: 'Gilgal 2', task: 'Place electrical conduits', crew: '4 people', progress: '0%', status: 'Starts 13:00' },
+      { project: 'Gilgal 3', task: 'Fix slab reinforcement', crew: '9 people', progress: '65%', status: 'In progress' },
+      { project: 'Gilgal 2', task: 'Complete roof ring-beam formwork', crew: '6 people', progress: '40%', status: 'In progress' },
+      { project: 'Gilgal 3', task: 'Place electrical conduits', crew: '4 people', progress: '0%', status: 'Starts 13:00' },
     ]
     : [
       { project: 'Church', task: 'Continue column work', crew: '8 people', progress: '55%', status: 'In progress' },
@@ -977,10 +975,10 @@ function StorekeeperDashboard() {
     <section className="metrics-grid role-metrics"><Metric label="Expected deliveries" value="3 today" note="1 delivery already late" icon="truck" tone="orange"/><Metric label="Ready to issue" value="2 vouchers" note="Both have approved requests" icon="boxes" tone="green"/><Metric label="Transfers in motion" value="3" note="1 inbound confirmation overdue" icon="swap" tone="navy"/><Metric label="Stock attention" value="7 items" note="2 critical for this week’s work" icon="alert" tone="red"/></section>
     <section className="storekeeper-grid">
       <div className="panel store-actions"><PanelHead title="Store actions in order" subtitle="Complete the physical check before recording the system event"/>
-        <div className="store-action-list"><article className="urgent"><i>1</i><div><span>DELIVERY · SNEP HQ</span><h3>Count 180 cement bags from Bamburi</h3><p>PO-0188 · Driver arrived at 09:35</p></div><button onClick={()=>navigate('/receiving')}>Receive & inspect</button></article><article><i>2</i><div><span>MATERIAL ISSUE · GILGAL 2</span><h3>Prepare 80 Y12 steel lengths</h3><p>MR-0239 approved · Foreman Samuel Kariuki</p></div><button onClick={()=>navigate('/issues')}>Create voucher</button></article><article><i>3</i><div><span>INBOUND TRANSFER · CHURCH</span><h3>Confirm timber received from Gilgal 1</h3><p>TR-0063 · Dispatch recorded 3 days ago</p></div><button onClick={()=>navigate('/transfers')}>Count & confirm</button></article></div>
+        <div className="store-action-list"><article className="urgent"><i>1</i><div><span>DELIVERY · SNEP HQ</span><h3>Count 180 cement bags from Bamburi</h3><p>PO-0188 · Driver arrived at 09:35</p></div><button onClick={()=>navigate('/receiving')}>Receive & inspect</button></article><article><i>2</i><div><span>MATERIAL ISSUE · GILGAL 2</span><h3>Prepare 80 Y12 steel lengths</h3><p>MR-0239 approved · Foreman Samuel Kariuki</p></div><button onClick={()=>navigate('/issues')}>Create voucher</button></article><article><i>3</i><div><span>INBOUND TRANSFER · CHURCH</span><h3>Confirm timber received from Gilgal 2</h3><p>TR-0063 · Dispatch recorded 3 days ago</p></div><button onClick={()=>navigate('/transfers')}>Count & confirm</button></article></div>
       </div>
-      <aside className="panel store-integrity"><PanelHead title="Custody controls" subtitle="Today’s handover position"/><div className="integrity-list"><div><Icon name="check" size={15}/><span><b>All GRNs independently counted</b><small>Receiver differs from requester</small></span></div><div><Icon name="clock" size={15}/><span><b>1 foreman handover pending</b><small>MIV-0087 · issued at 09:12</small></span></div><div><Icon name="alert" size={15}/><span><b>1 unresolved count variance</b><small>Gilgal 2 steel · KES 62,400</small></span></div></div></aside>
-      <div className="panel store-stock-view"><PanelHead title="Stock position by store" subtitle="Value and items needing replenishment" action="Open stock ledger" onClick={()=>navigate('/inventory')}/><div className="store-site-grid">{[['Gilgal 1','KES 3.18M','2 low items','Count current'],['Gilgal 2','KES 2.74M','3 low items','1 variance'],['SNEP HQ','KES 4.86M','1 low item','Count current'],['Church','KES 2.06M','1 low item','Count due']].map(row=><div key={row[0]}><span>{row[0]}</span><strong>{row[1]}</strong><small>{row[2]}</small><Status tone={row[3].includes('variance')||row[3].includes('due')?'at-risk':'accepted'}>{row[3]}</Status></div>)}</div></div>
+      <aside className="panel store-integrity"><PanelHead title="Custody controls" subtitle="Today’s handover position"/><div className="integrity-list"><div><Icon name="check" size={15}/><span><b>All GRNs independently counted</b><small>Receiver differs from requester</small></span></div><div><Icon name="clock" size={15}/><span><b>1 foreman handover pending</b><small>MIV-0087 · issued at 09:12</small></span></div><div><Icon name="alert" size={15}/><span><b>1 unresolved count variance</b><small>Gilgal 3 steel · KES 62,400</small></span></div></div></aside>
+      <div className="panel store-stock-view"><PanelHead title="Stock position by store" subtitle="Value and items needing replenishment" action="Open stock ledger" onClick={()=>navigate('/inventory')}/><div className="store-site-grid">{[['Gilgal 2','KES 3.18M','2 low items','Count current'],['Gilgal 3','KES 2.74M','3 low items','1 variance'],['SNEP HQ','KES 4.86M','1 low item','Count current'],['Church','KES 2.06M','1 low item','Count due']].map(row=><div key={row[0]}><span>{row[0]}</span><strong>{row[1]}</strong><small>{row[2]}</small><Status tone={row[3].includes('variance')||row[3].includes('due')?'at-risk':'accepted'}>{row[3]}</Status></div>)}</div></div>
     </section>
   </>
 }
@@ -991,7 +989,7 @@ function ProcurementOfficerDashboard() {
     <section className="role-welcome procurement-welcome"><div><span>PROCUREMENT OFFICER WORKSPACE</span><h2>Good morning, Paul.</h2><p>Four approved requests are ready for sourcing; two need comparative quotations.</p></div><Button icon="cart" onClick={()=>navigate('/procurement')}>Open sourcing queue</Button></section>
     <section className="procurement-guardrail"><Icon name="shield" size={17}/><p><b>You source and prepare; another role approves.</b> Requested items and quantities remain locked. You cannot approve your own PO, receive deliveries, match invoices or execute payments.</p></section>
     <section className="metrics-grid role-metrics"><Metric label="Ready to source" value="4 requests" note="KES 730,550 estimated value" icon="cart" tone="orange"/><Metric label="Quotes outstanding" value="5 suppliers" note="2 comparisons due today" icon="clock" tone="navy"/><Metric label="POs awaiting approval" value="2 drafts" note="KES 496,800 combined" icon="file" tone="green"/><Metric label="Price exceptions" value="1 flag" note="Steel is 8.4% above reference" icon="alert" tone="red"/></section>
-    <section className="procurement-role-grid"><div className="panel sourcing-priorities"><PanelHead title="Approved requests ready to source" subtitle="Demand is locked to the approved requisition" action="Open all requests" onClick={()=>navigate('/procurement')}/><div className="sourcing-list">{[['MR-0245','River sand','18 tonnes','Gilgal 1','KES 63,000','Start sourcing'],['MR-0247','Bamburi cement','180 bags','SNEP HQ','KES 171,000','Compare quotes'],['MR-0248','Y12 reinforcement steel','240 lengths','Gilgal 2','KES 412,800','Price flagged'],['MR-0246','Machine-cut stones','1,200 pcs','Church','KES 84,000','Start sourcing']].map(row=><article key={row[0]}><b className="mono">{row[0]}</b><span><strong>{row[1]}</strong><small>{row[2]} · {row[3]}</small></span><b>{row[4]}</b><Status tone={row[5]==='Price flagged'?'at-risk':row[5]==='Compare quotes'?'issued':'approved'}>{row[5]}</Status><button onClick={()=>navigate('/procurement')}><Icon name="chevron" size={15}/></button></article>)}</div></div><aside className="panel quote-deadlines"><PanelHead title="Quotation deadlines" subtitle="Competitive bids above threshold"/><div>{[['Today, 14:00','MR-0248 · Steel','2 of 3 quotes'],['Today, 16:30','MR-0247 · Cement','3 of 3 quotes'],['Mon, 10:00','MR-0245 · River sand','1 of 3 quotes']].map(row=><article key={row[1]}><time>{row[0]}</time><span><b>{row[1]}</b><small>{row[2]}</small></span><Status tone={row[2].startsWith('3')?'accepted':'at-risk'}>{row[2].startsWith('3')?'Ready':'Waiting'}</Status></article>)}</div></aside><div className="panel delivery-followup"><PanelHead title="Delivery follow-up" subtitle="Issued orders that need supplier action" action="Purchase orders" onClick={()=>navigate('/purchase-orders')}/><div className="delivery-follow-list">{[['PO-0188','Bamburi Cement PLC','SNEP HQ','Partial: 140 / 180 bags','Resolve shortfall'],['PO-0187','Kaydee Hardware','Church','Due today at 15:00','On schedule'],['PO-0186','Mavoko Aggregates','Gilgal 1','Supplier acknowledged','Due Monday']].map(row=><div key={row[0]}><b className="mono">{row[0]}</b><span><strong>{row[1]}</strong><small>{row[2]} · {row[3]}</small></span><Status tone={row[4]==='Resolve shortfall'?'at-risk':'accepted'}>{row[4]}</Status></div>)}</div></div></section>
+    <section className="procurement-role-grid"><div className="panel sourcing-priorities"><PanelHead title="Approved requests ready to source" subtitle="Demand is locked to the approved requisition" action="Open all requests" onClick={()=>navigate('/procurement')}/><div className="sourcing-list">{[['MR-0245','River sand','18 tonnes','Gilgal 2','KES 63,000','Start sourcing'],['MR-0247','Bamburi cement','180 bags','SNEP HQ','KES 171,000','Compare quotes'],['MR-0248','Y12 reinforcement steel','240 lengths','Gilgal 3','KES 412,800','Price flagged'],['MR-0246','Machine-cut stones','1,200 pcs','Church','KES 84,000','Start sourcing']].map(row=><article key={row[0]}><b className="mono">{row[0]}</b><span><strong>{row[1]}</strong><small>{row[2]} · {row[3]}</small></span><b>{row[4]}</b><Status tone={row[5]==='Price flagged'?'at-risk':row[5]==='Compare quotes'?'issued':'approved'}>{row[5]}</Status><button onClick={()=>navigate('/procurement')}><Icon name="chevron" size={15}/></button></article>)}</div></div><aside className="panel quote-deadlines"><PanelHead title="Quotation deadlines" subtitle="Competitive bids above threshold"/><div>{[['Today, 14:00','MR-0248 · Steel','2 of 3 quotes'],['Today, 16:30','MR-0247 · Cement','3 of 3 quotes'],['Mon, 10:00','MR-0245 · River sand','1 of 3 quotes']].map(row=><article key={row[1]}><time>{row[0]}</time><span><b>{row[1]}</b><small>{row[2]}</small></span><Status tone={row[2].startsWith('3')?'accepted':'at-risk'}>{row[2].startsWith('3')?'Ready':'Waiting'}</Status></article>)}</div></aside><div className="panel delivery-followup"><PanelHead title="Delivery follow-up" subtitle="Issued orders that need supplier action" action="Purchase orders" onClick={()=>navigate('/purchase-orders')}/><div className="delivery-follow-list">{[['PO-0188','Bamburi Cement PLC','SNEP HQ','Partial: 140 / 180 bags','Resolve shortfall'],['PO-0187','Kaydee Hardware','Church','Due today at 15:00','On schedule'],['PO-0186','Mavoko Aggregates','Gilgal 2','Supplier acknowledged','Due Monday']].map(row=><div key={row[0]}><b className="mono">{row[0]}</b><span><strong>{row[1]}</strong><small>{row[2]} · {row[3]}</small></span><Status tone={row[4]==='Resolve shortfall'?'at-risk':'accepted'}>{row[4]}</Status></div>)}</div></div></section>
   </>
 }
 
@@ -1001,7 +999,7 @@ function AuditorDashboard() {
     <section className="role-welcome auditor-welcome"><div><span>AUDITOR · READ-ONLY</span><h2>Good morning, Mary.</h2><p>The audit chain is intact. Five exceptions need independent review.</p></div><Button icon="download" onClick={()=>navigate('/audit-reports')}>Export audit pack</Button></section>
     <section className="auditor-guardrail"><Icon name="eye" size={17}/><p><b>Independent read-only oversight.</b> You can search, trace, inspect evidence and export. You cannot change a source record, resolve an exception by editing it, or perform any operational transaction.</p></section>
     <section className="metrics-grid role-metrics"><Metric label="Open exceptions" value="5 findings" note="2 high · 2 medium · 1 low" icon="alert" tone="red"/><Metric label="Value exposed" value="KES 1.08M" note="Transactions under review" icon="wallet" tone="orange"/><Metric label="Control compliance" value="94%" note="Across the last 30 days" icon="shield" tone="green"/><Metric label="Audit chain" value="128,492" note="Consecutive verified events" icon="lock" tone="navy"/></section>
-    <section className="auditor-grid"><div className="panel audit-risk-list"><PanelHead title="Highest-risk exceptions" subtitle="Prioritised by financial exposure and control failure" action="Review evidence" onClick={()=>navigate('/audit-samples')}/><div>{[['High','AUD-0094','Steel price 12.6% above reference','Gilgal 2 · KES 412,800'],['High','AUD-0091','Duplicate invoice reference detected','SNEP HQ · KES 384,000'],['Medium','AUD-0088','Transfer receipt overdue by 3 days','Gilgal 1 → Church · KES 156,000'],['Medium','AUD-0084','Repeated round-number petty cash','Gilgal 2 · KES 50,000']].map(row=><article key={row[1]}><span className={`severity ${row[0].toLowerCase()}`}>{row[0]}</span><b className="mono">{row[1]}</b><div><strong>{row[2]}</strong><small>{row[3]}</small></div><button onClick={()=>navigate('/audit-samples')}>Trace <Icon name="arrow" size={13}/></button></article>)}</div></div><aside className="panel audit-integrity-card"><PanelHead title="Evidence integrity" subtitle="Cryptographic chain status"/><div className="integrity-seal"><i><Icon name="shield" size={27}/></i><strong>Verified</strong><span>No breaks across 128,492 events</span></div><div className="integrity-facts"><span>Last verification <b>Today, 10:45</b></span><span>Records superseded <b>18</b></span><span>Records deleted <b>0</b></span><span>Attachments hashed <b>100%</b></span></div></aside><div className="panel audit-project-map"><PanelHead title="Exceptions by project" subtitle="Open findings and financially exposed value"/><div className="audit-project-list">{[['Gilgal 1','1 finding','KES 156,000','Low'],['Gilgal 2','3 findings','KES 512,800','High'],['SNEP HQ','1 finding','KES 384,000','High'],['Church','0 findings','KES 0','Clear']].map(row=><div key={row[0]}><strong>{row[0]}</strong><span>{row[1]}</span><b>{row[2]}</b><Status tone={row[3]==='High'?'at-risk':row[3]==='Low'?'issued':'accepted'}>{row[3]}</Status></div>)}</div></div></section>
+    <section className="auditor-grid"><div className="panel audit-risk-list"><PanelHead title="Highest-risk exceptions" subtitle="Prioritised by financial exposure and control failure" action="Review evidence" onClick={()=>navigate('/audit-samples')}/><div>{[['High','AUD-0094','Steel price 12.6% above reference','Gilgal 3 · KES 412,800'],['High','AUD-0091','Duplicate invoice reference detected','SNEP HQ · KES 384,000'],['Medium','AUD-0088','Transfer receipt overdue by 3 days','Gilgal 2 → Church · KES 156,000'],['Medium','AUD-0084','Repeated round-number petty cash','Gilgal 3 · KES 50,000']].map(row=><article key={row[1]}><span className={`severity ${row[0].toLowerCase()}`}>{row[0]}</span><b className="mono">{row[1]}</b><div><strong>{row[2]}</strong><small>{row[3]}</small></div><button onClick={()=>navigate('/audit-samples')}>Trace <Icon name="arrow" size={13}/></button></article>)}</div></div><aside className="panel audit-integrity-card"><PanelHead title="Evidence integrity" subtitle="Cryptographic chain status"/><div className="integrity-seal"><i><Icon name="shield" size={27}/></i><strong>Verified</strong><span>No breaks across 128,492 events</span></div><div className="integrity-facts"><span>Last verification <b>Today, 10:45</b></span><span>Records superseded <b>18</b></span><span>Records deleted <b>0</b></span><span>Attachments hashed <b>100%</b></span></div></aside><div className="panel audit-project-map"><PanelHead title="Exceptions by project" subtitle="Open findings and financially exposed value"/><div className="audit-project-list">{[['Gilgal 2','1 finding','KES 156,000','Low'],['Gilgal 3','3 findings','KES 512,800','High'],['SNEP HQ','1 finding','KES 384,000','High'],['Church','0 findings','KES 0','Clear']].map(row=><div key={row[0]}><strong>{row[0]}</strong><span>{row[1]}</span><b>{row[2]}</b><Status tone={row[3]==='High'?'at-risk':row[3]==='Low'?'issued':'accepted'}>{row[3]}</Status></div>)}</div></div></section>
   </>
 }
 
@@ -1018,7 +1016,7 @@ function CashierDashboard() {
   }
   const readyPayments: PaymentCandidate[] = [
     { reference: 'PAY-0421', supplier: 'Coastline Electrical Ltd', invoice: 'INV-2981', project: 'Church', amount: '412,800', method: 'Bank transfer' },
-    { reference: 'PAY-0420', supplier: 'Mavoko Aggregates', invoice: 'INV-1072', project: 'Gilgal 1', amount: '63,000', method: 'M-Pesa' },
+    { reference: 'PAY-0420', supplier: 'Mavoko Aggregates', invoice: 'INV-1072', project: 'Gilgal 2', amount: '63,000', method: 'M-Pesa' },
     { reference: 'PAY-0419', supplier: 'Musa Electrical Works', invoice: 'INV-2044', project: 'SNEP HQ', amount: '179,000', method: 'Bank transfer' },
   ]
   const unpaidPayments = readyPayments.filter(payment => !paid.includes(payment.reference))
@@ -1089,8 +1087,8 @@ function PageIntro({ title, copy, action, icon, onAction }: {title:string;copy:s
 
 function CeoProjects({ visibleProjects }: { visibleProjects: typeof projects }) {
   const materialPosition: Record<ProjectName, string> = {
-    'Gilgal 1': 'Enough in store',
-    'Gilgal 2': 'Steel low in store',
+    'Gilgal 2': 'Enough in store',
+    'Gilgal 3': 'Steel low in store',
     'SNEP HQ': 'PVC low in store',
     Church: 'Plywood needs watching',
   }
@@ -1098,7 +1096,7 @@ function CeoProjects({ visibleProjects }: { visibleProjects: typeof projects }) 
     <section className="ceo-project-grid">
       {visibleProjects.map(project => {
         const moneyUsed = Math.round(project.spent / project.budget * 100)
-        const needsAttention = project.name === 'Gilgal 2'
+        const needsAttention = project.name === 'Gilgal 3'
         const materials = materialPosition[project.name as ProjectName]
         return <article className={`panel ceo-project-card ${needsAttention ? 'attention' : ''}`} key={project.name}>
           <header>
@@ -1170,7 +1168,7 @@ function Procurement({readOnly=false,projectScope=[...allProjectNames]}:{readOnl
     {!readOnly&&<section className="role-guardrail"><Icon name="shield" size={17}/><p><b>Approval only:</b> you may approve or return requests raised by a Foreman. You cannot create and approve the same requisition.</p></section>}
     <div className="tabs">{['Requisitions','Purchase orders','Goods received','Suppliers'].map((t,i)=><button className={tab===t?'active':''} onClick={()=>setTab(t)} key={t}>{t}{i<3&&<span>{[12,7,4][i]}</span>}</button>)}</div>
     <section className="panel table-panel">
-      <div className="table-tools"><div className="inline-search"><Icon name="search"/><input placeholder={`Search ${tab.toLowerCase()}…`}/></div><button><Icon name="filter"/>Filters <b>2</b></button><button><Icon name="download"/>Export</button></div>
+      <div className="table-tools"><button><Icon name="download"/>Export</button></div>
       {tab==='Requisitions' ? <div className="data-table procurement-table">
         <div className="data-row data-head"><span>REFERENCE</span><span>DESCRIPTION</span><span>SITE</span><span>REQUESTED BY</span><span>EST. VALUE</span><span>STATUS</span><span></span></div>
         {visibleRequisitions.map(r=><div className="data-row" key={r.id}>
@@ -1188,8 +1186,8 @@ function Procurement({readOnly=false,projectScope=[...allProjectNames]}:{readOnl
 
 function ModuleTable({tab,projectScope}:{tab:string;projectScope:ProjectName[]}) {
   const rows:Record<string,string[][]>={
-    'Purchase orders':[['PO-0189','Apex Steel Ltd','Gilgal 2','KES 412,800','Awaiting approval'],['PO-0188','Bamburi Cement PLC','SNEP HQ','KES 171,000','Issued'],['PO-0187','Kaydee Hardware','Church','KES 84,000','Part delivered'],['PO-0186','Mavoko Aggregates','Gilgal 1','KES 63,000','Closed']],
-    'Goods received':[['GRN-0112','PO-0188 · Cement','SNEP HQ','140 / 180 bags','Discrepancy'],['GRN-0111','PO-0186 · River sand','Gilgal 1','18 / 18 tonnes','Accepted'],['GRN-0110','PO-0185 · Ballast','Church','12 / 12 tonnes','Accepted'],['GRN-0109','PO-0184 · Steel','Gilgal 2','180 / 180 lengths','Accepted']],
+    'Purchase orders':[['PO-0189','Apex Steel Ltd','Gilgal 3','KES 412,800','Awaiting approval'],['PO-0188','Bamburi Cement PLC','SNEP HQ','KES 171,000','Issued'],['PO-0187','Kaydee Hardware','Church','KES 84,000','Part delivered'],['PO-0186','Mavoko Aggregates','Gilgal 2','KES 63,000','Closed']],
+    'Goods received':[['GRN-0112','PO-0188 · Cement','SNEP HQ','140 / 180 bags','Discrepancy'],['GRN-0111','PO-0186 · River sand','Gilgal 2','18 / 18 tonnes','Accepted'],['GRN-0110','PO-0185 · Ballast','Church','12 / 12 tonnes','Accepted'],['GRN-0109','PO-0184 · Steel','Gilgal 3','180 / 180 lengths','Accepted']],
     'Suppliers':[['SUP-0031','Apex Steel Ltd','Steel & reinforcement','3 open orders','Approved'],['SUP-0014','Bamburi Cement PLC','Cement','2 open orders','Approved'],['SUP-0022','Kaydee Hardware','General hardware','1 open order','Review due'],['SUP-0008','Mavoko Aggregates','Aggregates','0 open orders','Approved']],
   }
   const visibleRows=tab==='Suppliers'?rows[tab]:rows[tab].filter(row=>projectScope.includes(row[2] as ProjectName))
@@ -1292,8 +1290,8 @@ function ForemanTools({ projectScope }: { projectScope: ProjectName[] }) {
 function EngineerProgress({ projectScope }: { projectScope: ProjectName[] }) {
   const [verified,setVerified]=useState<string[]>([])
   const [toast,setToast]=useState('')
-  const rows=[['Gilgal 1','Roof structure','68%','67%','18 Dec 2026','1%'],['Gilgal 2','First-floor slab','74%','71%','30 Sep 2026','3%'],['SNEP HQ','Ground-floor masonry','39%','39%','28 Feb 2027','0%'],['Church','Column works','31%','28%','15 Apr 2027','3%']].filter(row=>projectScope.includes(row[0] as ProjectName))
-  const milestones=[['28 Jul','Gilgal 2','Slab reinforcement approved','Inspection required'],['31 Jul','Gilgal 1','Roof ring beam complete','On schedule'],['02 Aug','Church','Ground-floor columns cast','Inspection required'],['04 Aug','SNEP HQ','Masonry reaches lintel level','On schedule']].filter(row=>projectScope.includes(row[1] as ProjectName))
+  const rows=[['Gilgal 2','Roof structure','68%','67%','18 Dec 2026','1%'],['Gilgal 3','First-floor slab','74%','71%','30 Sep 2026','3%'],['SNEP HQ','Ground-floor masonry','39%','39%','28 Feb 2027','0%'],['Church','Column works','31%','28%','15 Apr 2027','3%']].filter(row=>projectScope.includes(row[0] as ProjectName))
+  const milestones=[['28 Jul','Gilgal 3','Slab reinforcement approved','Inspection required'],['31 Jul','Gilgal 2','Roof ring beam complete','On schedule'],['02 Aug','Church','Ground-floor columns cast','Inspection required'],['04 Aug','SNEP HQ','Masonry reaches lintel level','On schedule']].filter(row=>projectScope.includes(row[1] as ProjectName))
   const verify=(name:string)=>{setVerified(current=>[...current,name]);setToast(`${name} progress verified and added to its technical history.`);setTimeout(()=>setToast(''),3000)}
   return <><PageIntro title="Progress & milestones" copy={`Technically verified progress for ${projectScopeLabel(projectScope)}.`} action="Export progress report" icon="download"/><section className="engineer-guardrail"><Icon name="eye" size={16}/><p><b>Only verified progress becomes official.</b> A Foreman may report completion, but the Engineer confirms workmanship and measured quantities before certification.</p></section><section className="panel engineer-progress-register"><PanelHead title="Project progress register" subtitle="Latest reporting cycle · 25 July 2026"/><div className="progress-register"><div className="progress-register-row progress-register-head"><span>PROJECT</span><span>CURRENT STAGE</span><span>REPORTED</span><span>VERIFIED</span><span>EXPECTED FINISH</span><span>GAP</span><span></span></div>{rows.map(row=><div className="progress-register-row" key={row[0]}><strong>{row[0]}</strong><span>{row[1]}</span><b>{row[2]}</b><b>{verified.includes(row[0])?row[2]:row[3]}</b><span>{row[4]}</span><Status tone={row[5]==='0%'?'accepted':'at-risk'}>{verified.includes(row[0])?'0%':row[5]}</Status>{verified.includes(row[0])?<Status>Verified</Status>:<button onClick={()=>verify(row[0])}>Verify <Icon name="arrow" size={12}/></button>}</div>)}</div></section><section className="milestone-board"><div className="panel"><PanelHead title="Milestones in the next 14 days" subtitle="Inspections gate the next construction stage"/><div className="milestone-list">{milestones.map(row=><div key={row[0]+row[1]}><time>{row[0]}</time><span><b>{row[2]}</b><small>{row[1]}</small></span><Status>{row[3]}</Status></div>)}</div></div></section>{toast&&<div className="toast"><Icon name="check"/>{toast}</div>}</>
 }
@@ -1301,8 +1299,8 @@ function EngineerProgress({ projectScope }: { projectScope: ProjectName[] }) {
 function EngineerQuality({ projectScope }: { projectScope: ProjectName[] }) {
   const [modal,setModal]=useState(false)
   const [toast,setToast]=useState('')
-  const inspections=[['INS-0186','Gilgal 2','Slab reinforcement before pour','Today, 14:00','Scheduled'],['INS-0185','Church','Column formwork and plumb','Today, 16:00','Scheduled'],['INS-0184','Gilgal 1','Roof ring-beam formwork','Today, 08:20','Passed'],['INS-0183','SNEP HQ','Blockwork line and level','24 Jul, 15:10','Passed with note']].filter(row=>projectScope.includes(row[1] as ProjectName))
-  const defects=[['High','Gilgal 2','Insufficient cover at beam B4','Due before slab pour'],['Medium','Church','Column C2 is 12mm out of plumb','Due 27 Jul'],['Low','SNEP HQ','Uneven mortar joint at grid F','Due 29 Jul'],['Low','Gilgal 1','Ring-beam shutter requires bracing','Due 30 Jul']].filter(row=>projectScope.includes(row[1] as ProjectName))
+  const inspections=[['INS-0186','Gilgal 3','Slab reinforcement before pour','Today, 14:00','Scheduled'],['INS-0185','Church','Column formwork and plumb','Today, 16:00','Scheduled'],['INS-0184','Gilgal 2','Roof ring-beam formwork','Today, 08:20','Passed'],['INS-0183','SNEP HQ','Blockwork line and level','24 Jul, 15:10','Passed with note']].filter(row=>projectScope.includes(row[1] as ProjectName))
+  const defects=[['High','Gilgal 3','Insufficient cover at beam B4','Due before slab pour'],['Medium','Church','Column C2 is 12mm out of plumb','Due 27 Jul'],['Low','SNEP HQ','Uneven mortar joint at grid F','Due 29 Jul'],['Low','Gilgal 2','Ring-beam shutter requires bracing','Due 30 Jul']].filter(row=>projectScope.includes(row[1] as ProjectName))
   return <><PageIntro title="Quality inspections" copy={`Technical hold points and corrective work for ${projectScopeLabel(projectScope)}.`} action="Record inspection" icon="plus" onAction={()=>setModal(true)}/><section className="quality-summary"><div><span>Due today</span><strong>{inspections.filter(row=>row[4]==='Scheduled').length}</strong><small>Before covered work</small></div><div><span>Open defects</span><strong>{defects.length}</strong><small>Prioritised by risk</small></div><div><span>Assigned projects</span><strong>{projectScope.length}</strong><small>Scope enforced</small></div><div><span>First-time pass rate</span><strong>86%</strong><small>Last 30 days</small></div></section><section className="quality-grid"><div className="panel"><PanelHead title="Inspection schedule" subtitle="Work cannot proceed past a hold point without a result"/><div className="inspection-register">{inspections.map(row=><div key={row[0]}><b className="mono">{row[0]}</b><span><strong>{row[2]}</strong><small>{row[1]} · {row[3]}</small></span><Status>{row[4]}</Status><button onClick={()=>setModal(true)}>{row[4]==='Scheduled'?'Inspect':'View'} <Icon name="arrow" size={12}/></button></div>)}</div></div><aside className="panel defect-register"><PanelHead title="Open corrective work" subtitle="Must be re-inspected before closure"/><div>{defects.map(row=><article key={row[2]}><span className={`severity ${row[0].toLowerCase()}`}>{row[0]}</span><div><b>{row[2]}</b><small>{row[1]} · {row[3]}</small></div><button><Icon name="chevron" size={14}/></button></article>)}</div></aside></section>{modal&&<InspectionModal projectScope={projectScope} onClose={()=>setModal(false)} onComplete={()=>{setModal(false);setToast('Inspection recorded with a permanent technical reference.')}}/>}{toast&&<div className="toast"><Icon name="check"/>{toast}</div>}</>
 }
 
@@ -1311,20 +1309,20 @@ function InspectionModal({projectScope,onClose,onComplete}:{projectScope:Project
 }
 
 function EngineerDrawings({ projectScope }: { projectScope: ProjectName[] }) {
-  const drawings=[['STR-204','First-floor slab reinforcement','B','Gilgal 2','Approved for construction','24 Jul 2026'],['ARC-118','Ground-floor general arrangement','C','SNEP HQ','Approved for construction','22 Jul 2026'],['STR-091','Ground-floor column details','A','Church','Under review','23 Jul 2026'],['ELE-044','Electrical conduit layout','C','SNEP HQ','Ready to issue','25 Jul 2026'],['STR-112','Roof ring-beam details','A','Gilgal 1','Approved for construction','23 Jul 2026']].filter(row=>projectScope.includes(row[3] as ProjectName))
-  const rfis=[['RFI-0038','Gilgal 2','Beam B4 / conduit clash','Engineer reply due today'],['RFI-0037','Church','Column C2 setting-out dimension','Answered'],['RFI-0035','SNEP HQ','Window schedule discrepancy','Architect reply due 27 Jul'],['RFI-0034','Gilgal 1','Ring-beam level confirmation','Answered']].filter(row=>projectScope.includes(row[1] as ProjectName))
+  const drawings=[['STR-204','First-floor slab reinforcement','B','Gilgal 3','Approved for construction','24 Jul 2026'],['ARC-118','Ground-floor general arrangement','C','SNEP HQ','Approved for construction','22 Jul 2026'],['STR-091','Ground-floor column details','A','Church','Under review','23 Jul 2026'],['ELE-044','Electrical conduit layout','C','SNEP HQ','Ready to issue','25 Jul 2026'],['STR-112','Roof ring-beam details','A','Gilgal 2','Approved for construction','23 Jul 2026']].filter(row=>projectScope.includes(row[3] as ProjectName))
+  const rfis=[['RFI-0038','Gilgal 3','Beam B4 / conduit clash','Engineer reply due today'],['RFI-0037','Church','Column C2 setting-out dimension','Answered'],['RFI-0035','SNEP HQ','Window schedule discrepancy','Architect reply due 27 Jul'],['RFI-0034','Gilgal 2','Ring-beam level confirmation','Answered']].filter(row=>projectScope.includes(row[1] as ProjectName))
   return <><PageIntro title="Drawings & technical documents" copy={`Controlled information for ${projectScopeLabel(projectScope)}.`} action="Upload revision" icon="plus"/><section className="drawing-warning"><Icon name="alert" size={18}/><span><b>Superseded drawings must be withdrawn from site.</b><small>Only records within your assigned project pair are shown.</small></span><button>Track withdrawal</button></section><section className="drawing-layout"><div className="panel"><PanelHead title="Controlled drawing register" subtitle="Only ‘Approved for construction’ revisions may be built"/><div className="drawing-register"><div className="drawing-row drawing-head"><span>NUMBER</span><span>TITLE</span><span>REV.</span><span>PROJECT</span><span>STATUS</span><span>ISSUED</span><span></span></div>{drawings.map(row=><div className="drawing-row" key={row[0]}><b className="mono">{row[0]}</b><strong>{row[1]}</strong><b>{row[2]}</b><span>{row[3]}</span><Status>{row[4]}</Status><span>{row[5]}</span><button><Icon name="eye" size={14}/>Open</button></div>)}</div></div><aside className="panel rfi-panel"><PanelHead title="Requests for information" subtitle="Questions blocking site work"/><div>{rfis.map(row=><article key={row[0]}><div><b className="mono">{row[0]}</b><Status>{row[3]}</Status></div><h3>{row[2]}</h3><p>{row[1]}</p><button>Open RFI <Icon name="arrow" size={12}/></button></article>)}</div></aside></section></>
 }
 
 function StorekeeperLedger() {
-  return <><PageIntro title="Immutable stock ledger" copy="Current balances derived from received, issued, transferred and adjusted events." action="Export ledger" icon="download"/><section className="storekeeper-guardrail"><Icon name="lock" size={16}/><p><b>No direct balance editing.</b> Every change must originate from a GRN, issue voucher, confirmed transfer, approved wastage adjustment or stock-count variance.</p></section><section className="metrics-grid compact"><Metric label="Stock value" value="KES 12.84M" note="Across four project stores" icon="boxes" tone="navy"/><Metric label="Ledger events today" value="18" note="6 receipts · 9 issues · 3 transfers" icon="file" tone="green"/><Metric label="Low stock" value="7 items" note="2 project-critical" icon="alert" tone="orange"/><Metric label="Unresolved variance" value="KES 94,600" note="Two submitted count records" icon="shield" tone="red"/></section><section className="panel store-ledger-panel"><div className="table-tools"><div className="inline-search"><Icon name="search"/><input placeholder="Search material, SKU or store…"/></div><button><Icon name="filter"/>Store & level</button><button><Icon name="download"/>Export</button></div><div className="store-ledger-table"><div className="store-ledger-row store-ledger-head"><span>MATERIAL</span><span>STORE</span><span>UNIT</span><span>ON HAND</span><span>REORDER AT</span><span>LEVEL</span><span></span></div>{storeStockRecords.map(item=><div className="store-ledger-row" key={`${item.store}-${item.material}`}><strong>{item.material}</strong><span>{item.store}</span><span>{item.unit}</span><b>{item.onHand}</b><span>{item.reorderAt}</span><Status tone={item.level==='Healthy'?'healthy':'low-stock'}>{item.level}</Status><button><Icon name="eye" size={14}/>History</button></div>)}</div></section></>
+  return <><PageIntro title="Immutable stock ledger" copy="Current balances derived from received, issued, transferred and adjusted events." action="Export ledger" icon="download"/><section className="storekeeper-guardrail"><Icon name="lock" size={16}/><p><b>No direct balance editing.</b> Every change must originate from a GRN, issue voucher, confirmed transfer, approved wastage adjustment or stock-count variance.</p></section><section className="metrics-grid compact"><Metric label="Stock value" value="KES 12.84M" note="Across four project stores" icon="boxes" tone="navy"/><Metric label="Ledger events today" value="18" note="6 receipts · 9 issues · 3 transfers" icon="file" tone="green"/><Metric label="Low stock" value="7 items" note="2 project-critical" icon="alert" tone="orange"/><Metric label="Unresolved variance" value="KES 94,600" note="Two submitted count records" icon="shield" tone="red"/></section><section className="panel store-ledger-panel"><div className="store-ledger-table"><div className="store-ledger-row store-ledger-head"><span>MATERIAL</span><span>STORE</span><span>UNIT</span><span>ON HAND</span><span>REORDER AT</span><span>LEVEL</span><span></span></div>{storeStockRecords.map(item=><div className="store-ledger-row" key={`${item.store}-${item.material}`}><strong>{item.material}</strong><span>{item.store}</span><span>{item.unit}</span><b>{item.onHand}</b><span>{item.reorderAt}</span><Status tone={item.level==='Healthy'?'healthy':'low-stock'}>{item.level}</Status><button><Icon name="eye" size={14}/>History</button></div>)}</div></section></>
 }
 
 function StorekeeperReceiving() {
   const [selected,setSelected]=useState<string[]|null>(null)
   const [received,setReceived]=useState<string[]>([])
   const [toast,setToast]=useState('')
-  const deliveries=[['PO-0188','Bamburi Cement PLC','Bamburi cement','180 bags','SNEP HQ','Arrived 09:35'],['PO-0190','Apex Steel Ltd','Y12 reinforcement steel','240 lengths','Gilgal 2','Due 13:00'],['PO-0191','Kaydee Hardware','PVC conduit 25mm','150 lengths','SNEP HQ','Due 15:30']]
+  const deliveries=[['PO-0188','Bamburi Cement PLC','Bamburi cement','180 bags','SNEP HQ','Arrived 09:35'],['PO-0190','Apex Steel Ltd','Y12 reinforcement steel','240 lengths','Gilgal 3','Due 13:00'],['PO-0191','Kaydee Hardware','PVC conduit 25mm','150 lengths','SNEP HQ','Due 15:30']]
   const finish=(po:string)=>{setReceived(current=>[...current,po]);setSelected(null);setToast(`${po} received. GRN created from the physical count.`);setTimeout(()=>setToast(''),3000)}
   return <><PageIntro title="Receive deliveries" copy="Count and inspect actual goods against an issued purchase order." action="Scan delivery note" icon="plus"/><section className="storekeeper-guardrail"><Icon name="shield" size={16}/><p><b>Record reality, not the supplier document.</b> Short, excess, rejected or damaged quantities create a discrepancy and remain visible to Procurement and Finance.</p></section><section className="receiving-board">{deliveries.map(delivery=>{const done=received.includes(delivery[0]);return <article className={`panel delivery-card ${done?'done':''}`} key={delivery[0]}><div><b className="mono">{delivery[0]}</b><Status tone={done?'accepted':delivery[5].startsWith('Arrived')?'at-risk':'issued'}>{done?'GRN created':delivery[5]}</Status></div><h3>{delivery[2]}</h3><p>{delivery[1]} · Deliver to {delivery[4]}</p><strong>{delivery[3]}</strong><button disabled={done} onClick={()=>setSelected(delivery)}>{done?<><Icon name="check" size={14}/>Received</>:<>Count & receive <Icon name="arrow" size={13}/></>}</button></article>})}</section>{selected&&<GoodsReceiptModal delivery={selected} onClose={()=>setSelected(null)} onComplete={()=>finish(selected[0])}/>} {toast&&<div className="toast"><Icon name="check"/>{toast}</div>}</>
 }
@@ -1336,7 +1334,7 @@ function GoodsReceiptModal({delivery,onClose,onComplete}:{delivery:string[];onCl
 function StorekeeperIssues() {
   const [selected,setSelected]=useState<string[]|null>(null)
   const [issued,setIssued]=useState<string[]>([])
-  const requests=[['MR-0239','Gilgal 2','Y12 reinforcement steel','80 lengths','Samuel Kariuki','186 available'],['MR-0245','Gilgal 1','River sand','18 tonnes','Joseph Maina','42.5 available']]
+  const requests=[['MR-0239','Gilgal 3','Y12 reinforcement steel','80 lengths','Samuel Kariuki','186 available'],['MR-0245','Gilgal 2','River sand','18 tonnes','Joseph Maina','42.5 available']]
   return <><PageIntro title="Issue approved materials" copy="Release stock only against an approved requisition and available balance." action="Print pick list" icon="file"/><section className="storekeeper-guardrail"><Icon name="lock" size={16}/><p><b>You may issue less, never more.</b> The approved material and maximum quantity are locked. Foreman confirmation completes the custody handover.</p></section><section className="panel"><PanelHead title="Approved requests ready for issue" subtitle="Stock availability checked automatically"/><div className="issue-ready-list">{requests.map(row=>{const done=issued.includes(row[0]);return <article key={row[0]}><b className="mono">{row[0]}</b><span><strong>{row[2]}</strong><small>{row[1]} · Issue to {row[4]}</small></span><b>{row[3]}</b><small>{row[5]}</small>{done?<Status>Awaiting foreman</Status>:<button onClick={()=>setSelected(row)}>Create issue voucher <Icon name="arrow" size={13}/></button>}</article>})}</div></section>{selected&&<MaterialIssueModal request={selected} onClose={()=>setSelected(null)} onComplete={()=>{setIssued(current=>[...current,selected[0]]);setSelected(null)}}/>}</>
 }
 
@@ -1353,17 +1351,17 @@ function StorekeeperTransfers() {
 function StorekeeperCounts() {
   const [modal,setModal]=useState(false)
   const [submitted,setSubmitted]=useState(false)
-  return <><PageIntro title="Physical stock counts" copy="Compare independently counted quantities with the system balance." action="Start count" icon="plus" onAction={()=>setModal(true)}/><section className="count-cycle"><div><span>CURRENT COUNT CYCLE</span><h2>July month-end stock count</h2><p>Due 31 July 2026 · 4 project stores · Independent observer required</p></div><div><strong>{submitted?'1 of 4':'0 of 4'}</strong><span>stores submitted</span></div></section><section className="panel"><PanelHead title="Count schedule" subtitle="Submitted variances require review; they do not directly overwrite stock"/><div className="count-list">{[['Gilgal 1','29 Jul','Lucy Njeri','James Kamau','Not started'],['Gilgal 2','29 Jul','Lucy Njeri','Mercy Wanjiku',submitted?'Submitted':'Not started'],['SNEP HQ','30 Jul','David Ouma','Mary Atienza','Not started'],['Church','31 Jul','Esther Muli','James Kamau','Not started']].map(row=><div key={row[0]}><strong>{row[0]}</strong><span>{row[1]}</span><span><small>Counter</small>{row[2]}</span><span><small>Observer</small>{row[3]}</span><Status>{row[4]}</Status><button onClick={()=>setModal(true)}>{row[4]==='Submitted'?'View':'Count now'}</button></div>)}</div></section>{modal&&<StockCountModal onClose={()=>setModal(false)} onComplete={()=>{setModal(false);setSubmitted(true)}}/>}</>
+  return <><PageIntro title="Physical stock counts" copy="Compare independently counted quantities with the system balance." action="Start count" icon="plus" onAction={()=>setModal(true)}/><section className="count-cycle"><div><span>CURRENT COUNT CYCLE</span><h2>July month-end stock count</h2><p>Due 31 July 2026 · 4 project stores · Independent observer required</p></div><div><strong>{submitted?'1 of 4':'0 of 4'}</strong><span>stores submitted</span></div></section><section className="panel"><PanelHead title="Count schedule" subtitle="Submitted variances require review; they do not directly overwrite stock"/><div className="count-list">{[['Gilgal 2','29 Jul','Lucy Njeri','James Kamau','Not started'],['Gilgal 3','29 Jul','Lucy Njeri','Mercy Wanjiku',submitted?'Submitted':'Not started'],['SNEP HQ','30 Jul','David Ouma','Mary Atienza','Not started'],['Church','31 Jul','Esther Muli','James Kamau','Not started']].map(row=><div key={row[0]}><strong>{row[0]}</strong><span>{row[1]}</span><span><small>Counter</small>{row[2]}</span><span><small>Observer</small>{row[3]}</span><Status>{row[4]}</Status><button onClick={()=>setModal(true)}>{row[4]==='Submitted'?'View':'Count now'}</button></div>)}</div></section>{modal&&<StockCountModal onClose={()=>setModal(false)} onComplete={()=>{setModal(false);setSubmitted(true)}}/>}</>
 }
 
 function StockCountModal({onClose,onComplete}:{onClose:()=>void;onComplete:()=>void}) {
-  return <div className="modal-wrap"><div className="modal-backdrop" onClick={onClose}/><form className="modal" onSubmit={event=>{event.preventDefault();onComplete()}}><div className="modal-head"><div><span className="eyebrow">PHYSICAL STOCK COUNT</span><h2>Record counted quantity</h2><p>Gilgal 2 store · July month-end cycle</p></div><button type="button" onClick={onClose}><Icon name="close"/></button></div><div className="form-grid"><label className="full">Material<select><option>Y12 reinforcement steel · system balance hidden</option><option>Bamburi cement · system balance hidden</option></select></label><label>Physical quantity counted<input required type="number" min="0"/></label><label>Unit<select><option>lengths</option><option>bags</option></select></label><label className="full">Count notes<textarea rows={2} placeholder="Location, unopened stacks and counting method…"/></label><label className="full cashier-confirm"><input required type="checkbox"/><span>The independent observer was present and confirms this physical count.</span></label></div><div className="control-callout"><Icon name="eye"/><div><b>System balance is hidden during entry</b><span>This reduces anchoring and makes the physical count independent.</span></div></div><div className="modal-actions"><Button variant="secondary" onClick={onClose}>Cancel</Button><Button type="submit">Submit count</Button></div></form></div>
+  return <div className="modal-wrap"><div className="modal-backdrop" onClick={onClose}/><form className="modal" onSubmit={event=>{event.preventDefault();onComplete()}}><div className="modal-head"><div><span className="eyebrow">PHYSICAL STOCK COUNT</span><h2>Record counted quantity</h2><p>Gilgal 3 store · July month-end cycle</p></div><button type="button" onClick={onClose}><Icon name="close"/></button></div><div className="form-grid"><label className="full">Material<select><option>Y12 reinforcement steel · system balance hidden</option><option>Bamburi cement · system balance hidden</option></select></label><label>Physical quantity counted<input required type="number" min="0"/></label><label>Unit<select><option>lengths</option><option>bags</option></select></label><label className="full">Count notes<textarea rows={2} placeholder="Location, unopened stacks and counting method…"/></label><label className="full cashier-confirm"><input required type="checkbox"/><span>The independent observer was present and confirms this physical count.</span></label></div><div className="control-callout"><Icon name="eye"/><div><b>System balance is hidden during entry</b><span>This reduces anchoring and makes the physical count independent.</span></div></div><div className="modal-actions"><Button variant="secondary" onClick={onClose}>Cancel</Button><Button type="submit">Submit count</Button></div></form></div>
 }
 
 function ProcurementApprovedRequests() {
   const [selected,setSelected]=useState<string[]|null>(null)
   const [started,setStarted]=useState<string[]>([])
-  const requests=[['MR-0248','Y12 reinforcement steel','240 lengths','Gilgal 2','KES 412,800','3 quotes required'],['MR-0247','Bamburi cement','180 bags','SNEP HQ','KES 171,000','3 quotes required'],['MR-0245','River sand','18 tonnes','Gilgal 1','KES 63,000','Direct sourcing allowed'],['MR-0246','Machine-cut stones','1,200 pcs','Church','KES 84,000','Direct sourcing allowed']]
+  const requests=[['MR-0248','Y12 reinforcement steel','240 lengths','Gilgal 3','KES 412,800','3 quotes required'],['MR-0247','Bamburi cement','180 bags','SNEP HQ','KES 171,000','3 quotes required'],['MR-0245','River sand','18 tonnes','Gilgal 2','KES 63,000','Direct sourcing allowed'],['MR-0246','Machine-cut stones','1,200 pcs','Church','KES 84,000','Direct sourcing allowed']]
   return <><PageIntro title="Approved sourcing queue" copy="Turn approved project demand into accountable supplier competition." action="Export sourcing plan" icon="download"/><section className="procurement-guardrail"><Icon name="lock" size={16}/><p><b>Demand is locked.</b> Procurement may source the approved item and quantity but cannot increase it, change the project, or approve the resulting purchase order.</p></section><section className="panel"><PanelHead title="Requests ready for Procurement" subtitle="Ordered by needed-by date"/><div className="procurement-source-list">{requests.map(row=><article key={row[0]}><b className="mono">{row[0]}</b><span><strong>{row[1]}</strong><small>{row[2]} · {row[3]}</small></span><b>{row[4]}</b><Status tone={row[5].startsWith('3')?'at-risk':'approved'}>{row[5]}</Status>{started.includes(row[0])?<Status>Sourcing open</Status>:<button onClick={()=>setSelected(row)}>Start sourcing <Icon name="arrow" size={13}/></button>}</article>)}</div></section>{selected&&<SourcingModal request={selected} onClose={()=>setSelected(null)} onComplete={()=>{setStarted(current=>[...current,selected[0]]);setSelected(null)}}/>}</>
 }
 
@@ -1372,8 +1370,8 @@ function SourcingModal({request,onClose,onComplete}:{request:string[];onClose:()
 }
 
 function ProcurementOrders() {
-  const orders=[['PO-0192','MR-0248','Apex Steel Ltd','Gilgal 2','KES 412,800','Awaiting approval'],['PO-0191','MR-0244','Kaydee Hardware','SNEP HQ','KES 33,750','Draft'],['PO-0188','MR-0247','Bamburi Cement PLC','SNEP HQ','KES 171,000','Part delivered'],['PO-0187','MR-0246','Kaydee Hardware','Church','KES 84,000','Issued']]
-  return <><PageIntro title="Purchase orders" copy="Prepare and follow orders without self-approval or goods receipt access." action="Create from approved request" icon="plus"/><section className="procurement-guardrail"><Icon name="shield" size={16}/><p><b>Submitting is not approving.</b> Draft POs preserve their requisition link, quote evidence and creator identity for independent approval.</p></section><section className="panel"><div className="table-tools"><div className="inline-search"><Icon name="search"/><input placeholder="Search PO or supplier…"/></div><button><Icon name="filter"/>Status</button></div><div className="po-role-table"><div className="po-role-row po-role-head"><span>PO</span><span>REQUEST</span><span>SUPPLIER</span><span>PROJECT</span><span>VALUE</span><span>STATUS</span><span></span></div>{orders.map(row=><div className="po-role-row" key={row[0]}><b className="mono">{row[0]}</b><span className="mono">{row[1]}</span><strong>{row[2]}</strong><span>{row[3]}</span><b>{row[4]}</b><Status>{row[5]}</Status><button>{row[5]==='Draft'?'Submit':'View'} <Icon name="arrow" size={12}/></button></div>)}</div></section></>
+  const orders=[['PO-0192','MR-0248','Apex Steel Ltd','Gilgal 3','KES 412,800','Awaiting approval'],['PO-0191','MR-0244','Kaydee Hardware','SNEP HQ','KES 33,750','Draft'],['PO-0188','MR-0247','Bamburi Cement PLC','SNEP HQ','KES 171,000','Part delivered'],['PO-0187','MR-0246','Kaydee Hardware','Church','KES 84,000','Issued']]
+  return <><PageIntro title="Purchase orders" copy="Prepare and follow orders without self-approval or goods receipt access." action="Create from approved request" icon="plus"/><section className="procurement-guardrail"><Icon name="shield" size={16}/><p><b>Submitting is not approving.</b> Draft POs preserve their requisition link, quote evidence and creator identity for independent approval.</p></section><section className="panel"><div className="po-role-table"><div className="po-role-row po-role-head"><span>PO</span><span>REQUEST</span><span>SUPPLIER</span><span>PROJECT</span><span>VALUE</span><span>STATUS</span><span></span></div>{orders.map(row=><div className="po-role-row" key={row[0]}><b className="mono">{row[0]}</b><span className="mono">{row[1]}</span><strong>{row[2]}</strong><span>{row[3]}</span><b>{row[4]}</b><Status>{row[5]}</Status><button>{row[5]==='Draft'?'Submit':'View'} <Icon name="arrow" size={12}/></button></div>)}</div></section></>
 }
 
 function ProcurementSuppliers() {
@@ -1384,7 +1382,7 @@ function ProcurementSuppliers() {
 function AuditEvidence() {
   const [selected,setSelected]=useState('AUD-0094')
   const findings=[['AUD-0094','High','Steel price above reference','KES 412,800'],['AUD-0091','High','Duplicate invoice reference','KES 384,000'],['AUD-0088','Medium','Transfer confirmation overdue','KES 156,000'],['AUD-0084','Medium','Round-number petty cash pattern','KES 50,000'],['AUD-0081','Low','Stock count submitted late','No direct exposure']]
-  return <><PageIntro title="Evidence review" copy="Trace a flagged record through every predecessor, actor and attachment." action="Export selected evidence" icon="download"/><section className="auditor-guardrail"><Icon name="eye" size={16}/><p><b>Read-only evidence mode.</b> Notes are appended to the audit review; source transactions, approvals and attachments cannot be changed here.</p></section><section className="evidence-workspace"><aside className="panel finding-list"><PanelHead title="Audit sample" subtitle="5 items selected for review"/><div>{findings.map(finding=><button className={selected===finding[0]?'active':''} onClick={()=>setSelected(finding[0])} key={finding[0]}><span className={`severity ${finding[1].toLowerCase()}`}>{finding[1]}</span><span><b>{finding[2]}</b><small>{finding[0]} · {finding[3]}</small></span><Icon name="chevron" size={14}/></button>)}</div></aside><div className="panel evidence-detail"><div className="evidence-head"><div><span>SELECTED EVIDENCE CHAIN</span><h2>{selected} · Steel price above reference</h2><p>Gilgal 2 · Structural works · Apex Steel Ltd</p></div><Status tone="at-risk">Open finding</Status></div><div className="evidence-facts"><div><span>Financial exposure</span><b>KES 412,800</b></div><div><span>Reference price difference</span><b>+8.4%</b></div><div><span>Events in chain</span><b>7 verified</b></div><div><span>Attachments</span><b>5 hashed files</b></div></div><div className="evidence-timeline">{[['Material request','MR-0248','Samuel Kariuki · Foreman','25 Jul, 09:42','Created from device 8AF2'],['Supervisor approval','APR-0441','Steven Kakai · Supervisor','25 Jul, 10:06','Approved within KES 500K limit'],['Quote comparison','QC-0068','Paul Kimani · Procurement','25 Jul, 11:20','Apex selected; not lowest quote'],['Purchase order','PO-0192','Paul Kimani · Procurement','25 Jul, 11:34','Submitted for independent approval'],['Price exception','FLAG-0183','System control','25 Jul, 11:34','8.4% above reference price']].map((event,index)=><article key={event[1]}><i>{index+1}</i><div><span>{event[0]}</span><h3>{event[1]}</h3><p>{event[2]} · {event[3]}</p><small>{event[4]}</small></div><Icon name="check" size={15}/></article>)}</div><div className="hash-proof"><Icon name="lock" size={16}/><span><b>Hash chain verified</b><small>Previous: 7f4a…821c · Current: c92e…044a</small></span><button>Copy hashes</button></div></div></section></>
+  return <><PageIntro title="Evidence review" copy="Trace a flagged record through every predecessor, actor and attachment." action="Export selected evidence" icon="download"/><section className="auditor-guardrail"><Icon name="eye" size={16}/><p><b>Read-only evidence mode.</b> Notes are appended to the audit review; source transactions, approvals and attachments cannot be changed here.</p></section><section className="evidence-workspace"><aside className="panel finding-list"><PanelHead title="Audit sample" subtitle="5 items selected for review"/><div>{findings.map(finding=><button className={selected===finding[0]?'active':''} onClick={()=>setSelected(finding[0])} key={finding[0]}><span className={`severity ${finding[1].toLowerCase()}`}>{finding[1]}</span><span><b>{finding[2]}</b><small>{finding[0]} · {finding[3]}</small></span><Icon name="chevron" size={14}/></button>)}</div></aside><div className="panel evidence-detail"><div className="evidence-head"><div><span>SELECTED EVIDENCE CHAIN</span><h2>{selected} · Steel price above reference</h2><p>Gilgal 3 · Structural works · Apex Steel Ltd</p></div><Status tone="at-risk">Open finding</Status></div><div className="evidence-facts"><div><span>Financial exposure</span><b>KES 412,800</b></div><div><span>Reference price difference</span><b>+8.4%</b></div><div><span>Events in chain</span><b>7 verified</b></div><div><span>Attachments</span><b>5 hashed files</b></div></div><div className="evidence-timeline">{[['Material request','MR-0248','Samuel Kariuki · Foreman','25 Jul, 09:42','Created from device 8AF2'],['Supervisor approval','APR-0441','Steven Kakai · Supervisor','25 Jul, 10:06','Approved within KES 500K limit'],['Quote comparison','QC-0068','Paul Kimani · Procurement','25 Jul, 11:20','Apex selected; not lowest quote'],['Purchase order','PO-0192','Paul Kimani · Procurement','25 Jul, 11:34','Submitted for independent approval'],['Price exception','FLAG-0183','System control','25 Jul, 11:34','8.4% above reference price']].map((event,index)=><article key={event[1]}><i>{index+1}</i><div><span>{event[0]}</span><h3>{event[1]}</h3><p>{event[2]} · {event[3]}</p><small>{event[4]}</small></div><Icon name="check" size={15}/></article>)}</div><div className="hash-proof"><Icon name="lock" size={16}/><span><b>Hash chain verified</b><small>Previous: 7f4a…821c · Current: c92e…044a</small></span><button>Copy hashes</button></div></div></section></>
 }
 
 function AuditReports() {
@@ -1577,11 +1575,11 @@ function Inventory({readOnly=false,ownerView=false,projectScope=[...allProjectNa
 }
 
 function SupervisorBudget({ projectScope }: { projectScope: ProjectName[] }) {
-  const bars=[['Gilgal 1',48.2,31.4,5.7],['Gilgal 2',36.5,28.9,3.2],['SNEP HQ',72,20.6,9.8],['Church',25.8,8.3,2.1]].filter(row=>projectScope.includes(row[0] as ProjectName))
+  const bars=[['Gilgal 2',48.2,31.4,5.7],['Gilgal 3',36.5,28.9,3.2],['SNEP HQ',72,20.6,9.8],['Church',25.8,8.3,2.1]].filter(row=>projectScope.includes(row[0] as ProjectName))
   const budget=bars.reduce((total,row)=>total+Number(row[1]),0)
   const spent=bars.reduce((total,row)=>total+Number(row[2]),0)
   const committed=bars.reduce((total,row)=>total+Number(row[3]),0)
-  const watchItems=[['high','HIGH','Gilgal 2 · Structural works','92% reserved while the structural stage is 78% complete.','KES 680,000 remains'],['medium','WATCH','SNEP HQ · Masonry','Cement price is trending 6% above the reference rate.','Review next requisition'],['low','GOOD','Church · Foundation','Work completed KES 240,000 below its allocated cost.','Funds remain in the cost code'],['low','GOOD','Gilgal 1 · Roof works','Spending and verified progress remain aligned.','No intervention required']].filter(row=>projectScope.some(project=>row[2].startsWith(project)))
+  const watchItems=[['high','HIGH','Gilgal 3 · Structural works','92% reserved while the structural stage is 78% complete.','KES 680,000 remains'],['medium','WATCH','SNEP HQ · Masonry','Cement price is trending 6% above the reference rate.','Review next requisition'],['low','GOOD','Church · Foundation','Work completed KES 240,000 below its allocated cost.','Funds remain in the cost code'],['low','GOOD','Gilgal 2 · Roof works','Spending and verified progress remain aligned.','No intervention required']].filter(row=>projectScope.some(project=>row[2].startsWith(project)))
   return <>
     <PageIntro title="Project budget tracking" copy={`Read-only spending and commitments for ${projectScopeLabel(projectScope)}.`} action="Download report" icon="download"/>
     <section className="role-guardrail supervisor-budget-note"><Icon name="eye" size={17}/><p><b>Read-only financial view:</b> supervisors use this information to control site work. Invoice approval and payment execution remain separated.</p></section>
@@ -1612,7 +1610,7 @@ function CashierFinance() {
   const [selectedPayment,setSelectedPayment]=useState<PaymentCandidate|null>(null)
   const payments:PaymentCandidate[]=[
     {reference:'PAY-0421',supplier:'Coastline Electrical Ltd',invoice:'INV-2981',project:'Church',method:'Bank transfer',amount:'412,800'},
-    {reference:'PAY-0420',supplier:'Mavoko Aggregates',invoice:'INV-1072',project:'Gilgal 1',method:'M-Pesa',amount:'63,000'},
+    {reference:'PAY-0420',supplier:'Mavoko Aggregates',invoice:'INV-1072',project:'Gilgal 2',method:'M-Pesa',amount:'63,000'},
     {reference:'PAY-0419',supplier:'Musa Electrical Works',invoice:'INV-2044',project:'SNEP HQ',method:'Bank transfer',amount:'179,000'},
     {reference:'PAY-0418',supplier:'Kaydee Hardware',invoice:'INV-3378',project:'Church',method:'M-Pesa',amount:'84,000'},
   ]
@@ -1633,7 +1631,7 @@ function CashierFinance() {
     </section>
     <div className="tabs cashier-tabs">{['Ready to pay','Site cash','Payment history'].map(t=><button className={tab===t?'active':''} onClick={()=>setTab(t)} key={t}>{t}{t==='Ready to pay'&&<span>{4-paid.length}</span>}</button>)}</div>
     {tab==='Ready to pay'?<section className="panel cashier-desk">
-      <div className="cashier-desk-head"><div><h3>Approved payment queue</h3><p>Approval and delivery checks were completed by other roles.</p></div><button><Icon name="filter" size={15}/>Filter</button></div>
+      <div className="cashier-desk-head"><div><h3>Approved payment queue</h3><p>Approval and delivery checks were completed by other roles.</p></div></div>
       <div className="cashier-desk-table">
         <div className="cashier-desk-row cashier-desk-labels"><span>PAYMENT</span><span>SUPPLIER</span><span>PROJECT</span><span>METHOD</span><span>AMOUNT</span><span>CONTROL CHECKS</span><span></span></div>
         {payments.map(payment=>{const isPaid=paid.includes(payment.reference);return <div className={`cashier-desk-row ${isPaid?'paid-row':''}`} key={payment.reference}>
@@ -1645,12 +1643,12 @@ function CashierFinance() {
     </section>:tab==='Site cash'?<section className="panel">
       <PanelHead title="Project cash floats" subtitle="Cash on hand and the latest reconciliation status"/>
       <div className="site-cash-table">
-        {[['Gilgal 1','182,400','24 Jul, 17:30','No variance'],['Gilgal 2','94,850','24 Jul, 17:12','KES 1,150 under review'],['SNEP HQ','287,000','23 Jul, 17:46','No variance'],['Church','120,000','24 Jul, 16:58','No variance']].map(row=><div key={row[0]}><strong>{row[0]}</strong><span>KES {row[1]}</span><small>Last reconciled {row[2]}</small><Status tone={row[3] === 'No variance' ? 'accepted' : 'at-risk'}>{row[3]}</Status><button>Open ledger <Icon name="arrow" size={13}/></button></div>)}
+        {[['Gilgal 2','182,400','24 Jul, 17:30','No variance'],['Gilgal 3','94,850','24 Jul, 17:12','KES 1,150 under review'],['SNEP HQ','287,000','23 Jul, 17:46','No variance'],['Church','120,000','24 Jul, 16:58','No variance']].map(row=><div key={row[0]}><strong>{row[0]}</strong><span>KES {row[1]}</span><small>Last reconciled {row[2]}</small><Status tone={row[3] === 'No variance' ? 'accepted' : 'at-risk'}>{row[3]}</Status><button>Open ledger <Icon name="arrow" size={13}/></button></div>)}
       </div>
     </section>:<section className="panel">
       <PanelHead title="Payment history" subtitle="Completed transactions with external references"/>
       <div className="cashier-history">
-        {[['PAY-0418','Bamburi Cement PLC','SNEP HQ','KES 684,000','FT26206K1','Today, 09:18'],['PAY-0417','Musa Electrical Works','Gilgal 2','KES 420,000','QGH8D22Q1','23 Jul, 15:42'],['PAY-0416','Mavoko Aggregates','Church','KES 126,000','QGH7M90P3','23 Jul, 11:06']].map(row=><div key={row[0]}><b className="mono">{row[0]}</b><strong>{row[1]}</strong><span>{row[2]}</span><b>{row[3]}</b><span className="mono">{row[4]}</span><small>{row[5]}</small><button><Icon name="receipt" size={15}/>Receipt</button></div>)}
+        {[['PAY-0418','Bamburi Cement PLC','SNEP HQ','KES 684,000','FT26206K1','Today, 09:18'],['PAY-0417','Musa Electrical Works','Gilgal 3','KES 420,000','QGH8D22Q1','23 Jul, 15:42'],['PAY-0416','Mavoko Aggregates','Church','KES 126,000','QGH7M90P3','23 Jul, 11:06']].map(row=><div key={row[0]}><b className="mono">{row[0]}</b><strong>{row[1]}</strong><span>{row[2]}</span><b>{row[3]}</b><span className="mono">{row[4]}</span><small>{row[5]}</small><button><Icon name="receipt" size={15}/>Receipt</button></div>)}
       </div>
     </section>}
     {selectedPayment&&<PaymentExecutionModal payment={selectedPayment} onClose={()=>setSelectedPayment(null)} onComplete={()=>execute(selectedPayment)}/>}
@@ -1659,7 +1657,7 @@ function CashierFinance() {
 }
 
 function Finance() {
-  const bars=[['Gilgal 1',48.2,31.4,5.7],['Gilgal 2',36.5,28.9,3.2],['SNEP HQ',72,20.6,9.8],['Church',25.8,8.3,2.1]]
+  const bars=[['Gilgal 2',48.2,31.4,5.7],['Gilgal 3',36.5,28.9,3.2],['SNEP HQ',72,20.6,9.8],['Church',25.8,8.3,2.1]]
   const [selectedChain, setSelectedChain] = useState<TransactionChain | null>(null)
   return <div className="ceo-view ceo-money-view">
     <section className="simple-summary-grid four ceo-money-summary">
@@ -1674,7 +1672,7 @@ function Finance() {
       <div className="ceo-money-project-list">
         {bars.map(([name,budget,spent,ordered]) => {
           const left = Number(budget) - Number(spent) - Number(ordered)
-          const attention = name === 'Gilgal 2'
+          const attention = name === 'Gilgal 3'
           return <article className={attention ? 'attention' : ''} key={String(name)}>
             <strong>{name}</strong>
             <div><b>KES {Number(spent).toFixed(1)}M paid</b><span>of KES {Number(budget).toFixed(1)}M budget</span></div>
@@ -1705,7 +1703,7 @@ function Finance() {
 }
 
 function Workforce({readOnly=false,projectScope=[...allProjectNames]}:{readOnly?:boolean;projectScope?:ProjectName[]}) {
-  const rows=[['Gilgal 1','38','12 masons · 18 labourers · 8 skilled','Gilgal Sites Foreman','Confirmed'],['Gilgal 2','31','9 masons · 16 labourers · 6 skilled','Gilgal Sites Foreman','Confirmed'],['SNEP HQ','42','14 masons · 20 labourers · 8 skilled','Church & SNEP Foreman','Confirmed'],['Church','15','5 masons · 7 labourers · 3 skilled','Church & SNEP Foreman','Confirmed']].filter(row=>projectScope.includes(row[0] as ProjectName))
+  const rows=[['Gilgal 2','38','12 masons · 18 labourers · 8 skilled','Gilgal Sites Foreman','Confirmed'],['Gilgal 3','31','9 masons · 16 labourers · 6 skilled','Gilgal Sites Foreman','Confirmed'],['SNEP HQ','42','14 masons · 20 labourers · 8 skilled','Church & SNEP Foreman','Confirmed'],['Church','15','5 masons · 7 labourers · 3 skilled','Church & SNEP Foreman','Confirmed']].filter(row=>projectScope.includes(row[0] as ProjectName))
   const headcount=rows.reduce((total,row)=>total+Number(row[1]),0)
   return <GenericOperations
     title="Workforce & labour" copy="Site attendance and subcontractor obligations, without phantom headcount." action={readOnly?'Download attendance':'Log attendance'} readOnly={readOnly}
@@ -1716,7 +1714,7 @@ function Workforce({readOnly=false,projectScope=[...allProjectNames]}:{readOnly?
 }
 
 function Equipment({readOnly=false,projectScope=[...allProjectNames]}:{readOnly?:boolean;projectScope?:ProjectName[]}) {
-  const rows=[['EQ-0038','Concrete mixer 400L · Gilgal 1','Plant','Gilgal Sites Foreman','In use'],['EQ-0071','Plate compactor · Church','Plant','Church & SNEP Foreman','Service due'],['TL-0244','Bosch rotary hammer · SNEP HQ','Power tool','Church & SNEP Foreman','In use'],['EQ-0018','Diesel generator 12kVA · Gilgal 2','Plant','Gilgal Sites Foreman','Available']].filter(row=>projectScope.some(project=>row[1].includes(project)))
+  const rows=[['EQ-0038','Concrete mixer 400L · Gilgal 2','Plant','Gilgal Sites Foreman','In use'],['EQ-0071','Plate compactor · Church','Plant','Church & SNEP Foreman','Service due'],['TL-0244','Bosch rotary hammer · SNEP HQ','Power tool','Church & SNEP Foreman','In use'],['EQ-0018','Diesel generator 12kVA · Gilgal 3','Plant','Gilgal Sites Foreman','Available']].filter(row=>projectScope.some(project=>row[1].includes(project)))
   return <GenericOperations
     title="Equipment & tools" copy="Assignment history, condition reports and rental exposure by site." action={readOnly?'Export asset view':'Register equipment'} readOnly={readOnly}
     metrics={[['Visible assets',`${rows.length} demo records`,projectScopeLabel(projectScope),'tool','navy'],['Currently assigned',`${rows.filter(row=>row[4]==='In use').length} in use`,'Assigned project equipment','check','green'],['Due for service',`${rows.filter(row=>row[4]==='Service due').length} items`,'Within assigned sites','clock','orange'],['Project access',`${projectScope.length} sites`,'No cross-team records','wallet','red']]}
@@ -1746,8 +1744,8 @@ function CeoRecords() {
       <PanelHead title="Needs attention" subtitle="3 items"/>
       <div className="ceo-record-attention-list">
         <article><i className="danger"><Icon name="lock" size={18}/></i><div><strong>A self-approval was stopped</strong><span>The same person tried to request and approve a purchase. No money moved.</span></div><Status tone="accepted">Stopped</Status></article>
-        <article><i className="warning"><Icon name="alert" size={18}/></i><div><strong>Steel price is higher than usual</strong><span>Gilgal 2 · KES 412,800 · Finance is checking it</span></div><Button variant="secondary" onClick={() => setSelectedChain(transactionChains[1])}>See steps</Button></article>
-        <article><i className="warning"><Icon name="truck" size={18}/></i><div><strong>Church store has not confirmed a transfer</strong><span>32 timber pieces sent from Gilgal 1 store</span></div><Button variant="secondary" onClick={() => navigate('/inventory')}>Open movement</Button></article>
+        <article><i className="warning"><Icon name="alert" size={18}/></i><div><strong>Steel price is higher than usual</strong><span>Gilgal 3 · KES 412,800 · Finance is checking it</span></div><Button variant="secondary" onClick={() => setSelectedChain(transactionChains[1])}>See steps</Button></article>
+        <article><i className="warning"><Icon name="truck" size={18}/></i><div><strong>Church store has not confirmed a transfer</strong><span>32 timber pieces sent from Gilgal 2 store</span></div><Button variant="secondary" onClick={() => navigate('/inventory')}>Open movement</Button></article>
       </div>
     </section>
 
@@ -1772,14 +1770,14 @@ function CeoRecords() {
 
 function Audit({readOnly=false,ownerView=false}:{readOnly?:boolean;ownerView?:boolean}) {
   if (ownerView) return <CeoRecords/>
-  const events=[['10:42:18','Steven Kakai','APPROVED','Purchase order PO-0192','KES 412,800 · Gilgal 2','197.232.44.18'],['10:18:04','Lucy Njeri','CREATED','GRN-0112','Short delivery: 40 bags · SNEP HQ','41.90.64.202'],['09:57:36','James Kamau','APPROVED','Payment PAY-0419','KES 171,000 · Bamburi Cement','102.68.78.11'],['09:42:12','Samuel Kariuki','CREATED','Requisition MR-0248','240 lengths Y12 steel · Gilgal 2','105.163.2.84'],['08:16:50','Daniel Otieno','CREATED','Requisition MR-0247','180 bags cement · SNEP HQ','41.90.64.199']]
+  const events=[['10:42:18','Steven Kakai','APPROVED','Purchase order PO-0192','KES 412,800 · Gilgal 3','197.232.44.18'],['10:18:04','Lucy Njeri','CREATED','GRN-0112','Short delivery: 40 bags · SNEP HQ','41.90.64.202'],['09:57:36','James Kamau','APPROVED','Payment PAY-0419','KES 171,000 · Bamburi Cement','102.68.78.11'],['09:42:12','Samuel Kariuki','CREATED','Requisition MR-0248','240 lengths Y12 steel · Gilgal 3','105.163.2.84'],['08:16:50','Daniel Otieno','CREATED','Requisition MR-0247','180 bags cement · SNEP HQ','41.90.64.199']]
   return <>
     <PageIntro title="Audit & control centre" copy="Immutable activity history and automated fraud-control exceptions." action="Export audit report" icon="download"/>
     {readOnly&&<section className="auditor-guardrail"><Icon name="eye" size={16}/><p><b>{ownerView?'CEO oversight mode.':'Auditor read-only mode.'}</b> You may search, trace and export this evidence. Control configuration and source-record changes remain unavailable.</p></section>}
     <section className="control-banner"><div><Icon name="shield" size={24}/></div><div><b>Audit chain verified</b><span>128,492 consecutive events · Last verification today at 10:45 EAT</span></div><Status>Integrity intact</Status></section>
     <section className="audit-grid">
       <div className="panel exceptions"><PanelHead title="Open control exceptions" subtitle="Prioritised by financial and operational risk" action={readOnly?'View rule definitions':'Control rules'}/>
-        {[['High','Segregation check blocked an approval','Requester attempted to approve MR-0243','Today, 08:51'],['High','Invoice price exceeds reference by 8.4%','INV-8831 · Apex Steel Ltd · KES 412,800','Yesterday, 16:02'],['Medium','Transfer confirmation is overdue','TR-0063 · Gilgal 1 → Church · 3 days','22 Jul, 14:18'],['Low','Repeated round-number petty cash entries','5 entries at KES 10,000 · Gilgal 2','20 Jul, 17:40']].map(x=><div key={x[1]}><span className={`severity ${x[0].toLowerCase()}`}>{x[0]}</span><div><b>{x[1]}</b><span>{x[2]}</span></div><time>{x[3]}</time><button><Icon name="chevron" size={15}/></button></div>)}
+        {[['High','Segregation check blocked an approval','Requester attempted to approve MR-0243','Today, 08:51'],['High','Invoice price exceeds reference by 8.4%','INV-8831 · Apex Steel Ltd · KES 412,800','Yesterday, 16:02'],['Medium','Transfer confirmation is overdue','TR-0063 · Gilgal 2 → Church · 3 days','22 Jul, 14:18'],['Low','Repeated round-number petty cash entries','5 entries at KES 10,000 · Gilgal 3','20 Jul, 17:40']].map(x=><div key={x[1]}><span className={`severity ${x[0].toLowerCase()}`}>{x[0]}</span><div><b>{x[1]}</b><span>{x[2]}</span></div><time>{x[3]}</time><button><Icon name="chevron" size={15}/></button></div>)}
       </div>
       <aside className="panel controls-score"><PanelHead title="Controls health" subtitle="Last 30 days"/>
         <div className="score-ring"><svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="48"/><circle className="score" cx="60" cy="60" r="48"/></svg><div><strong>94</strong><span>/ 100</span></div></div>
@@ -1797,11 +1795,11 @@ function Settings() {
   const [tab,setTab]=useState('People & roles')
   const people=[
     ['JC','Josephine Charles','CEO','All projects','Active'],
-    ['S1','Gilgal Sites Supervisor','Supervisor','Gilgal 1 · Gilgal 2','Active'],
+    ['S1','Gilgal Sites Supervisor','Supervisor','Gilgal 2 · Gilgal 3','Active'],
     ['S2','Church & SNEP Supervisor','Supervisor','Church · SNEP HQ','Active'],
-    ['E1','Gilgal Sites Engineer','Engineer','Gilgal 1 · Gilgal 2','Active'],
+    ['E1','Gilgal Sites Engineer','Engineer','Gilgal 2 · Gilgal 3','Active'],
     ['E2','Church & SNEP Engineer','Engineer','Church · SNEP HQ','Active'],
-    ['F1','Gilgal Sites Foreman','Foreman','Gilgal 1 · Gilgal 2','Active'],
+    ['F1','Gilgal Sites Foreman','Foreman','Gilgal 2 · Gilgal 3','Active'],
     ['F2','Church & SNEP Foreman','Foreman','Church · SNEP HQ','Active'],
     ['EN','Eunice Ngumbi','Cashier','All projects','Active'],
     ['LN','Lucy Njeri','Storekeeper','All projects','Active'],
@@ -1813,7 +1811,7 @@ function Settings() {
     <PageIntro title="Workspace settings" copy="Configure access and approval policy without weakening the paper trail." action="Invite user" icon="plus"/>
     <div className="tabs settings-tabs">{['People & roles','Approval policy','Cost codes','Notifications','Organisation'].map(t=><button className={tab===t?'active':''} onClick={()=>setTab(t)} key={t}>{t}</button>)}</div>
     {tab==='People & roles'?<section className="panel">
-      <div className="table-tools"><div className="inline-search"><Icon name="search"/><input placeholder="Search people…"/></div><button><Icon name="filter"/>Role & site</button></div>
+
       <div className="people-table"><div className="people-row people-head"><span>PERSON</span><span>ROLE</span><span>PROJECT ACCESS</span><span>STATUS</span><span>LAST ACTIVE</span><span></span></div>
         {people.map((p,i)=><div className="people-row" key={p[1]}><div className="person"><span>{p[0]}</span><div><b>{p[1]}</b><small>{demoEmail(p[1])}</small></div></div><span>{p[2]}</span><span>{p[3]}</span><Status>{p[4]}</Status><span>{i<2?'Today':i===2?'Yesterday':'23 Jul'}</span><button><Icon name="more"/></button></div>)}
       </div>

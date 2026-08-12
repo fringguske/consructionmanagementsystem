@@ -65,6 +65,30 @@ public sealed class RequisitionsController : ControllerBase
     }
 
     /// <summary>
+    /// Creates a bulk store-replenishment request. It requires Supervisor approval,
+    /// enters Procurement sourcing, and is never eligible for a foreman issue voucher.
+    /// </summary>
+    [HttpPost("stock-replenishment")]
+    [Authorize(Roles = "Storekeeper")]
+    [ProducesResponseType(typeof(ApiResponse<RequisitionWorkflowResponseDto>), StatusCodes.Status201Created)]
+    public async Task<IActionResult> CreateStockReplenishment(
+        [FromBody] CreateStockReplenishmentRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var result = await _workflow.CreateStockReplenishmentAsync(
+            User.GetRequiredUserId(), request, cancellationToken);
+        if (!result.Succeeded)
+        {
+            return ToActionResult(result);
+        }
+
+        return CreatedAtAction(
+            nameof(GetById),
+            new { id = result.Value!.Id },
+            ApiResponse<RequisitionWorkflowResponseDto>.Ok(result.Value));
+    }
+
+    /// <summary>
     /// Revises a request as its original foreman. ExpectedRevision protects a newer
     /// engineer or supervisor action from being overwritten.
     /// </summary>

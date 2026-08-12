@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   ApiError,
   accessRequestsApi,
@@ -68,7 +68,6 @@ export function LiveAccessView({ currentUser }: LiveAccessViewProps) {
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null)
   const [savedProjectIds, setSavedProjectIds] = useState<number[]>([])
   const [draftProjectIds, setDraftProjectIds] = useState<number[]>([])
-  const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
   const [assignmentsUserId, setAssignmentsUserId] = useState<number | null>(null)
   const [saving, setSaving] = useState(false)
@@ -94,16 +93,7 @@ export function LiveAccessView({ currentUser }: LiveAccessViewProps) {
   )
   const assignmentsChanged = !sameIds(savedProjectIds, draftProjectIds)
 
-  const visibleUsers = useMemo(() => {
-    const normalizedSearch = search.trim().toLocaleLowerCase()
-    if (!normalizedSearch) return users
-
-    return users.filter((user) =>
-      [user.fullName, user.username, user.email, user.roleName].some((value) =>
-        value.toLocaleLowerCase().includes(normalizedSearch),
-      ),
-    )
-  }, [search, users])
+  const visibleUsers = users
 
   useEffect(() => {
     if (currentUser.role !== 'Administrator') {
@@ -353,16 +343,6 @@ export function LiveAccessView({ currentUser }: LiveAccessViewProps) {
               </div>
               <span className="lav-count-chip">{users.length}</span>
             </header>
-            <div className="lav-access-search">
-              <label htmlFor="access-user-search">Find a person</label>
-              <input
-                id="access-user-search"
-                type="search"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Username, email, name or role"
-              />
-            </div>
             <ul className="lav-access-user-list">
               {visibleUsers.length ? (
                 visibleUsers.map((user) => (
@@ -393,7 +373,7 @@ export function LiveAccessView({ currentUser }: LiveAccessViewProps) {
                   </li>
                 ))
               ) : (
-                <li className="lav-access-no-results">No accounts match that search.</li>
+                <li className="lav-access-no-results">No accounts are available.</li>
               )}
             </ul>
           </section>

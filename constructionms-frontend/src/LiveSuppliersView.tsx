@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import {
   ApiError,
   supplierOnboardingApi,
@@ -51,7 +51,6 @@ function statusLabel(status: SupplierOnboardingStatus) {
 export function LiveSuppliersView({ currentUser }: LiveSuppliersViewProps) {
   const [requests, setRequests] = useState<SupplierOnboardingRequest[]>([])
   const [suppliers, setSuppliers] = useState<SupplierSummary[]>([])
-  const [statusFilter, setStatusFilter] = useState<SupplierOnboardingStatus | 'All'>('All')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
@@ -82,11 +81,12 @@ export function LiveSuppliersView({ currentUser }: LiveSuppliersViewProps) {
     return () => controller.abort()
   }, [refreshKey])
 
-  const visibleRequests = useMemo(
-    () => requests.filter(request => statusFilter === 'All' || request.status === statusFilter),
-    [requests, statusFilter],
-  )
   const pendingCount = requests.filter(request => request.status === 'Pending').length
+  const requestGroups: Array<{ status: SupplierOnboardingStatus; title: string; items: SupplierOnboardingRequest[] }> = [
+    { status: 'Pending', title: 'Awaiting review', items: requests.filter(request => request.status === 'Pending') },
+    { status: 'Approved', title: 'Approved applications', items: requests.filter(request => request.status === 'Approved') },
+    { status: 'Rejected', title: 'Rejected applications', items: requests.filter(request => request.status === 'Rejected') },
+  ]
 
   async function toggleBlacklist(supplier: SupplierSummary) {
     setBlacklistBusyId(supplier.id)
@@ -123,7 +123,7 @@ export function LiveSuppliersView({ currentUser }: LiveSuppliersViewProps) {
         <SupplierApplicationForm
           onSubmitted={request => {
             setRequests(current => [request, ...current])
-            setMessage(`${request.requestNumber} was sent for independent review.`)
+            setMessage('Supplier application sent. Wait for Finance or the CEO to complete the independent review.')
           }}
         />
       )}
@@ -134,35 +134,32 @@ export function LiveSuppliersView({ currentUser }: LiveSuppliersViewProps) {
             <span>APPLICATIONS</span>
             <h2>Onboarding decisions</h2>
           </div>
-          <select
-            value={statusFilter}
-            onChange={event => setStatusFilter(event.currentTarget.value as SupplierOnboardingStatus | 'All')}
-            aria-label="Filter supplier applications"
-          >
-            <option value="All">All decisions</option>
-            <option value="Pending">Awaiting review</option>
-            <option value="Approved">Approved</option>
-            <option value="Rejected">Rejected</option>
-          </select>
         </header>
 
         {loading ? (
           <div className="supplier-empty">Loading supplier records…</div>
-        ) : visibleRequests.length === 0 ? (
-          <div className="supplier-empty">No supplier applications match this filter.</div>
+        ) : requests.length === 0 ? (
+          <div className="supplier-empty">No supplier applications have been submitted.</div>
         ) : (
-          <div className="supplier-request-list">
-            {visibleRequests.map(request => (
-              <SupplierRequestCard
-                key={request.id}
-                request={request}
-                canReview={canReview}
-                onReviewed={updated => {
-                  setRequests(current => current.map(item => item.id === updated.id ? updated : item))
-                  setMessage(`${updated.requestNumber} was ${updated.status.toLowerCase()}.`)
-                  if (updated.status === 'Approved') setRefreshKey(value => value + 1)
-                }}
-              />
+          <div className="supplier-decision-groups">
+            {requestGroups.map(group => group.items.length > 0 && (
+              <section className={`supplier-decision-group ${group.status.toLowerCase()}`} key={group.status}>
+                <header><h3>{group.title}</h3><strong>{group.items.length}</strong></header>
+                <div className="supplier-request-list">
+                  {group.items.map(request => (
+                    <SupplierRequestCard
+                      key={request.id}
+                      request={request}
+                      canReview={canReview}
+                      onReviewed={updated => {
+                        setRequests(current => current.map(item => item.id === updated.id ? updated : item))
+                        setMessage(`Supplier application ${updated.status.toLowerCase()}.`)
+                        if (updated.status === 'Approved') setRefreshKey(value => value + 1)
+                      }}
+                    />
+                  ))}
+                </div>
+              </section>
             ))}
           </div>
         )}
@@ -310,7 +307,7 @@ function SupplierRequestCard({
   return (
     <article className="supplier-request-card">
       <header>
-        <div><span>{request.requestNumber}</span><h3>{request.name}</h3><p>{request.category}</p></div>
+        <div><span>SUPPLIER APPLICATION</span><h3>{request.name}</h3><p>{request.category}</p></div>
         <span className={`supplier-request-status ${request.status.toLowerCase()}`}>{statusLabel(request.status)}</span>
       </header>
       <dl>

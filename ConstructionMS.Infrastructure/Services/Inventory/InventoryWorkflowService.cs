@@ -178,6 +178,8 @@ public sealed class InventoryWorkflowService : IInventoryWorkflowService
             .SingleOrDefaultAsync(item => item.Id == request.RequisitionId)
             ?? throw new KeyNotFoundException("The requisition was not found.");
         if (requisition.Status != RequisitionWorkflowStates.Approved) throw new InvalidOperationException("Materials can be issued only against an approved requisition.");
+        if (requisition.RequestType != RequisitionTypes.SiteUse)
+            throw new InvalidOperationException("Bulk store replenishment is received into stock and cannot be issued as one foreman handover.");
         if (requisition.RequestedByUserId == actorUserId) throw new UnauthorizedAccessException("The requester cannot issue their own materials.");
         if (quantity != requisition.Quantity)
             throw new InvalidOperationException("This starter workflow issues the full approved quantity on one voucher; revise the requisition before issue if the required quantity changed.");

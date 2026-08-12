@@ -196,7 +196,6 @@ export function LiveProcurementView({ currentUser }: LiveProcurementViewProps) {
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
-  const [statusFilter, setStatusFilter] = useState<SourcingRoundStatus | ''>('')
   const [projectFilter, setProjectFilter] = useState('')
 
   useEffect(() => {
@@ -252,10 +251,9 @@ export function LiveProcurementView({ currentUser }: LiveProcurementViewProps) {
     () =>
       rounds.filter(
         (round) =>
-          (!statusFilter || round.status === statusFilter) &&
           (!projectFilter || round.projectId === Number(projectFilter)),
       ),
-    [projectFilter, rounds, statusFilter],
+    [projectFilter, rounds],
   )
 
   const projects = useMemo(
@@ -286,12 +284,12 @@ export function LiveProcurementView({ currentUser }: LiveProcurementViewProps) {
           : round,
       ),
     )
-    setNotice(`Quote ${quote.quoteReference} was added to the comparison.`)
+    setNotice('Supplier quote added. Add other comparable quotes, then prepare the order when the comparison is complete.')
   }
 
   function addOrder(order: PurchaseOrder) {
     setOrders((current) => [order, ...current])
-    setNotice(`${order.purchaseOrderNumber} was prepared as a draft. It still needs submission and approval.`)
+    setNotice('Draft order prepared. Submit it next, then wait for the assigned Supervisor to approve it.')
   }
 
   if (!allowed) {
@@ -378,21 +376,6 @@ export function LiveProcurementView({ currentUser }: LiveProcurementViewProps) {
                     ))}
                   </select>
                 </label>
-                <label>
-                  <span className="lav-visually-hidden">Filter by status</span>
-                  <select
-                    value={statusFilter}
-                    onChange={(event) =>
-                      setStatusFilter(event.currentTarget.value as SourcingRoundStatus | '')
-                    }
-                  >
-                    <option value="">All stages</option>
-                    <option value="Open">Collecting quotes</option>
-                    <option value="Awarded">Supplier selected</option>
-                    <option value="Closed">Closed</option>
-                    <option value="Cancelled">Cancelled</option>
-                  </select>
-                </label>
               </div>
             </header>
 
@@ -402,7 +385,7 @@ export function LiveProcurementView({ currentUser }: LiveProcurementViewProps) {
                   title="No sourcing rounds here"
                   detail={
                     rounds.length
-                      ? 'Change the project or stage filter.'
+                      ? 'Choose another project.'
                       : 'An approved material request is needed before Procurement can start sourcing.'
                   }
                 />
@@ -503,8 +486,7 @@ function CreateSourcingRoundForm({
                     <option value="">Choose request</option>
                     {requisitions.map((request) => (
                       <option key={request.id} value={request.id}>
-                        MR-{String(request.id).padStart(4, '0')} · {request.projectName} ·{' '}
-                        {formatNumber(request.quantity)} {request.materialUnit} {request.materialName}
+                        {request.projectName} · {formatNumber(request.quantity)} {request.materialUnit} {request.materialName}
                       </option>
                     ))}
                   </select>
@@ -571,14 +553,12 @@ function SourcingRoundCard({
     (independentReviewer && round.status === 'Cancelled')
 
   return (
-    <article className="lav-purchase-card">
+    <article className={`lav-purchase-card status-${round.status.toLowerCase()}`}>
       <header>
         <div className="lav-request-id">
-          <span>SOURCE-{String(round.id).padStart(4, '0')}</span>
+          <span>{round.status === 'Cancelled' ? 'CANCELLED SOURCING' : round.status === 'Awarded' ? 'SUPPLIER SELECTED' : 'SUPPLIER SOURCING'}</span>
           <strong>{round.materialName}</strong>
-          <small>
-            MR-{String(round.requisitionId).padStart(4, '0')} · {round.projectName}
-          </small>
+          <small>{round.projectName}</small>
         </div>
         <span className={`lav-status ${statusTone(round.status)}`}>
           {roundStatusLabel(round.status)}
@@ -609,8 +589,8 @@ function SourcingRoundCard({
       {round.notes && <p className="lav-action-message">{round.notes}</p>}
       {liveOrder && (
         <Notice>
-          {liveOrder.purchaseOrderNumber} is {orderStatusLabel(liveOrder.status).toLowerCase()} for
-          this request. Further quote selection is locked.
+          The purchase order is {orderStatusLabel(liveOrder.status).toLowerCase()} for this request.
+          Further quote selection is locked.
         </Notice>
       )}
 
@@ -742,7 +722,6 @@ function QuoteComparison({
             <tr key={quote.id}>
               <td>
                 <strong>{quote.supplierName}</strong>
-                <small>{quote.quoteReference}</small>
               </td>
               <td>
                 {formatNumber(quote.quantityOffered)} {unit}
@@ -1065,9 +1044,7 @@ export function LivePurchaseOrdersView({ currentUser }: LivePurchaseOrdersViewPr
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
-  const [statusFilter, setStatusFilter] = useState<PurchaseOrderStatus | ''>('')
   const [projectFilter, setProjectFilter] = useState('')
-  const [search, setSearch] = useState('')
 
   useEffect(() => {
     if (!allowed) return
@@ -1094,17 +1071,11 @@ export function LivePurchaseOrdersView({ currentUser }: LivePurchaseOrdersViewPr
     [currentUser, orders],
   )
   const filteredOrders = useMemo(() => {
-    const query = search.trim().toLowerCase()
     return orders.filter(
       (order) =>
-        (!statusFilter || order.status === statusFilter) &&
-        (!projectFilter || order.projectId === Number(projectFilter)) &&
-        (!query ||
-          order.purchaseOrderNumber.toLowerCase().includes(query) ||
-          order.supplierName.toLowerCase().includes(query) ||
-          order.projectName.toLowerCase().includes(query)),
+        (!projectFilter || order.projectId === Number(projectFilter)),
     )
-  }, [orders, projectFilter, search, statusFilter])
+  }, [orders, projectFilter])
 
   function replaceOrder(updated: PurchaseOrder, message: string) {
     setOrders((current) => current.map((order) => (order.id === updated.id ? updated : order)))
@@ -1169,26 +1140,10 @@ export function LivePurchaseOrdersView({ currentUser }: LivePurchaseOrdersViewPr
             </div>
             <div className="lav-filter-row">
               <label>
-                <span className="lav-visually-hidden">Search orders</span>
-                <input value={search} onChange={(event) => setSearch(event.currentTarget.value)} placeholder="Search PO or supplier" />
-              </label>
-              <label>
                 <span className="lav-visually-hidden">Filter by project</span>
                 <select value={projectFilter} onChange={(event) => setProjectFilter(event.currentTarget.value)}>
                   <option value="">All projects</option>
                   {projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
-                </select>
-              </label>
-              <label>
-                <span className="lav-visually-hidden">Filter by status</span>
-                <select value={statusFilter} onChange={(event) => setStatusFilter(event.currentTarget.value as PurchaseOrderStatus | '')}>
-                  <option value="">All stages</option>
-                  <option value="Draft">Draft</option>
-                  <option value="Submitted">Waiting for approval</option>
-                  <option value="Approved">Approved</option>
-                  <option value="Issued">Sent to supplier</option>
-                  <option value="Rejected">Rejected</option>
-                  <option value="Cancelled">Cancelled</option>
                 </select>
               </label>
             </div>
@@ -1197,7 +1152,7 @@ export function LivePurchaseOrdersView({ currentUser }: LivePurchaseOrdersViewPr
             {filteredOrders.length === 0 ? (
               <EmptyState
                 title="No purchase orders here"
-                detail={orders.length ? 'Change the search or filters.' : 'A supplier quote must be selected before an order can be prepared.'}
+                detail={orders.length ? 'Choose another project.' : 'A supplier quote must be selected before an order can be prepared.'}
               />
             ) : (
               filteredOrders.map((order) => (
@@ -1242,9 +1197,9 @@ function PurchaseOrderCard({
     <article className="lav-purchase-card">
       <header>
         <div className="lav-request-id">
-          <span>{order.purchaseOrderNumber}</span>
+          <span>{order.status === 'Cancelled' ? 'CANCELLED ORDER' : 'PURCHASE ORDER'}</span>
           <strong>{order.supplierName}</strong>
-          <small>{order.projectName} · MR-{String(order.requisitionId).padStart(4, '0')}</small>
+          <small>{order.projectName}</small>
         </div>
         <span className={`lav-status ${statusTone(order.status)}`}>{orderStatusLabel(order.status)}</span>
       </header>
@@ -1393,7 +1348,14 @@ function OrderActionForm({
           reason: reason.trim(),
         })
       }
-      onChanged(updated, `${updated.purchaseOrderNumber} is now ${orderStatusLabel(updated.status).toLowerCase()}.`)
+      const next = updated.status === 'Submitted'
+        ? ' Wait for the assigned Supervisor to approve it.'
+        : updated.status === 'Approved'
+          ? ' Procurement can issue it to the supplier now.'
+          : updated.status === 'Issued'
+            ? ' Wait for the Storekeeper to count the delivery.'
+            : ''
+      onChanged(updated, `Purchase order is now ${orderStatusLabel(updated.status).toLowerCase()}.${next}`)
     } catch (requestError) {
       setError(errorMessage(requestError))
     } finally {

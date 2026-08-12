@@ -24,6 +24,11 @@ public interface IRequisitionWorkflowService
         CreateRequisitionV1RequestDto request,
         CancellationToken cancellationToken = default);
 
+    Task<OperationResult<RequisitionWorkflowResponseDto>> CreateStockReplenishmentAsync(
+        int actorUserId,
+        CreateStockReplenishmentRequestDto request,
+        CancellationToken cancellationToken = default);
+
     Task<OperationResult<RequisitionWorkflowResponseDto>> UpdateAsync(
         int actorUserId,
         int requisitionId,

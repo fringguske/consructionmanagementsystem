@@ -98,6 +98,7 @@ Approved demand becomes visible to Procurement
 | `GET /requisitions` | CEO, Auditor, Foreman, Engineer, Supervisor, Procurement, Storekeeper | Role- and project-shaped queue. Foremen see only their own requests. |
 | `GET /requisitions/{id}` | Same readers, scoped | Read the current workflow state. Only CEO/Auditor receive the complete event history. |
 | `POST /requisitions` | Assigned Foreman | Request a catalog material against an active project and active cost code. |
+| `POST /requisitions/stock-replenishment` | Assigned Storekeeper | Request reserve stock for a project store. This goes to the Supervisor, then Procurement, and cannot be used as a Foreman issue voucher. |
 | `PATCH /requisitions/{id}` | Original Foreman | Revise before verification or after return. `ExpectedRevision` prevents overwriting a newer action. |
 | `POST /requisitions/{id}/technical-check` | Different assigned Engineer | `Verified` or `RevisionRequired`. |
 | `POST /requisitions/{id}/decision` | Different assigned Supervisor | `Approve`, `Reject` or `ReturnForRevision`. |
@@ -133,13 +134,14 @@ Quote recording locks the sourcing round, so a quote cannot slip in concurrently
 | `POST /purchase-orders/{id}/issue` | Assigned Procurement officer | Issue only an approved PO while the project remains active. A Procurement handoff within the same assigned project is allowed and recorded. |
 | `POST /purchase-orders/{id}/cancel` | Procurement, Supervisor or CEO according to current state | Stop a non-issued PO with a required reason. |
 
-The requester, technical checker, supervisor decision-maker, procurement creator and PO approver are checked as separate responsibilities. Database triggers also reject a PO or line whose project, requisition, material, supplier, selected quote, quantity or price do not describe the same commercial source. Commercial snapshots are stored in append-only lines/events; operational roles receive only the information required for their next step.
+For site-use requests, the requester, technical checker, supervisor decision-maker, procurement creator and PO approver are checked as separate responsibilities. A bulk store-replenishment request is raised by Stores and independently approved by the Supervisor before Procurement sourcing; it skips the Engineer because it is an inventory-level decision rather than a technical site-use need. Database triggers also reject a PO or line whose project, requisition, material, supplier, selected quote, quantity or price do not describe the same commercial source. Commercial snapshots are stored in append-only lines/events; operational roles receive only the information required for their next step.
 
 ## 5. Inventory and material custody
 
 ```text
 Issued PO → Storekeeper GRN → project store balance
-Approved requisition → Storekeeper issue voucher → Foreman confirmation → use/wastage
+Approved site-use requisition → Storekeeper issue voucher → Foreman confirmation → use/wastage
+Approved store-replenishment request → Procurement sourcing → PO → Storekeeper GRN → reserve stock
 Supervisor transfer request → sending Storekeeper dispatch → different receiving Storekeeper receipt
 Storekeeper physical count → Supervisor review → ledger adjustment when approved
 ```
