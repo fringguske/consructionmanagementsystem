@@ -2184,6 +2184,16 @@ function SupervisorDecisionForm({ requisition, onChanged }: WorkflowFormProps) {
 }
 
 function RequisitionHistory({ requisition }: { requisition: Requisition }) {
+  function requestedQuantity(event: Requisition['history'][number]) {
+    try {
+      const snapshot = JSON.parse(event.eventDataJson) as { quantity?: unknown }
+      const quantity = Number(snapshot.quantity)
+      return Number.isFinite(quantity) && quantity > 0 ? quantity : requisition.quantity
+    } catch {
+      return requisition.quantity
+    }
+  }
+
   return (
     <details className="lav-history">
       <summary>
@@ -2195,19 +2205,22 @@ function RequisitionHistory({ requisition }: { requisition: Requisition }) {
       </summary>
       <ol>
         {requisition.history.length ? (
-          requisition.history.map((event) => (
-            <li key={`${event.sequenceNumber}-${event.eventHash}`}>
+          requisition.history.map((event) => {
+            const isRequest = event.eventType === 'Requested' || event.eventType === 'StockReplenishmentRequested'
+            return <li key={`${event.sequenceNumber}-${event.eventHash}`}>
               <span aria-hidden="true">{event.sequenceNumber}</span>
               <div>
                 <strong>{event.eventType.replace(/([a-z])([A-Z])/g, '$1 $2')}</strong>
                 <p>
                   {event.actorName} · {event.actorRole}
                 </p>
-                {event.comments && <blockquote>{event.comments}</blockquote>}
+                {isRequest
+                  ? <blockquote>{requisition.materialName} · {formatNumber(requestedQuantity(event))} {requisition.materialUnit}</blockquote>
+                  : event.comments && <blockquote>{event.comments}</blockquote>}
                 <small>{formatDateTime(event.occurredAt)}</small>
               </div>
             </li>
-          ))
+          })
         ) : (
           <li className="lav-history-empty">No history was returned for this record.</li>
         )}
