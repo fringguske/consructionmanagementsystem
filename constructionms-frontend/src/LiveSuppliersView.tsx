@@ -103,7 +103,7 @@ export function LiveSuppliersView({ currentUser }: LiveSuppliersViewProps) {
   }
 
   return (
-    <div className="supplier-view">
+    <div className={`supplier-view ${currentUser.role === 'CEO' ? 'ceo-readable' : ''}`}>
       <header className="supplier-page-head">
         <div>
           <span>SUPPLIER CONTROL</span>

@@ -1785,6 +1785,147 @@
   font-size: 10px;
 }
 
+/* CEO readability: match the comfortable scale used by Stock and movement. */
+.lav-view.ceo-readable .lav-kicker,
+.lav-view.ceo-readable .lav-panel-head .lav-kicker {
+  font-size: 10.5px;
+}
+
+.lav-view.ceo-readable .lav-page-head p,
+.lav-view.ceo-readable .lav-project-detail > header p {
+  font-size: 12.5px;
+}
+
+.lav-view.ceo-readable .lav-panel-head h2 {
+  font-size: 16px;
+}
+
+.lav-view.ceo-readable .lav-count-chip,
+.lav-view.ceo-readable .lav-status,
+.lav-view.ceo-readable .lav-filter-row select {
+  font-size: 11px;
+}
+
+.lav-view.ceo-readable .lav-summary-card span,
+.lav-view.ceo-readable .lav-home-actions span {
+  font-size: 11px;
+}
+
+.lav-view.ceo-readable .lav-summary-card small,
+.lav-view.ceo-readable .lav-home-actions small {
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.lav-view.ceo-readable .lav-home-actions strong {
+  font-size: 14.5px;
+}
+
+.lav-view.ceo-readable .lav-scope-card li strong,
+.lav-view.ceo-readable .lav-project-list-copy strong {
+  font-size: 13px;
+}
+
+.lav-view.ceo-readable .lav-project-list-copy small,
+.lav-view.ceo-readable .lav-project-percent {
+  font-size: 11px;
+}
+
+.lav-view.ceo-readable .lav-project-dates span,
+.lav-view.ceo-readable .lav-project-facts span {
+  font-size: 10.5px;
+}
+
+.lav-view.ceo-readable .lav-project-dates strong,
+.lav-view.ceo-readable .lav-progress-note strong,
+.lav-view.ceo-readable .lav-budget-row > span strong {
+  font-size: 12.5px;
+}
+
+.lav-view.ceo-readable .lav-project-dates small,
+.lav-view.ceo-readable .lav-progress-note span,
+.lav-view.ceo-readable .lav-progress-note small,
+.lav-view.ceo-readable .lav-project-facts small,
+.lav-view.ceo-readable .lav-budget-row > span small {
+  font-size: 11px;
+}
+
+.lav-view.ceo-readable .lav-progress-block > div:first-child span {
+  font-size: 12px;
+}
+
+.lav-view.ceo-readable .lav-project-facts strong {
+  font-size: 15px;
+}
+
+.lav-view.ceo-readable .lav-request-id span {
+  font-size: 10.5px;
+}
+
+.lav-view.ceo-readable .lav-request-id strong {
+  font-size: 15px;
+}
+
+.lav-view.ceo-readable .lav-request-id small {
+  font-size: 11.5px;
+}
+
+.lav-view.ceo-readable .lav-request-context span,
+.lav-view.ceo-readable .lav-review-note span {
+  font-size: 10px;
+}
+
+.lav-view.ceo-readable .lav-request-context strong,
+.lav-view.ceo-readable .lav-review-note p {
+  font-size: 12px;
+}
+
+.lav-view.ceo-readable .lav-history summary strong {
+  font-size: 13px;
+}
+
+.lav-view.ceo-readable .lav-history summary small,
+.lav-view.ceo-readable .lav-history summary b {
+  font-size: 11.5px;
+}
+
+.lav-view.ceo-readable .lav-history li > span {
+  font-size: 10.5px;
+}
+
+.lav-view.ceo-readable .lav-history li strong {
+  font-size: 12.5px;
+}
+
+.lav-view.ceo-readable .lav-history li p,
+.lav-view.ceo-readable .lav-history li blockquote,
+.lav-view.ceo-readable .lav-history li small,
+.lav-view.ceo-readable .lav-history .lav-history-empty {
+  font-size: 11.5px;
+}
+
+.lav-view.ceo-readable .lav-purchase-facts span,
+.lav-view.ceo-readable .lav-quote-table thead th,
+.lav-view.ceo-readable .lav-price-check {
+  font-size: 10.5px;
+}
+
+.lav-view.ceo-readable .lav-purchase-facts strong,
+.lav-view.ceo-readable .lav-quote-table th,
+.lav-view.ceo-readable .lav-quote-table td,
+.lav-view.ceo-readable .lav-quote-table td strong {
+  font-size: 12.5px;
+}
+
+.lav-view.ceo-readable .lav-quote-table td small,
+.lav-view.ceo-readable .lav-order-milestones span {
+  font-size: 11.5px;
+}
+
+.lav-view.ceo-readable .lav-order-milestones small {
+  font-size: 10.5px;
+}
+
 .lav-purchase-list {
   display: grid;
   gap: 14px;

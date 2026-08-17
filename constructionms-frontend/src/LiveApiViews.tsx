@@ -507,7 +507,7 @@ export function LiveDashboardView({ currentUser, onNavigate }: LiveDashboardView
   const summaryItems = dashboard ? dashboardSummary(currentUser.role, dashboard) : []
 
   return (
-    <div className="lav-view">
+    <div className={`lav-view ${currentUser.role === 'CEO' ? 'ceo-readable' : ''}`}>
       <header className="lav-page-head">
         <div>
           <span className="lav-kicker">{currentUser.role} workspace</span>
@@ -671,7 +671,7 @@ export function LiveProjectsView({ currentUser }: LiveProjectsViewProps) {
   }
 
   return (
-    <div className="lav-view">
+    <div className={`lav-view ${currentUser.role === 'CEO' ? 'ceo-readable' : ''}`}>
       <header className="lav-page-head">
         <div>
           <span className="lav-kicker">Live project records</span>
@@ -1447,7 +1447,7 @@ export function LiveRequisitionsView({ currentUser }: LiveRequisitionsViewProps)
   }
 
   return (
-    <div className="lav-view">
+    <div className={`lav-view ${currentUser.role === 'CEO' ? 'ceo-readable' : ''}`}>
       <header className="lav-page-head">
         <div>
           <span className="lav-kicker">Controlled material requests</span>
