@@ -48,6 +48,10 @@ function Empty({ children }: { children: ReactNode }) {
   return <div className="ops-empty"><strong>Nothing waiting</strong><span>{children}</span></div>
 }
 
+function Loading({ children }: { children: ReactNode }) {
+  return <div className="lav-loading" role="status" aria-live="polite"><span/><p>{children}</p></div>
+}
+
 export function LiveInventoryView({ currentUser }: { currentUser: CurrentUser }) {
   const [balances, setBalances] = useState<StockBalance[]>([])
   const [ledger, setLedger] = useState<StockLedgerEntry[]>([])
@@ -111,7 +115,7 @@ export function LiveInventoryView({ currentUser }: { currentUser: CurrentUser })
 
   const changed = (text: string) => { setNotice(text); setRefresh(value => value + 1) }
 
-  if (loading) return <div className="lav-loading"><span/><p>Loading controlled stock records…</p></div>
+  if (loading) return <Loading>Loading stock records…</Loading>
   return <div className="lav-view ops-view">
     <header className="lav-page-head"><div><span className="lav-kicker">MATERIAL CUSTODY</span><h1>{role === 'Foreman' ? 'Materials issued to me' : 'Stock and movement'}</h1></div></header>
     {error && <Notice tone="error">{error}</Notice>}{notice && <Notice tone="success">{notice}</Notice>}
@@ -239,24 +243,28 @@ export function LiveFinanceView({ currentUser }: { currentUser: CurrentUser }) {
   const [payments, setPayments] = useState<Payment[]>([])
   const [orders, setOrders] = useState<PurchaseOrder[]>([])
   const [receipts, setReceipts] = useState<GoodsReceipt[]>([])
+  const [loadedRequest, setLoadedRequest] = useState<{ role: CurrentUser['role']; refresh: number } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [refresh, setRefresh] = useState(0)
   const role = currentUser.role
+  const loading = loadedRequest?.role !== role || loadedRequest.refresh !== refresh
   useEffect(() => {
     const controller = new AbortController()
     const tasks: Promise<unknown>[] = [financeApi.invoices(controller.signal)]
     if (role !== 'Procurement Officer') tasks.push(financeApi.authorizations(role === 'Cashier', controller.signal), financeApi.payments(controller.signal))
     if (role === 'Procurement Officer') tasks.push(purchaseOrdersApi.list({ page: 1, pageSize: 100, status: 'Issued' }, controller.signal), inventoryApi.receipts(controller.signal))
-    Promise.all(tasks).then(results => { let i = 0; setInvoices((results[i++] as { items: SupplierInvoice[] }).items); if (role !== 'Procurement Officer') { setAuthorizations((results[i++] as { items: PaymentAuthorization[] }).items); setPayments((results[i] as { items: Payment[] }).items) } else { setOrders((results[i++] as { items: PurchaseOrder[] }).items); setReceipts((results[i] as { items: GoodsReceipt[] }).items) } setError(null) }).catch(error => { if (!(error instanceof DOMException && error.name === 'AbortError')) setError(messageOf(error)) })
+    Promise.all(tasks).then(results => { let i = 0; setInvoices((results[i++] as { items: SupplierInvoice[] }).items); if (role !== 'Procurement Officer') { setAuthorizations((results[i++] as { items: PaymentAuthorization[] }).items); setPayments((results[i] as { items: Payment[] }).items) } else { setOrders((results[i++] as { items: PurchaseOrder[] }).items); setReceipts((results[i] as { items: GoodsReceipt[] }).items) } setError(null) }).catch(error => { if (!(error instanceof DOMException && error.name === 'AbortError')) setError(messageOf(error)) }).finally(() => { if (!controller.signal.aborted) setLoadedRequest({ role, refresh }) })
     return () => controller.abort()
   }, [refresh, role])
   const run = async (action: () => Promise<unknown>, text: string) => { try { await action(); setNotice(text); setError(null); setRefresh(v => v + 1); return true } catch (error) { setError(messageOf(error)); return false } }
   return <div className="lav-view ops-view"><header className="lav-page-head"><div><span className="lav-kicker">CONTROLLED MONEY PATH</span><h1>{role === 'Cashier' ? 'Approved payments' : role === 'Procurement Officer' ? 'Supplier invoices' : 'Invoices and payments'}</h1><p>Cash cannot move until the PO, GRN and invoice agree.</p></div></header>{error && <Notice tone="error">{error}</Notice>}{notice && <Notice tone="success">{notice}</Notice>}
+    {loading ? <Loading>Loading finance records…</Loading> : <>
     {role === 'Procurement Officer' && <InvoiceCapture orders={orders} receipts={receipts} invoices={invoices} onRun={run}/>}
     <section className="lav-panel ops-panel"><header className="lav-panel-head"><div><span className="lav-kicker">THREE-WAY MATCH</span><h2>Supplier invoices</h2></div><strong>{invoices.length} records</strong></header>{invoices.length ? <div className="ops-invoice-grid">{invoices.map(invoice => <InvoiceCard key={invoice.id} invoice={invoice} role={role} run={run}/>)}</div> : <Empty>Invoices appear only after an issued PO has an accepted GRN.</Empty>}</section>
     {role === 'Cashier' && <CashierActions authorizations={authorizations} run={run}/>}
     {role !== 'Procurement Officer' && <section className="lav-panel ops-panel"><header className="lav-panel-head"><div><span className="lav-kicker">PAYMENT PROOF</span><h2>Executed payments</h2></div></header>{payments.length ? <div className="ops-table"><div className="ops-row payment head"><span>Payment</span><span>Amount</span><span>Method</span><span>External proof</span></div>{payments.map(payment => <div className="ops-row payment" key={payment.id}><span><b>{payment.paymentNumber}</b><small>{when(payment.paidAt)}</small></span><span>{money(payment.amount)}</span><span>{payment.method}</span><span><b>{payment.externalReference}</b><small>Receipt {payment.receiptNumber}</small></span></div>)}</div> : <Empty>No payment has been executed.</Empty>}</section>}
+    </>}
   </div>
 }
 
@@ -319,7 +327,7 @@ export function LivePettyCashView({ currentUser }: { currentUser: CurrentUser })
     catch (requestError) { setError(messageOf(requestError)); return false }
   }
 
-  if (loading) return <div className="lav-loading"><span/><p>Loading petty cash records…</p></div>
+  if (loading) return <Loading>Loading petty cash records…</Loading>
   return <div className="lav-view ops-view petty-cash-view">
     <header className="lav-page-head"><div><span className="lav-kicker">SMALL SITE EXPENSES</span><h1>Petty cash</h1><p>Supervisor requests, Finance approves, Cashier pays, and Finance closes the evidence.</p></div></header>
     {error && <Notice tone="error">{error}</Notice>}{notice && <Notice tone="success">{notice}</Notice>}
@@ -385,8 +393,9 @@ function PettyCashReview({ item, close, run }: { item: PettyCashRequest; close: 
 
 export function LiveAuditView() {
   const [events, setEvents] = useState<ControlEvent[]>([])
+  const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  useEffect(() => { const controller = new AbortController(); financeApi.controlEvents(controller.signal).then(result => setEvents(result.items)).catch(error => { if (!(error instanceof DOMException && error.name === 'AbortError')) setError(messageOf(error)) }); return () => controller.abort() }, [])
+  useEffect(() => { const controller = new AbortController(); financeApi.controlEvents(controller.signal).then(result => { setEvents(result.items); setError(null) }).catch(error => { if (!(error instanceof DOMException && error.name === 'AbortError')) setError(messageOf(error)) }).finally(() => { if (!controller.signal.aborted) setLoading(false) }); return () => controller.abort() }, [])
   const chains = useMemo(() => { const grouped = new Map<string, ControlEvent[]>(); events.forEach(event => grouped.set(event.chainKey, [...(grouped.get(event.chainKey) ?? []), event])); return [...grouped.entries()] }, [events])
-  return <div className="lav-view ops-view"><header className="lav-page-head"><div><span className="lav-kicker">CEO & AUDITOR ONLY</span><h1>Complete control chain</h1><p>Request, sourcing, order, receipt, issue, use and payment evidence in time order.</p></div></header>{error && <Notice tone="error">{error}</Notice>}<div className="ops-chain-list">{chains.map(([key, items]) => <section className="lav-panel ops-panel" key={key}><header className="lav-panel-head"><div><span className="lav-kicker">COMPLETE WORKFLOW</span><h2>{items[0]?.projectName}</h2></div><strong>{items.length} recorded steps</strong></header><div className="ops-timeline">{[...items].sort((a, b) => new Date(a.occurredAt).getTime() - new Date(b.occurredAt).getTime()).map((item, index) => <article key={`${item.entityType}-${item.entityId}-${item.sequenceNumber}`}><i>{index + 1}</i><div><span>{item.actorRole}</span><b>{item.eventType.replaceAll(/([A-Z])/g, ' $1').trim()}</b><small>{item.actorName}</small></div><time>{when(item.occurredAt)}</time></article>)}</div></section>)}{!chains.length && <Empty>The trace will appear as controlled transactions are recorded.</Empty>}</div></div>
+  return <div className="lav-view ops-view"><header className="lav-page-head"><div><span className="lav-kicker">CEO & AUDITOR ONLY</span><h1>Complete control chain</h1><p>Request, sourcing, order, receipt, issue, use and payment evidence in time order.</p></div></header>{error && <Notice tone="error">{error}</Notice>}{loading ? <Loading>Loading complete control chain…</Loading> : <div className="ops-chain-list">{chains.map(([key, items]) => <section className="lav-panel ops-panel" key={key}><header className="lav-panel-head"><div><span className="lav-kicker">COMPLETE WORKFLOW</span><h2>{items[0]?.projectName}</h2></div><strong>{items.length} recorded steps</strong></header><div className="ops-timeline">{[...items].sort((a, b) => new Date(a.occurredAt).getTime() - new Date(b.occurredAt).getTime()).map((item, index) => <article key={`${item.entityType}-${item.entityId}-${item.sequenceNumber}`}><i>{index + 1}</i><div><span>{item.actorRole}</span><b>{item.eventType.replaceAll(/([A-Z])/g, ' $1').trim()}</b><small>{item.actorName}</small></div><time>{when(item.occurredAt)}</time></article>)}</div></section>)}{!chains.length && !error && <Empty>The trace will appear as controlled transactions are recorded.</Empty>}</div>}</div>
 }

@@ -9,6 +9,7 @@ import {
   type SupplierSummary,
 } from './api'
 import './live-suppliers.css'
+import './supplier-loading.css'
 
 export interface LiveSuppliersViewProps {
   currentUser: CurrentUser
@@ -46,6 +47,10 @@ function formatDateTime(value: string | null) {
 function statusLabel(status: SupplierOnboardingStatus) {
   if (status === 'Pending') return 'Awaiting independent review'
   return status
+}
+
+function SupplierLoading() {
+  return <div className="supplier-loading" role="status" aria-live="polite"><span/><p>Loading supplier records…</p></div>
 }
 
 export function LiveSuppliersView({ currentUser }: LiveSuppliersViewProps) {
@@ -111,7 +116,7 @@ export function LiveSuppliersView({ currentUser }: LiveSuppliersViewProps) {
           <p>Procurement submits the company. Finance or the CEO independently decides whether it can enter sourcing.</p>
         </div>
         <div className={pendingCount > 0 ? 'needs-review' : ''}>
-          <strong>{pendingCount}</strong>
+          <strong>{loading ? '—' : pendingCount}</strong>
           <span>awaiting review</span>
         </div>
       </header>
@@ -137,7 +142,7 @@ export function LiveSuppliersView({ currentUser }: LiveSuppliersViewProps) {
         </header>
 
         {loading ? (
-          <div className="supplier-empty">Loading supplier records…</div>
+          <SupplierLoading />
         ) : requests.length === 0 ? (
           <div className="supplier-empty">No supplier applications have been submitted.</div>
         ) : (
@@ -171,9 +176,9 @@ export function LiveSuppliersView({ currentUser }: LiveSuppliersViewProps) {
             <span>APPROVED REGISTER</span>
             <h2>Suppliers available for quotation</h2>
           </div>
-          <b>{suppliers.filter(supplier => !supplier.isBlacklisted).length} available</b>
+          <b>{loading ? '—' : suppliers.filter(supplier => !supplier.isBlacklisted).length} available</b>
         </header>
-        {suppliers.length === 0 ? (
+        {loading ? null : suppliers.length === 0 ? (
           <div className="supplier-empty">No supplier has completed approval yet.</div>
         ) : (
           <div className="approved-supplier-list">
