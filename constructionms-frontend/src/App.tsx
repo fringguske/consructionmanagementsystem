@@ -514,7 +514,7 @@ function Shell({ authenticatedUser, onLogout, onSwitchRole }: ShellProps = {}) {
     '/requisitions': role === 'Foreman' ? ['My material requests', 'Request what the site needs and follow its approval'] : role === 'Engineer' ? ['Technical checks', 'Verify the site need before a supervisor decides'] : role === 'Supervisor' ? ['Material approvals', 'Decide only after an engineer has checked the request'] : ['Material requests', 'The controlled path from site request to approval'],
     '/sourcing': ['Supplier sourcing', 'Quotes and supplier selection for approved material needs'],
     '/access': ['Requests & access', 'Approve people, select roles and assign projects'],
-    '/inventory': role === 'CEO' ? ['Stock & movement', 'What is inside each store, with site teams and moving'] : role === 'Foreman' ? ['Materials on site', 'Confirm receipt, record use and report wastage'] : role === 'Storekeeper' ? ['Stock ledger', 'Immutable balances across project stores'] : ['Inventory', 'Stock levels and material movement'],
+    '/inventory': role === 'CEO' ? ['Stock & movement', 'What is inside each store, with site teams and moving'] : role === 'Foreman' ? ['Materials on site', 'Confirm receipt, record use and report wastage'] : role === 'Storekeeper' ? ['Stock ledger', ''] : ['Inventory', 'Stock levels and material movement'],
     '/finance': role === 'Cashier'
       ? ['Payments & cash', 'Execute approved payments and reconcile site floats']
       : role === 'Supervisor'
@@ -600,7 +600,7 @@ function Shell({ authenticatedUser, onLogout, onSwitchRole }: ShellProps = {}) {
     <main className={`main ${role === 'CEO' ? 'ceo-shell' : ''}`}>
       <header className="topbar">
         <button className="menu-button" onClick={() => setNavOpen(true)} aria-label="Open navigation"><Icon name="menu"/></button>
-        <div className="page-title"><h1>{title}</h1><p>{subtitle}</p></div>
+        <div className="page-title"><h1>{title}</h1>{subtitle && <p>{subtitle}</p>}</div>
         <div className="top-actions">
           <label className={`site-picker ${profile.projects ? 'assigned-site' : ''}`}><Icon name="building" size={16}/><select value={site} onChange={e => setSite(e.target.value)}><option>{aggregateSiteLabel}</option>{liveMode ? authenticatedUser?.projects.map(project => <option key={project.id}>{project.name}</option>) : projects.filter(project => availableProjects.includes(project.name as ProjectName)).map(project => <option key={project.name}>{project.name}</option>)}</select><span>{profile.projects ? <Icon name="lock" size={12}/> : '⌄'}</span></label>
           {!liveMode && <button className="icon-button notification" aria-label="Notifications"><Icon name="bell"/><i>5</i></button>}
