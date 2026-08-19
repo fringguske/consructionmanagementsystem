@@ -98,7 +98,8 @@ public sealed class AuthenticationService : IAuthenticationService
             ActualRole = actor.ActualRole,
             CanSwitchRoles = actor.CanSwitchRoles,
             AvailableRoles = actor.AvailableRoles,
-            Projects = projects
+            Projects = projects,
+            CredentialVersion = actor.CredentialVersion
         };
     }
 }

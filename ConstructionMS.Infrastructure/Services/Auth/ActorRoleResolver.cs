@@ -42,6 +42,7 @@ public sealed class ActorRoleResolver : IActorRoleResolver
                 candidate.Username,
                 candidate.FullName,
                 candidate.Email,
+                candidate.CredentialVersion,
                 ActualRole = candidate.Role.RoleName
             })
             .SingleOrDefaultAsync(cancellationToken);
@@ -99,6 +100,7 @@ public sealed class ActorRoleResolver : IActorRoleResolver
                 user.Username,
                 user.FullName,
                 user.Email,
+                user.CredentialVersion,
                 user.ActualRole,
                 effectiveRole,
                 isConfiguredTester,

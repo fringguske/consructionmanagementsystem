@@ -65,6 +65,7 @@ import type {
   Payment,
   PettyCashRequest,
   ControlEvent,
+  ChangePasswordRequest,
 } from './types'
 
 interface ProblemDetails {
@@ -241,10 +242,16 @@ async function requestWithoutResponse(
 ): Promise<void> {
   let response: Response
   try {
+    const headers = new Headers({ Accept: 'application/json' })
+    if (options.body !== undefined) {
+      headers.set('Content-Type', 'application/json')
+    }
+
     response = await fetch(buildUrl(path), {
       method: options.method ?? 'POST',
       credentials: 'include',
-      headers: { Accept: 'application/json' },
+      headers,
+      body: options.body === undefined ? undefined : JSON.stringify(options.body),
       signal: options.signal,
     })
   } catch (error) {
@@ -281,6 +288,13 @@ export const authApi = {
 
   switchRole: (payload: SwitchRoleRequest, signal?: AbortSignal) =>
     request<CurrentUser>('/auth/role-context', {
+      method: 'POST',
+      body: payload,
+      signal,
+    }),
+
+  changePassword: (payload: ChangePasswordRequest, signal?: AbortSignal) =>
+    requestWithoutResponse('/auth/change-password', {
       method: 'POST',
       body: payload,
       signal,

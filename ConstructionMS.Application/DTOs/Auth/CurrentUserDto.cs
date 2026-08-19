@@ -1,5 +1,7 @@
 namespace ConstructionMS.Application.DTOs.Auth;
 
+using System.Text.Json.Serialization;
+
 public sealed class CurrentUserDto
 {
     public int Id { get; init; }
@@ -11,6 +13,9 @@ public sealed class CurrentUserDto
     public bool CanSwitchRoles { get; init; }
     public IReadOnlyList<string> AvailableRoles { get; init; } = [];
     public IReadOnlyList<AssignedProjectDto> Projects { get; init; } = [];
+
+    [JsonIgnore]
+    public int CredentialVersion { get; init; }
 }
 
 public sealed class AssignedProjectDto

@@ -82,6 +82,28 @@ Then run the API once with `--bootstrap-administrator`. The command refuses to r
 dotnet run --project ConstructionMS.Api/ConstructionMS.Api.csproj -- --bootstrap-administrator
 ```
 
+### Administrator account recovery
+
+A signed-in user can change their own password from the account menu. The change
+ends every existing session for that account and creates an append-only security
+audit event.
+
+If the Administrator cannot sign in, run the recovery command from an interactive
+terminal on the application server. It reads the new password twice without
+displaying it. Passwords are deliberately rejected from command-line arguments,
+environment variables, and redirected input so they do not enter shell history or
+process listings.
+
+```bash
+dotnet run --project ConstructionMS.Api/ConstructionMS.Api.csproj -- \
+  --reset-administrator-password \
+  --administrator-username <username>
+```
+
+For a published deployment, run the same two options after the API DLL. The command
+requires an up-to-date database, an active Administrator account, and the normal
+deployment connection string. It never creates a second Administrator.
+
 ## Frontend modes
 
 `constructionms-frontend/.env.example` documents the two safe settings. Demo mode is the default:

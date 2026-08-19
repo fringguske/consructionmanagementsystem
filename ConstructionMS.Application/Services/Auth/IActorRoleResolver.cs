@@ -17,6 +17,7 @@ public sealed record ActorRoleContext(
     string Username,
     string FullName,
     string Email,
+    int CredentialVersion,
     string ActualRole,
     string EffectiveRole,
     bool CanSwitchRoles,

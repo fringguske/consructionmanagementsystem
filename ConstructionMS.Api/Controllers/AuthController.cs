@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using ConstructionMS.Api.Common;
 using ConstructionMS.Application.DTOs.Auth;
+using ConstructionMS.Application.Security;
 using ConstructionMS.Application.Services.Auth;
 using ApplicationAuthenticationService = ConstructionMS.Application.Services.Auth.IAuthenticationService;
 using Microsoft.AspNetCore.Authentication;
@@ -18,15 +19,18 @@ public sealed class AuthController : ControllerBase
 {
     private readonly ApplicationAuthenticationService _authenticationService;
     private readonly IAccessRequestService _accessRequestService;
+    private readonly ICredentialService _credentialService;
     private readonly ILogger<AuthController> _logger;
 
     public AuthController(
         ApplicationAuthenticationService authenticationService,
         IAccessRequestService accessRequestService,
+        ICredentialService credentialService,
         ILogger<AuthController> logger)
     {
         _authenticationService = authenticationService;
         _accessRequestService = accessRequestService;
+        _credentialService = credentialService;
         _logger = logger;
     }
 
@@ -99,6 +103,20 @@ public sealed class AuthController : ControllerBase
     }
 
     [Authorize]
+    [HttpPost("change-password")]
+    public async Task<IActionResult> ChangePassword(
+        [FromBody] ChangePasswordRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        await _credentialService.ChangePasswordAsync(
+            User.GetRequiredUserId(),
+            request,
+            cancellationToken);
+        await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+        return NoContent();
+    }
+
+    [Authorize]
     [HttpPost("logout")]
     public async Task<IActionResult> Logout()
     {
@@ -113,7 +131,8 @@ public sealed class AuthController : ControllerBase
             new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
             new Claim(ClaimTypes.Name, user.FullName),
             new Claim(ClaimTypes.Email, user.Email),
-            new Claim(ClaimTypes.Role, user.Role)
+            new Claim(ClaimTypes.Role, user.Role),
+            new Claim(ApplicationClaimTypes.CredentialVersion, user.CredentialVersion.ToString())
         };
         var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
         var properties = new AuthenticationProperties

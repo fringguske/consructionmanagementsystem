@@ -1,6 +1,7 @@
 using ConstructionMS.Infrastructure.Data;
 using ConstructionMS.Api.Common;
 using ConstructionMS.Application.Configuration;
+using ConstructionMS.Application.Security;
 using ConstructionMS.Application.Services.Auth;
 using ConstructionMS.Application.Services.Dashboard;
 using ConstructionMS.Application.Services.Materials;
@@ -106,7 +107,10 @@ builder.Services
         options.Events.OnValidatePrincipal = async context =>
         {
             var idValue = context.Principal?.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (!int.TryParse(idValue, out var userId))
+            var versionValue = context.Principal?.FindFirstValue(
+                ApplicationClaimTypes.CredentialVersion);
+            if (!int.TryParse(idValue, out var userId)
+                || !int.TryParse(versionValue, out var credentialVersion))
             {
                 context.RejectPrincipal();
                 await context.HttpContext.SignOutAsync(
@@ -121,9 +125,9 @@ builder.Services
                 userId,
                 cookieRole,
                 context.HttpContext.RequestAborted);
-            if (currentUser is null)
+            if (currentUser is null || currentUser.CredentialVersion != credentialVersion)
             {
-                // Deactivation and role changes revoke the old session immediately.
+                // Deactivation, role changes, and credential changes revoke old sessions.
                 context.RejectPrincipal();
                 await context.HttpContext.SignOutAsync(
                     CookieAuthenticationDefaults.AuthenticationScheme);
@@ -140,7 +144,10 @@ builder.Services
                     new Claim(ClaimTypes.NameIdentifier, userId.ToString()),
                     new Claim(ClaimTypes.Name, currentUser.FullName),
                     new Claim(ClaimTypes.Email, currentUser.Email),
-                    new Claim(ClaimTypes.Role, currentUser.EffectiveRole)
+                    new Claim(ClaimTypes.Role, currentUser.EffectiveRole),
+                    new Claim(
+                        ApplicationClaimTypes.CredentialVersion,
+                        currentUser.CredentialVersion.ToString())
                 };
                 context.ReplacePrincipal(new ClaimsPrincipal(new ClaimsIdentity(
                     claims,
@@ -176,6 +183,7 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentActorContext, HttpCurrentActorContext>();
 builder.Services.AddScoped<IActorRoleResolver, ActorRoleResolver>();
 builder.Services.AddScoped<IAccessRequestService, AccessRequestService>();
+builder.Services.AddScoped<ICredentialService, CredentialService>();
 builder.Services.AddScoped<IUserProjectAssignmentService, UserProjectAssignmentService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
 builder.Services.AddScoped<IUserService, UserService>();
@@ -244,6 +252,39 @@ app.MapGet("/api/v1/health", async (
     .AllowAnonymous();
 app.MapControllers();
 
+if (args.Contains("--reset-administrator-password", StringComparer.Ordinal))
+{
+    var username = GetRequiredOption(args, "--administrator-username");
+    if (Console.IsInputRedirected)
+    {
+        throw new InvalidOperationException(
+            "Administrator recovery requires an interactive terminal so the password is never passed " +
+            "through command-line arguments, environment variables, or shell history.");
+    }
+
+    await using var scope = app.Services.CreateAsyncScope();
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    var pendingMigrations = await db.Database.GetPendingMigrationsAsync();
+    if (pendingMigrations.Any())
+    {
+        throw new InvalidOperationException(
+            "Apply all database migrations before running --reset-administrator-password.");
+    }
+
+    var newPassword = ReadSecret("New Administrator password: ");
+    var confirmation = ReadSecret("Confirm Administrator password: ");
+    if (!string.Equals(newPassword, confirmation, StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException("The passwords did not match. No change was made.");
+    }
+
+    var credentials = scope.ServiceProvider.GetRequiredService<ICredentialService>();
+    await credentials.ResetAdministratorPasswordAsync(username, newPassword);
+    Console.WriteLine(
+        "Administrator password reset completed. Existing sessions for the account are now invalid.");
+    return;
+}
+
 if (args.Contains("--bootstrap-administrator", StringComparer.Ordinal))
 {
     await using var scope = app.Services.CreateAsyncScope();
@@ -297,3 +338,55 @@ if (args.Contains("--bootstrap-administrator", StringComparer.Ordinal))
 }
 
 app.Run();
+
+static string GetRequiredOption(string[] commandLineArguments, string optionName)
+{
+    var optionIndex = Array.FindIndex(
+        commandLineArguments,
+        argument => string.Equals(argument, optionName, StringComparison.Ordinal));
+    if (optionIndex < 0
+        || optionIndex == commandLineArguments.Length - 1
+        || commandLineArguments[optionIndex + 1].StartsWith("--", StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException($"{optionName} requires a value.");
+    }
+
+    return commandLineArguments[optionIndex + 1];
+}
+
+static string ReadSecret(string prompt)
+{
+    Console.Write(prompt);
+    var characters = new List<char>();
+    while (true)
+    {
+        var key = Console.ReadKey(intercept: true);
+        if (key.Key == ConsoleKey.Enter)
+        {
+            Console.WriteLine();
+            return new string([.. characters]);
+        }
+
+        if (key.Key == ConsoleKey.Backspace)
+        {
+            if (characters.Count > 0)
+            {
+                characters.RemoveAt(characters.Count - 1);
+            }
+
+            continue;
+        }
+
+        if (key.Key == ConsoleKey.C
+            && key.Modifiers.HasFlag(ConsoleModifiers.Control))
+        {
+            Console.WriteLine();
+            throw new OperationCanceledException("Administrator recovery was cancelled.");
+        }
+
+        if (key.KeyChar != '\0' && !char.IsControl(key.KeyChar))
+        {
+            characters.Add(key.KeyChar);
+        }
+    }
+}

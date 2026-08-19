@@ -66,6 +66,7 @@ public class AppDbContext : DbContext
     public DbSet<PettyCashReconciliation> PettyCashReconciliations => Set<PettyCashReconciliation>();
     public DbSet<PettyCashReconciliationEvent> PettyCashReconciliationEvents => Set<PettyCashReconciliationEvent>();
     public DbSet<ControlEvent> ControlEvents => Set<ControlEvent>();
+    public DbSet<SecurityAuditEvent> SecurityAuditEvents => Set<SecurityAuditEvent>();
 
     private void GuardAppendOnlyEvidence()
     {
@@ -94,7 +95,8 @@ public class AppDbContext : DbContext
                     or PaymentReceipt
                     or PettyCashDisbursement
                     or PettyCashReconciliationEvent
-                    or ControlEvent);
+                    or ControlEvent
+                    or SecurityAuditEvent);
 
         if (changedEvidence is not null)
         {
@@ -314,6 +316,7 @@ public class AppDbContext : DbContext
         ConfigurePettyCashReconciliations(modelBuilder);
         ConfigurePettyCashReconciliationEvents(modelBuilder);
         ConfigureControlEvents(modelBuilder);
+        ConfigureSecurityAuditEvents(modelBuilder);
     }
 
     private static void ConfigureRoles(ModelBuilder modelBuilder, DateTime seedDate)
@@ -406,6 +409,9 @@ public class AppDbContext : DbContext
         users.Property(user => user.PhoneNumber).HasMaxLength(30);
         users.Property(user => user.Email).HasMaxLength(254);
         users.Property(user => user.PasswordHash).HasMaxLength(255);
+        users.Property(user => user.CredentialVersion)
+            .HasDefaultValue(1)
+            .IsConcurrencyToken();
         users.Property<string>("NormalizedEmail")
             .HasComputedColumnSql(NormalizedEmailSql, stored: true);
         users.HasIndex("NormalizedEmail")
@@ -413,9 +419,15 @@ public class AppDbContext : DbContext
         users.Property<string>("NormalizedUsername")
             .HasComputedColumnSql(NormalizedUsernameSql, stored: true);
         users.HasIndex("NormalizedUsername").IsUnique();
-        users.ToTable(table => table.HasCheckConstraint(
-            "CK_Users_Username_Format",
-            "\"Username\" ~ '^[a-zA-Z0-9][a-zA-Z0-9._-]{2,49}$'"));
+        users.ToTable(table =>
+        {
+            table.HasCheckConstraint(
+                "CK_Users_Username_Format",
+                "\"Username\" ~ '^[a-zA-Z0-9][a-zA-Z0-9._-]{2,49}$'");
+            table.HasCheckConstraint(
+                "CK_Users_CredentialVersion_Positive",
+                "\"CredentialVersion\" >= 1");
+        });
 
         users.HasOne(user => user.Role)
             .WithMany()
@@ -1416,5 +1428,33 @@ public class AppDbContext : DbContext
         events.HasOne(item => item.Requisition).WithMany().HasForeignKey(item => item.RequisitionId).OnDelete(DeleteBehavior.Restrict);
         events.HasOne(item => item.Project).WithMany().HasForeignKey(item => item.ProjectId).OnDelete(DeleteBehavior.Restrict);
         events.HasOne(item => item.ActorUser).WithMany().HasForeignKey(item => item.ActorUserId).OnDelete(DeleteBehavior.Restrict);
+    }
+
+    private static void ConfigureSecurityAuditEvents(ModelBuilder modelBuilder)
+    {
+        var events = modelBuilder.Entity<SecurityAuditEvent>();
+
+        events.Property(item => item.EventType).HasMaxLength(60);
+        events.Property(item => item.Source).HasMaxLength(40);
+        events.HasIndex(item => new { item.TargetUserId, item.OccurredAt });
+        events.HasIndex(item => item.ActorUserId);
+        events.ToTable(table =>
+        {
+            table.HasCheckConstraint(
+                "CK_SecurityAuditEvents_EventType",
+                "\"EventType\" IN ('PasswordChanged', 'AdministratorPasswordReset')");
+            table.HasCheckConstraint(
+                "CK_SecurityAuditEvents_Source",
+                "\"Source\" IN ('SelfService', 'ServerRecovery')");
+        });
+
+        events.HasOne(item => item.TargetUser)
+            .WithMany()
+            .HasForeignKey(item => item.TargetUserId)
+            .OnDelete(DeleteBehavior.Restrict);
+        events.HasOne(item => item.ActorUser)
+            .WithMany()
+            .HasForeignKey(item => item.ActorUserId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }

@@ -372,6 +372,7 @@ type ShellProps = {
   authenticatedUser?: CurrentUser
   onLogout?: () => Promise<void> | void
   onSwitchRole?: (role: ConstructionRole) => Promise<void>
+  onPasswordChanged?: () => void
 }
 
 const liveRoleNavigation: Record<ConstructionRole, readonly { to: string; label: string; icon: IconName; badge?: number }[]> = {
@@ -450,12 +451,63 @@ const liveRoleNavigation: Record<ConstructionRole, readonly { to: string; label:
   ],
 }
 
-function Shell({ authenticatedUser, onLogout, onSwitchRole }: ShellProps = {}) {
+function PasswordChangeModal({ onClose, onChanged }: {
+  onClose: () => void
+  onChanged: () => void
+}) {
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmNewPassword, setConfirmNewPassword] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (busy) return
+    if (newPassword !== confirmNewPassword) {
+      setError('Passwords do not match.')
+      return
+    }
+
+    setBusy(true)
+    setError(null)
+    try {
+      await authApi.changePassword({ currentPassword, newPassword, confirmNewPassword })
+      onChanged()
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : 'The password could not be changed.')
+      setBusy(false)
+    }
+  }
+
+  return <div className="modal-wrap" role="dialog" aria-modal="true" aria-labelledby="change-password-title">
+    <button type="button" className="modal-backdrop" aria-label="Close password form" onClick={onClose}/>
+    <form className="modal account-password-modal" onSubmit={event => void submit(event)}>
+      <header className="modal-head">
+        <div><span className="eyebrow">ACCOUNT SECURITY</span><h2 id="change-password-title">Change password</h2></div>
+        <button type="button" onClick={onClose} aria-label="Close password form"><Icon name="close" size={17}/></button>
+      </header>
+      <div className="form-grid">
+        <label className="full">Current password<input type="password" autoComplete="current-password" required maxLength={72} value={currentPassword} onChange={event => setCurrentPassword(event.target.value)}/></label>
+        <label className="full">New password<input type="password" autoComplete="new-password" required minLength={12} maxLength={72} value={newPassword} onChange={event => setNewPassword(event.target.value)}/></label>
+        <label className="full">Confirm new password<input type="password" autoComplete="new-password" required minLength={12} maxLength={72} value={confirmNewPassword} onChange={event => setConfirmNewPassword(event.target.value)}/></label>
+        {error && <p className="account-password-error" role="alert">{error}</p>}
+      </div>
+      <footer className="modal-actions">
+        <Button variant="secondary" onClick={onClose}>Cancel</Button>
+        <button className="button primary" disabled={busy}>{busy ? 'Changing…' : 'Change password'}</button>
+      </footer>
+    </form>
+  </div>
+}
+
+function Shell({ authenticatedUser, onLogout, onSwitchRole, onPasswordChanged }: ShellProps = {}) {
   const [navOpen, setNavOpen] = useState(false)
   const [site, setSite] = useState('All projects')
   const [roleMenuOpen, setRoleMenuOpen] = useState(false)
   const [switchingRole, setSwitchingRole] = useState<ConstructionRole | null>(null)
   const [roleSwitchError, setRoleSwitchError] = useState<string | null>(null)
+  const [passwordModalOpen, setPasswordModalOpen] = useState(false)
   const [activeProfileId, setActiveProfileId] = useState('ceo')
   const location = useLocation()
   const navigate = useNavigate()
@@ -626,6 +678,7 @@ function Shell({ authenticatedUser, onLogout, onSwitchRole }: ShellProps = {}) {
                 </div>
                 {roleSwitchError && <p className="live-role-error">{roleSwitchError}</p>}
               </>}
+              <button className="live-account-action" onClick={() => { setRoleMenuOpen(false); setPasswordModalOpen(true) }}><Icon name="settings" size={15}/>Change password</button>
               <button className="live-logout" onClick={() => void onLogout?.()}><Icon name="lock" size={15}/>Sign out</button>
             </div>}
             {roleMenuOpen && !liveMode && <div className="role-menu">
@@ -691,6 +744,13 @@ function Shell({ authenticatedUser, onLogout, onSwitchRole }: ShellProps = {}) {
         </Routes>
       </div>
     </main>
+    {passwordModalOpen && authenticatedUser && <PasswordChangeModal
+      onClose={() => setPasswordModalOpen(false)}
+      onChanged={() => {
+        setPasswordModalOpen(false)
+        onPasswordChanged?.()
+      }}
+    />}
   </div>
 }
 
@@ -1829,6 +1889,7 @@ function Settings() {
 function LiveSession() {
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>()
   const [sessionError, setSessionError] = useState<string | null>(null)
+  const [sessionMessage, setSessionMessage] = useState<string | null>(null)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -1856,9 +1917,11 @@ function LiveSession() {
   if (currentUser === null) {
     return <>
       {sessionError && <div className="lav-bootstrap-notice" role="alert">{sessionError}</div>}
+      {sessionMessage && <div className="lav-bootstrap-notice success" role="status">{sessionMessage}</div>}
       <LiveLoginView onAuthenticated={user => {
         setCurrentUser(user)
         setSessionError(null)
+        setSessionMessage(null)
       }}/>
     </>
   }
@@ -1876,7 +1939,16 @@ function LiveSession() {
     setCurrentUser(user)
   }
 
-  return <BrowserRouter><Shell authenticatedUser={currentUser} onLogout={logout} onSwitchRole={switchRole}/></BrowserRouter>
+  return <BrowserRouter><Shell
+    authenticatedUser={currentUser}
+    onLogout={logout}
+    onSwitchRole={switchRole}
+    onPasswordChanged={() => {
+      setCurrentUser(null)
+      setSessionError(null)
+      setSessionMessage('Password changed. Sign in with your new password.')
+    }}
+  /></BrowserRouter>
 }
 
 export default function App() {

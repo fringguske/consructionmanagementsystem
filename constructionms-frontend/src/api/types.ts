@@ -70,6 +70,12 @@ export interface LoginRequest {
   password: string
 }
 
+export interface ChangePasswordRequest {
+  currentPassword: string
+  newPassword: string
+  confirmNewPassword: string
+}
+
 export interface RegisterAccessRequest {
   email: string
   username: string
