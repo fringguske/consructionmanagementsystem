@@ -179,7 +179,7 @@ function procurementIntro(role: CurrentUser['role']): string {
     return 'Collect comparable quotes, prepare a draft order, then send it for an independent decision.'
   }
   if (role === 'Supervisor' || role === 'CEO') {
-    return 'Review sourcing exceptions here. Purchase-order decisions are made in the orders workspace.'
+    return ''
   }
   return 'Read the supplier-selection record without changing it.'
 }
@@ -315,7 +315,7 @@ export function LiveProcurementView({ currentUser }: LiveProcurementViewProps) {
         <div>
           <span className="lav-kicker">Controlled purchasing</span>
           <h1>Supplier sourcing</h1>
-          <p>{procurementIntro(currentUser.role)}</p>
+          {procurementIntro(currentUser.role) && <p>{procurementIntro(currentUser.role)}</p>}
         </div>
         <span className="lav-count-chip">{rounds.length} rounds</span>
       </header>
@@ -1015,7 +1015,7 @@ function orderIntro(role: CurrentUser['role']): string {
   const descriptions: Partial<Record<CurrentUser['role'], string>> = {
     'Procurement Officer': 'Submit prepared orders after checking them, then issue only independently approved orders.',
     Supervisor: 'Approve, return or reject submitted orders for your assigned projects.',
-    CEO: 'See the full order chain and step in only for independent decisions or exceptions.',
+    CEO: '',
     Storekeeper: 'Use issued orders to prepare for delivery. Prices and private approval details stay hidden.',
     'Finance Officer': 'Read commercial orders for budget and later invoice checks. No purchasing action is available here.',
     Auditor: 'Read every order event and decision without changing the record.',
@@ -1093,9 +1093,8 @@ export function LivePurchaseOrdersView({ currentUser }: LivePurchaseOrdersViewPr
     <div className={`lav-view lav-procurement-view ${currentUser.role === 'CEO' ? 'ceo-readable' : ''}`}>
       <header className="lav-page-head">
         <div>
-          <span className="lav-kicker">Approved purchasing path</span>
           <h1>Purchase orders</h1>
-          <p>{orderIntro(currentUser.role)}</p>
+          {orderIntro(currentUser.role) && <p>{orderIntro(currentUser.role)}</p>}
         </div>
         <span className="lav-count-chip">{orders.length} visible</span>
       </header>
@@ -1128,8 +1127,7 @@ export function LivePurchaseOrdersView({ currentUser }: LivePurchaseOrdersViewPr
         <section className="lav-panel">
           <header className="lav-panel-head lav-request-toolbar">
             <div>
-              <span className="lav-kicker">Server-controlled record</span>
-              <h2>Orders visible to {currentUser.role}</h2>
+              <h2>Orders</h2>
             </div>
             <div className="lav-filter-row">
               <label>

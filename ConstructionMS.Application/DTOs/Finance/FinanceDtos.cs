@@ -117,6 +117,9 @@ public sealed class ControlEventResponseDto
     public string EventType { get; set; } = string.Empty;
     public string ActorName { get; set; } = string.Empty;
     public string ActorRole { get; set; } = string.Empty;
+    public string? MaterialName { get; set; }
+    public string? MaterialUnit { get; set; }
+    public decimal? RequestedQuantity { get; set; }
     public string? DetailsJson { get; set; }
     public DateTime OccurredAt { get; set; }
     public string EventHash { get; set; } = string.Empty;

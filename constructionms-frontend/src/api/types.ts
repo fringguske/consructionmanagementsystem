@@ -715,5 +715,6 @@ export interface ControlEvent {
   chainKey: string; sequenceNumber: number; requisitionId: number | null; projectId: number
   projectName: string; entityType: string; entityId: number; referenceNumber: string
   eventType: string; actorName: string; actorRole: ConstructionRole; detailsJson: string | null
+  materialName: string | null; materialUnit: string | null; requestedQuantity: number | null
   occurredAt: IsoDateTime; eventHash: string
 }

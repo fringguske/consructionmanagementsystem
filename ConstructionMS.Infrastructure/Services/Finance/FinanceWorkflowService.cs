@@ -261,7 +261,11 @@ public sealed class FinanceWorkflowService : IFinanceWorkflowService
                 ChainKey = item.ChainKey, SequenceNumber = item.SequenceNumber, RequisitionId = item.RequisitionId,
                 ProjectId = item.ProjectId, ProjectName = item.Project.Name, EntityType = item.EntityType, EntityId = item.EntityId,
                 ReferenceNumber = item.ReferenceNumber, EventType = item.EventType, ActorName = item.ActorUser.FullName,
-                ActorRole = item.ActorRole, DetailsJson = item.DetailsJson, OccurredAt = item.OccurredAt, EventHash = item.EventHash
+                ActorRole = item.ActorRole,
+                MaterialName = item.Requisition == null ? null : item.Requisition.Material.Name,
+                MaterialUnit = item.Requisition == null ? null : item.Requisition.Material.Unit,
+                RequestedQuantity = item.Requisition == null ? null : item.Requisition.Quantity,
+                DetailsJson = item.DetailsJson, OccurredAt = item.OccurredAt, EventHash = item.EventHash
             }).ToListAsync();
 
         var reqQuery = _db.RequisitionApprovalEvents.AsNoTracking().AsQueryable();
@@ -272,7 +276,9 @@ public sealed class FinanceWorkflowService : IFinanceWorkflowService
             ChainKey = "REQ-" + item.RequisitionId, SequenceNumber = item.SequenceNumber, RequisitionId = item.RequisitionId,
             ProjectId = item.Requisition.ProjectId, ProjectName = item.Requisition.Project.Name, EntityType = "Requisition", EntityId = item.RequisitionId,
             ReferenceNumber = "MR-" + item.RequisitionId, EventType = item.EventType, ActorName = item.ActorUser.FullName,
-            ActorRole = item.ActorRole, DetailsJson = item.EventDataJson, OccurredAt = item.OccurredAt, EventHash = item.EventHash
+            ActorRole = item.ActorRole, MaterialName = item.Requisition.Material.Name,
+            MaterialUnit = item.Requisition.Material.Unit, RequestedQuantity = item.Requisition.Quantity,
+            DetailsJson = item.EventDataJson, OccurredAt = item.OccurredAt, EventHash = item.EventHash
         }).ToListAsync();
 
         var sourcingQuery = _db.SourcingRoundEvents.AsNoTracking().AsQueryable();
@@ -284,7 +290,9 @@ public sealed class FinanceWorkflowService : IFinanceWorkflowService
             RequisitionId = item.SourcingRound.RequisitionId, ProjectId = item.SourcingRound.Requisition.ProjectId,
             ProjectName = item.SourcingRound.Requisition.Project.Name, EntityType = "SourcingRound", EntityId = item.SourcingRoundId,
             ReferenceNumber = "SRC-" + item.SourcingRoundId, EventType = item.EventType, ActorName = item.ActorUser.FullName,
-            ActorRole = item.ActorRole, DetailsJson = item.Notes, OccurredAt = item.OccurredAt, EventHash = string.Empty
+            ActorRole = item.ActorRole, MaterialName = item.SourcingRound.Requisition.Material.Name,
+            MaterialUnit = item.SourcingRound.Requisition.Material.Unit, RequestedQuantity = item.SourcingRound.Requisition.Quantity,
+            DetailsJson = item.Notes, OccurredAt = item.OccurredAt, EventHash = string.Empty
         }).ToListAsync();
 
         var poQuery = _db.PurchaseOrderEvents.AsNoTracking().AsQueryable();
@@ -296,7 +304,9 @@ public sealed class FinanceWorkflowService : IFinanceWorkflowService
             RequisitionId = item.PurchaseOrder.RequisitionId, ProjectId = item.PurchaseOrder.ProjectId,
             ProjectName = item.PurchaseOrder.Project.Name, EntityType = "PurchaseOrder", EntityId = item.PurchaseOrderId,
             ReferenceNumber = item.PurchaseOrder.PurchaseOrderNumber, EventType = item.EventType, ActorName = item.ActorUser.FullName,
-            ActorRole = item.ActorRole, DetailsJson = item.DetailsJson, OccurredAt = item.OccurredAt, EventHash = string.Empty
+            ActorRole = item.ActorRole, MaterialName = item.PurchaseOrder.Requisition.Material.Name,
+            MaterialUnit = item.PurchaseOrder.Requisition.Material.Unit, RequestedQuantity = item.PurchaseOrder.Requisition.Quantity,
+            DetailsJson = item.DetailsJson, OccurredAt = item.OccurredAt, EventHash = string.Empty
         }).ToListAsync();
 
         var all = requisitions.Concat(sourcing).Concat(orders).Concat(controls)

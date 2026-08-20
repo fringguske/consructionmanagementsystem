@@ -549,7 +549,7 @@ function Shell({ authenticatedUser, onLogout, onSwitchRole, onPasswordChanged }:
   const visibleNav = liveMode ? liveRoleNavigation[role] : fieldRoleNav[role] ?? standardNav
   const roleHomeTitles: Record<DemoRole, [string, string]> = {
     Administrator: ['Administrator', 'Join requests, roles and project access'],
-    CEO: ['Overview', 'Your projects, money and stores'],
+    CEO: ['Overview', ''],
     Supervisor: ['Supervisor overview', `Projects and actions across ${scopeLabel}`],
     Engineer: ['Technical overview', `Progress, quality and compliance across ${scopeLabel}`],
     Foreman: [`Today · ${scopeLabel}`, 'Work and material records'],
@@ -561,12 +561,12 @@ function Shell({ authenticatedUser, onLogout, onSwitchRole, onPasswordChanged }:
   }
   const titles: Record<string, [string, string]> = {
     '/': roleHomeTitles[role],
-    '/projects': role === 'CEO' ? ['Projects', 'Work done, money used and store stock for each project'] : role === 'Engineer' ? ['Progress & milestones', 'Verified construction progress across active sites'] : ['Projects', 'Portfolio health and site delivery'],
+    '/projects': role === 'CEO' ? ['Projects', ''] : role === 'Engineer' ? ['Progress & milestones', 'Verified construction progress across active sites'] : ['Projects', 'Portfolio health and site delivery'],
     '/procurement': role === 'Foreman' ? ['My material requests', 'Request what the site needs and follow its approval'] : role === 'Supervisor' ? ['Material approvals', 'Approve or return requests raised by your foremen'] : role === 'Procurement Officer' ? ['Approved sourcing queue', 'Source approved demand without changing it'] : ['Procurement', 'Requisitions, approvals and purchase orders'],
-    '/requisitions': role === 'Foreman' ? ['My material requests', 'Request what the site needs and follow its approval'] : role === 'Engineer' ? ['Technical checks', 'Verify the site need before a supervisor decides'] : role === 'Supervisor' ? ['Material approvals', 'Decide only after an engineer has checked the request'] : ['Material requests', 'The controlled path from site request to approval'],
+    '/requisitions': role === 'Foreman' ? ['My material requests', 'Request what the site needs and follow its approval'] : role === 'Engineer' ? ['Technical checks', 'Verify the site need before a supervisor decides'] : role === 'Supervisor' ? ['Material approvals', 'Decide only after an engineer has checked the request'] : ['Material requests', ''],
     '/sourcing': ['Supplier sourcing', 'Quotes and supplier selection for approved material needs'],
     '/access': ['Requests & access', 'Approve people, select roles and assign projects'],
-    '/inventory': role === 'CEO' ? ['Stock & movement', 'What is inside each store, with site teams and moving'] : role === 'Foreman' ? ['Materials on site', 'Confirm receipt, record use and report wastage'] : role === 'Storekeeper' ? ['Stock ledger', ''] : ['Inventory', 'Stock levels and material movement'],
+    '/inventory': role === 'CEO' ? ['Stock & movement', ''] : role === 'Foreman' ? ['Materials on site', 'Confirm receipt, record use and report wastage'] : role === 'Storekeeper' ? ['Stock ledger', ''] : ['Inventory', 'Stock levels and material movement'],
     '/finance': role === 'Cashier'
       ? ['Payments & cash', 'Execute approved payments and reconcile site floats']
       : role === 'Supervisor'
@@ -574,7 +574,7 @@ function Shell({ authenticatedUser, onLogout, onSwitchRole, onPasswordChanged }:
         : role === 'Finance Officer'
           ? ['Budgets & payables', 'Control commitments, invoices and available project funds']
         : role === 'CEO'
-          ? ['Money', 'Budget, paid, ordered and money left']
+          ? ['Money', '']
           : ['Finance', 'Budget, commitments and payments'],
     '/workforce': role === 'Foreman' ? ['Daily site log', `People, work completed and blockers across ${scopeLabel}`] : ['Workforce', 'Attendance, labour and subcontractors'],
     '/equipment': role === 'Foreman' ? ['Tools issued to me', `Custody and condition across ${scopeLabel}`] : ['Equipment', 'Assignments, condition and rental costs'],
@@ -584,15 +584,15 @@ function Shell({ authenticatedUser, onLogout, onSwitchRole, onPasswordChanged }:
     '/issues': ['Issue materials', 'Release stock only against approved site requests'],
     '/transfers': ['Site transfers', 'Dual-confirmed movement between project stores'],
     '/stock-counts': ['Stock counts', 'Physical counts and accountable variance records'],
-    '/purchase-orders': ['Purchase orders', 'Orders raised from approved requisitions'],
-    '/suppliers': ['Suppliers & quotations', 'Controlled sourcing and comparative bids'],
+    '/purchase-orders': ['Purchase orders', ''],
+    '/suppliers': ['Suppliers & quotations', ''],
     '/finance-matching': ['Three-way matching', 'Compare purchase orders, physical receipts and supplier invoices'],
     '/finance-approvals': ['Payment authorisation', 'Release only fully supported invoices to the Cashier'],
     '/finance-reconciliation': ['Reconciliation', 'Prove that ledgers, statements and project cash agree'],
-    '/petty-cash': ['Petty cash', 'Request, approve, disburse and reconcile small site expenses'],
+    '/petty-cash': ['Petty cash', ''],
     '/audit-samples': ['Evidence review', 'Trace selected transactions from request to final movement'],
     '/audit-reports': ['Reports & exports', 'Independent read-only audit outputs'],
-    '/audit': role === 'CEO' ? ['Records', 'Important problems and traceable purchase records'] : ['Audit & controls', 'Exceptions, compliance and activity'],
+    '/audit': role === 'CEO' ? ['Records', ''] : ['Audit & controls', 'Exceptions, compliance and activity'],
     '/settings': ['Settings', 'People, roles and control configuration'],
   }
   const [title, subtitle] = titles[location.pathname] || titles['/']

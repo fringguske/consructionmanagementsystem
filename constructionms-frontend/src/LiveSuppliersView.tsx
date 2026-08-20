@@ -113,7 +113,6 @@ export function LiveSuppliersView({ currentUser }: LiveSuppliersViewProps) {
         <div>
           <span>SUPPLIER CONTROL</span>
           <h1>Supplier onboarding</h1>
-          <p>Procurement submits the company. Finance or the CEO independently decides whether it can enter sourcing.</p>
         </div>
         <div className={pendingCount > 0 ? 'needs-review' : ''}>
           <strong>{loading ? '—' : pendingCount}</strong>

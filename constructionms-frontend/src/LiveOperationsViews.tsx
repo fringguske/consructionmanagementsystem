@@ -117,13 +117,13 @@ export function LiveInventoryView({ currentUser }: { currentUser: CurrentUser })
 
   if (loading) return <Loading>Loading stock records…</Loading>
   return <div className="lav-view ops-view">
-    <header className="lav-page-head"><div><span className="lav-kicker">MATERIAL CUSTODY</span><h1>{role === 'Foreman' ? 'Materials issued to me' : 'Stock and movement'}</h1></div></header>
+    {role === 'Foreman' && <header className="lav-page-head"><div><h1>Materials issued to me</h1></div></header>}
     {error && <Notice tone="error">{error}</Notice>}{notice && <Notice tone="success">{notice}</Notice>}
     {role === 'Storekeeper' && <StorekeeperActions currentUser={currentUser} projectSummaries={projectSummaries} orders={orders} receipts={receipts} requisitions={requisitions} balances={balances} materials={materials} issues={issues} transfers={transfers} counts={counts} onChanged={changed}/>}
     {role === 'Supervisor' && <SupervisorInventoryActions currentUser={currentUser} balances={balances} materials={materials} transfers={transfers} counts={counts} onChanged={changed}/>}
     {role === 'Foreman' && <ForemanIssueActions issues={issues} onChanged={changed}/>}
     <StockCards balances={balances}/>
-    {role !== 'Foreman' && <section className="lav-panel ops-panel"><header className="lav-panel-head"><div><span className="lav-kicker">MOVEMENT LEDGER</span><h2>Latest store movements</h2></div></header>
+    {role !== 'Foreman' && <section className="lav-panel ops-panel">
       {ledger.length ? <div className="ops-table"><div className="ops-row head"><span>Material</span><span>Movement</span><span>Quantity</span><span>Balance</span><span>Recorded by</span></div>{ledger.slice(0, 12).map(item => <div className="ops-row movement" key={item.id}><span data-label="Material"><b>{item.materialName}</b><small>{item.projectName}</small></span><span data-label="Movement">{item.movementType}</span><span data-label="Quantity" className={item.quantityDelta < 0 ? 'negative' : 'positive'}>{item.quantityDelta > 0 ? '+' : ''}{item.quantityDelta} {item.unit}</span><span data-label="Balance">{item.balanceAfter} {item.unit}</span><span data-label="Recorded by"><b>{item.actorName}</b><small>{when(item.occurredAt)}</small></span></div>)}</div> : <Empty>No receipts, issues, transfers or count adjustments yet.</Empty>}
     </section>}
     {['CEO', 'Auditor', 'Storekeeper', 'Supervisor'].includes(role) && <MovementSummary issues={issues} transfers={transfers} counts={counts}/>}
@@ -258,7 +258,7 @@ export function LiveFinanceView({ currentUser }: { currentUser: CurrentUser }) {
     return () => controller.abort()
   }, [refresh, role])
   const run = async (action: () => Promise<unknown>, text: string) => { try { await action(); setNotice(text); setError(null); setRefresh(v => v + 1); return true } catch (error) { setError(messageOf(error)); return false } }
-  return <div className="lav-view ops-view"><header className="lav-page-head"><div><span className="lav-kicker">CONTROLLED MONEY PATH</span><h1>{role === 'Cashier' ? 'Approved payments' : role === 'Procurement Officer' ? 'Supplier invoices' : 'Invoices and payments'}</h1><p>Cash cannot move until the PO, GRN and invoice agree.</p></div></header>{error && <Notice tone="error">{error}</Notice>}{notice && <Notice tone="success">{notice}</Notice>}
+  return <div className="lav-view ops-view"><header className="lav-page-head"><div><h1>{role === 'Cashier' ? 'Approved payments' : role === 'Procurement Officer' ? 'Supplier invoices' : 'Invoices and payments'}</h1></div></header>{error && <Notice tone="error">{error}</Notice>}{notice && <Notice tone="success">{notice}</Notice>}
     {loading ? <Loading>Loading finance records…</Loading> : <>
     {role === 'Procurement Officer' && <InvoiceCapture orders={orders} receipts={receipts} invoices={invoices} onRun={run}/>}
     <section className="lav-panel ops-panel"><header className="lav-panel-head"><div><span className="lav-kicker">THREE-WAY MATCH</span><h2>Supplier invoices</h2></div><strong>{invoices.length} records</strong></header>{invoices.length ? <div className="ops-invoice-grid">{invoices.map(invoice => <InvoiceCard key={invoice.id} invoice={invoice} role={role} run={run}/>)}</div> : <Empty>Invoices appear only after an issued PO has an accepted GRN.</Empty>}</section>
@@ -391,11 +391,60 @@ function PettyCashReview({ item, close, run }: { item: PettyCashRequest; close: 
   return <div className="petty-cash-inline"><p>{item.latestReconciliation?.evidenceReference} · {money(item.latestReconciliation?.amountSpent ?? 0)} spent · {money(item.latestReconciliation?.amountReturned ?? 0)} returned</p><label><span>Review notes</span><input minLength={3} required value={notes} onChange={event => setNotes(event.target.value)}/></label><div className="ops-buttons"><button className="lav-button secondary" disabled={notes.trim().length < 3} onClick={() => decide(false)}>Return</button><button className="lav-button primary" disabled={notes.trim().length < 3} onClick={() => decide(true)}>Reconcile and close</button><button className="lav-button secondary" onClick={close}>Cancel</button></div></div>
 }
 
+function controlEventLabel(eventType: string) {
+  return eventType.replaceAll(/([A-Z])/g, ' $1').trim()
+}
+
+function controlEventMaterial(item: ControlEvent) {
+  if (!item.materialName || !item.materialUnit || item.requestedQuantity === null) return null
+  const quantity = new Intl.NumberFormat('en-KE', { maximumFractionDigits: 3 }).format(item.requestedQuantity)
+  return `${quantity} ${item.materialUnit} · ${item.materialName}`
+}
+
 export function LiveAuditView() {
   const [events, setEvents] = useState<ControlEvent[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  useEffect(() => { const controller = new AbortController(); financeApi.controlEvents(controller.signal).then(result => { setEvents(result.items); setError(null) }).catch(error => { if (!(error instanceof DOMException && error.name === 'AbortError')) setError(messageOf(error)) }).finally(() => { if (!controller.signal.aborted) setLoading(false) }); return () => controller.abort() }, [])
-  const chains = useMemo(() => { const grouped = new Map<string, ControlEvent[]>(); events.forEach(event => grouped.set(event.chainKey, [...(grouped.get(event.chainKey) ?? []), event])); return [...grouped.entries()] }, [events])
-  return <div className="lav-view ops-view"><header className="lav-page-head"><div><span className="lav-kicker">CEO & AUDITOR ONLY</span><h1>Complete control chain</h1><p>Request, sourcing, order, receipt, issue, use and payment evidence in time order.</p></div></header>{error && <Notice tone="error">{error}</Notice>}{loading ? <Loading>Loading complete control chain…</Loading> : <div className="ops-chain-list">{chains.map(([key, items]) => <section className="lav-panel ops-panel" key={key}><header className="lav-panel-head"><div><span className="lav-kicker">COMPLETE WORKFLOW</span><h2>{items[0]?.projectName}</h2></div><strong>{items.length} recorded steps</strong></header><div className="ops-timeline">{[...items].sort((a, b) => new Date(a.occurredAt).getTime() - new Date(b.occurredAt).getTime()).map((item, index) => <article key={`${item.entityType}-${item.entityId}-${item.sequenceNumber}`}><i>{index + 1}</i><div><span>{item.actorRole}</span><b>{item.eventType.replaceAll(/([A-Z])/g, ' $1').trim()}</b><small>{item.actorName}</small></div><time>{when(item.occurredAt)}</time></article>)}</div></section>)}{!chains.length && !error && <Empty>The trace will appear as controlled transactions are recorded.</Empty>}</div>}</div>
+  useEffect(() => {
+    const controller = new AbortController()
+    financeApi.controlEvents(controller.signal)
+      .then(result => { setEvents(result.items); setError(null) })
+      .catch(error => {
+        if (!(error instanceof DOMException && error.name === 'AbortError')) setError(messageOf(error))
+      })
+      .finally(() => { if (!controller.signal.aborted) setLoading(false) })
+    return () => controller.abort()
+  }, [])
+  const chains = useMemo(() => {
+    const grouped = new Map<string, ControlEvent[]>()
+    events.forEach(event => grouped.set(event.chainKey, [...(grouped.get(event.chainKey) ?? []), event]))
+    return [...grouped.entries()]
+  }, [events])
+
+  return <div className="lav-view ops-view">
+    <header className="lav-page-head"><div><h1>Complete control chain</h1></div></header>
+    {error && <Notice tone="error">{error}</Notice>}
+    {loading ? <Loading>Loading complete control chain…</Loading> : <div className="ops-chain-list">
+      {chains.map(([key, items]) => <section className="lav-panel ops-panel" key={key}>
+        <header className="lav-panel-head"><div><h2>{items[0]?.projectName}</h2></div><strong>{items.length} recorded steps</strong></header>
+        <div className="ops-timeline">
+          {[...items]
+            .sort((a, b) => new Date(a.occurredAt).getTime() - new Date(b.occurredAt).getTime())
+            .map((item, index) => {
+              const material = controlEventMaterial(item)
+              return <article key={`${item.entityType}-${item.entityId}-${item.sequenceNumber}`}>
+                <i>{index + 1}</i>
+                <div>
+                  <span>{item.actorRole} · {item.actorName}</span>
+                  <b>{controlEventLabel(item.eventType)}</b>
+                  {material && <small className="ops-event-material">{material}</small>}
+                </div>
+                <time>{when(item.occurredAt)}</time>
+              </article>
+            })}
+        </div>
+      </section>)}
+      {!chains.length && !error && <Empty>The trace will appear as controlled transactions are recorded.</Empty>}
+    </div>}
+  </div>
 }

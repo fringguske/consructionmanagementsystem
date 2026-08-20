@@ -512,11 +512,9 @@ export function LiveDashboardView({ currentUser, onNavigate }: LiveDashboardView
         <div>
           <span className="lav-kicker">{currentUser.role} workspace</span>
           <h1>Good day, {currentUser.fullName.split(' ')[0]}</h1>
-          <p>
-            {currentUser.role === 'CEO' || currentUser.role === 'Auditor'
-              ? 'Portfolio-wide visibility'
-              : assignedNames || 'No projects assigned'}
-          </p>
+          {currentUser.role !== 'CEO' && currentUser.role !== 'Auditor' && (
+            <p>{assignedNames || 'No projects assigned'}</p>
+          )}
         </div>
         <div className="lav-identity-card" aria-label="Signed-in user">
           <span>{initials(currentUser.fullName)}</span>
@@ -943,9 +941,7 @@ function ProjectDetail({ entry, currentUser, onSummaryChanged }: ProjectDetailPr
                   <small>Evidence: {summary.latestProgress.evidenceReference}</small>
                 )}
               </div>
-            ) : (
-              <p className="lav-muted-copy">No engineer progress verification has been recorded.</p>
-            )}
+            ) : null}
           </div>
 
           <div className="lav-project-facts">
@@ -1190,7 +1186,6 @@ function BudgetRevisionForm({ projectId, summary, onSaved }: BudgetRevisionFormP
       <header>
         <div>
           <strong>Approve a new budget split</strong>
-          <small>Enter the full budget and its allocation across every active area.</small>
         </div>
         {summary.currentBudget && (
           <span className="lav-current-budget">
@@ -1230,10 +1225,13 @@ function BudgetRevisionForm({ projectId, summary, onSaved }: BudgetRevisionFormP
                   step="0.01"
                   aria-label={`${costCode.name} allocation in KES`}
                   value={allocationAmounts[costCode.id] ?? '0'}
-                  onChange={(event) => setAllocationAmounts((current) => ({
-                    ...current,
-                    [costCode.id]: event.currentTarget.value,
-                  }))}
+                  onChange={(event) => {
+                    const value = event.currentTarget.value
+                    setAllocationAmounts((current) => ({
+                      ...current,
+                      [costCode.id]: value,
+                    }))
+                  }}
                   required
                 />
               </label>
