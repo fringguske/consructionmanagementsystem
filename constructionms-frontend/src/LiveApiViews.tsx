@@ -208,7 +208,7 @@ function dashboardActions(role: CurrentUser['role']): DashboardAction[] {
     case 'CEO':
       return [
         { destination: 'projects', label: 'Projects', detail: 'Open progress and controlled budgets', count: 'visibleProjectCount', countLabel: 'projects visible' },
-        { destination: 'finance', label: 'Money exceptions', detail: 'Decide only payments above the control threshold', count: 'pendingCeoDecisionCount', countLabel: 'waiting for you' },
+        { destination: 'finance', label: 'Money exceptions', detail: 'Decide only payments above the control threshold', count: 'pendingCeoDecisionCount', countLabel: 'waiting for your action' },
         { destination: 'audit', label: 'Complete chain', detail: 'Trace material and cash from source to close', count: null },
       ]
     case 'Auditor':
@@ -676,7 +676,6 @@ export function LiveProjectsView({ currentUser }: LiveProjectsViewProps) {
         <div>
           <span className="lav-kicker">Live project records</span>
           <h1>Projects</h1>
-          <p>Progress, dates and approved budget — shown only where your role allows it.</p>
         </div>
         <span className="lav-count-chip">{entries.length} visible</span>
       </header>
@@ -826,7 +825,6 @@ function CreateProjectForm({ onCreated }: CreateProjectFormProps) {
         <span aria-hidden="true">+</span>
         <span>
           <strong>Create a project</strong>
-          <small>Add a site and its starting approved budget.</small>
         </span>
         <b>{open ? 'Close' : 'Open'}</b>
       </button>
@@ -887,7 +885,6 @@ function CreateProjectForm({ onCreated }: CreateProjectFormProps) {
             </label>
           </div>
           <div className="lav-form-actions">
-            <span>The project starts as Active. Its first budget record cannot be overwritten.</span>
             <button className="lav-button primary" type="submit" disabled={busy}>
               {busy ? 'Creating…' : 'Create project'}
             </button>
@@ -1022,7 +1019,6 @@ function CeoProjectControls({
           <span className="lav-kicker">CEO controls</span>
           <h3>Set up this project</h3>
         </div>
-        <small>Each approved budget is kept as a new record.</small>
       </header>
 
       <CostCodeForm projectId={projectId} onSaved={refreshSummary} />
@@ -1086,7 +1082,7 @@ function CostCodeForm({ projectId, onSaved }: CostCodeFormProps) {
       <header>
         <div>
           <strong>Add a budget area</strong>
-          <small>Use areas such as Foundation, Roofing or Electrical.</small>
+          <small>Use areas such as Foundation, Roofing or electrical.</small>
         </div>
       </header>
       {message && <Notice tone={message.tone}>{message.text}</Notice>}
@@ -1261,7 +1257,6 @@ function BudgetRevisionForm({ projectId, summary, onSaved }: BudgetRevisionFormP
           </label>
 
           <div className="lav-form-actions">
-            <span>Saving creates a new approval record. Earlier budgets remain visible in the audit trail.</span>
             <button className="lav-button primary" type="submit" disabled={busy}>
               {busy ? 'Saving…' : 'Approve new budget'}
             </button>
@@ -1712,7 +1707,6 @@ function CreateRequisitionForm({ projects, materials, onCreated }: CreateRequisi
                 <option value="">Choose material first</option>
                 {selectedMaterial && <option value={selectedMaterial.unit}>{selectedMaterial.unit}</option>}
               </select>
-              <small>The catalog fixes the unit so requests and store balances agree.</small>
             </label>
             <label className="lav-field compact">
               <span>Needed by</span>
@@ -1742,7 +1736,7 @@ function CreateRequisitionForm({ projects, materials, onCreated }: CreateRequisi
                 onChange={(event) => setNotes(event.currentTarget.value)}
                 maxLength={1000}
                 rows={2}
-                placeholder="Add a short site detail only if it helps the engineer."
+                placeholder="Add a short site detail."
               />
             </label>
           </div>
@@ -1803,7 +1797,7 @@ function RequisitionCard({
           <strong>{requisition.projectName}</strong>
         </div>
         <div>
-          <span>Budget area</span>
+          <span>Bbudget area</span>
           <strong>
             {requisition.costCode} · {requisition.costCodeName}
           </strong>
@@ -1889,7 +1883,7 @@ function ForemanRevisionForm({
       <div className="lav-card-action-row">
         <span>Change the request using the engineer or supervisor note.</span>
         <button className="lav-button primary" type="button" onClick={() => setOpen(true)}>
-          Revise request
+          Revisee request
         </button>
       </div>
     )
@@ -1899,7 +1893,7 @@ function ForemanRevisionForm({
     <form className="lav-workflow-form" onSubmit={submit}>
       <header>
         <div>
-          <span className="lav-kicker">Foreman action</span>
+          <span className="lav-kicker">FoReman action</span>
           <h3>Revise and resubmit</h3>
         </div>
         <button className="lav-text-button" type="button" onClick={() => setOpen(false)}>
@@ -1969,7 +1963,7 @@ function ForemanRevisionForm({
         </label>
       </div>
       <div className="lav-form-actions">
-        <span>This sends the new revision back to the engineer.</span>
+        <span>This action willsend the new revision back to the engineer.</span>
         <button className="lav-button primary" type="submit" disabled={busy}>
           {busy ? 'Resubmitting…' : 'Resubmit revision'}
         </button>
