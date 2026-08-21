@@ -1442,7 +1442,7 @@ public class AppDbContext : DbContext
         {
             table.HasCheckConstraint(
                 "CK_SecurityAuditEvents_EventType",
-                "\"EventType\" IN ('PasswordChanged', 'AdministratorPasswordReset')");
+                "\"EventType\" IN ('UsernameChanged', 'PasswordChanged', 'AdministratorPasswordReset')");
             table.HasCheckConstraint(
                 "CK_SecurityAuditEvents_Source",
                 "\"Source\" IN ('SelfService', 'ServerRecovery')");

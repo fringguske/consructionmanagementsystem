@@ -103,6 +103,20 @@ public sealed class AuthController : ControllerBase
     }
 
     [Authorize]
+    [HttpPost("change-username")]
+    public async Task<IActionResult> ChangeUsername(
+        [FromBody] ChangeUsernameRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        await _credentialService.ChangeUsernameAsync(
+            User.GetRequiredUserId(),
+            request,
+            cancellationToken);
+        await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+        return NoContent();
+    }
+
+    [Authorize]
     [HttpPost("change-password")]
     public async Task<IActionResult> ChangePassword(
         [FromBody] ChangePasswordRequestDto request,

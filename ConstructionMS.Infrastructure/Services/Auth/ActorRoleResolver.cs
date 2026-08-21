@@ -63,13 +63,16 @@ public sealed class ActorRoleResolver : IActorRoleResolver
             ? user.ActualRole
             : effectiveRoleRequest.Trim();
 
+        var testerMatches = _options.TesterUserId is > 0
+            ? user.Id == _options.TesterUserId.Value
+            : !string.IsNullOrWhiteSpace(_options.TesterUsername)
+                && string.Equals(
+                    user.Username.Trim(),
+                    _options.TesterUsername.Trim(),
+                    StringComparison.OrdinalIgnoreCase);
         var isConfiguredTester = _options.Enabled
             && string.Equals(user.ActualRole, AdministratorRole, StringComparison.Ordinal)
-            && !string.IsNullOrWhiteSpace(_options.TesterUsername)
-            && string.Equals(
-                user.Username.Trim(),
-                _options.TesterUsername.Trim(),
-                StringComparison.OrdinalIgnoreCase);
+            && testerMatches;
 
         IReadOnlyList<string> availableRoles = [];
         string? effectiveRole;

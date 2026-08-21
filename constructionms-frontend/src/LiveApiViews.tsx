@@ -261,7 +261,7 @@ function dashboardActions(role: CurrentUser['role']): DashboardAction[] {
 function dashboardSummary(role: CurrentUser['role'], dashboard: DashboardResponse): DashboardSummaryItem[] {
   const projects: DashboardSummaryItem = {
     label: 'Projects visible', value: dashboard.visibleProjectCount,
-    detail: 'Your access is applied by the server.', tone: 'projects',
+    detail: '', tone: 'projects',
   }
   switch (role) {
     case 'Administrator':
@@ -544,7 +544,7 @@ export function LiveDashboardView({ currentUser, onNavigate }: LiveDashboardView
                 <article className={`lav-summary-card ${item.tone}`} key={item.label}>
                   <span>{item.label}</span>
                   <strong>{item.value}</strong>
-                  <small>{item.detail}</small>
+                  {item.detail && <small>{item.detail}</small>}
                 </article>
               ))}
             </section>

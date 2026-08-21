@@ -16,6 +16,7 @@ public sealed class SecurityAuditEvent
 
 public static class SecurityAuditEventTypes
 {
+    public const string UsernameChanged = "UsernameChanged";
     public const string PasswordChanged = "PasswordChanged";
     public const string AdministratorPasswordReset = "AdministratorPasswordReset";
 }

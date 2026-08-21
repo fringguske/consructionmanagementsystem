@@ -76,6 +76,11 @@ export interface ChangePasswordRequest {
   confirmNewPassword: string
 }
 
+export interface ChangeUsernameRequest {
+  newUsername: string
+  currentPassword: string
+}
+
 export interface RegisterAccessRequest {
   email: string
   username: string

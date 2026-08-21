@@ -372,6 +372,7 @@ type ShellProps = {
   authenticatedUser?: CurrentUser
   onLogout?: () => Promise<void> | void
   onSwitchRole?: (role: ConstructionRole) => Promise<void>
+  onUsernameChanged?: () => void
   onPasswordChanged?: () => void
 }
 
@@ -451,6 +452,56 @@ const liveRoleNavigation: Record<ConstructionRole, readonly { to: string; label:
   ],
 }
 
+function UsernameChangeModal({ currentUsername, onClose, onChanged }: {
+  currentUsername: string
+  onClose: () => void
+  onChanged: () => void
+}) {
+  const [newUsername, setNewUsername] = useState(currentUsername)
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (busy) return
+    const username = newUsername.trim().toLowerCase()
+    if (username === currentUsername.toLowerCase()) {
+      setError('Enter a different username.')
+      return
+    }
+
+    setBusy(true)
+    setError(null)
+    try {
+      await authApi.changeUsername({ newUsername: username, currentPassword })
+      onChanged()
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : 'The username could not be changed.')
+      setBusy(false)
+    }
+  }
+
+  return <div className="modal-wrap" role="dialog" aria-modal="true" aria-labelledby="change-username-title">
+    <button type="button" className="modal-backdrop" aria-label="Close username form" onClick={onClose}/>
+    <form className="modal account-password-modal" onSubmit={event => void submit(event)}>
+      <header className="modal-head">
+        <div><span className="eyebrow">ACCOUNT</span><h2 id="change-username-title">Change username</h2></div>
+        <button type="button" onClick={onClose} aria-label="Close username form"><Icon name="close" size={17}/></button>
+      </header>
+      <div className="form-grid">
+        <label className="full">New username<input autoComplete="username" required minLength={3} maxLength={50} pattern="[A-Za-z0-9][A-Za-z0-9._-]{2,49}" title="Use letters, numbers, dots, underscores or hyphens." value={newUsername} onChange={event => setNewUsername(event.target.value)}/></label>
+        <label className="full">Current password<input type="password" autoComplete="current-password" required maxLength={72} value={currentPassword} onChange={event => setCurrentPassword(event.target.value)}/></label>
+        {error && <p className="account-password-error" role="alert">{error}</p>}
+      </div>
+      <footer className="modal-actions">
+        <Button variant="secondary" onClick={onClose}>Cancel</Button>
+        <button className="button primary" disabled={busy}>{busy ? 'Changing…' : 'Change username'}</button>
+      </footer>
+    </form>
+  </div>
+}
+
 function PasswordChangeModal({ onClose, onChanged }: {
   onClose: () => void
   onChanged: () => void
@@ -501,12 +552,13 @@ function PasswordChangeModal({ onClose, onChanged }: {
   </div>
 }
 
-function Shell({ authenticatedUser, onLogout, onSwitchRole, onPasswordChanged }: ShellProps = {}) {
+function Shell({ authenticatedUser, onLogout, onSwitchRole, onUsernameChanged, onPasswordChanged }: ShellProps = {}) {
   const [navOpen, setNavOpen] = useState(false)
   const [site, setSite] = useState('All projects')
   const [roleMenuOpen, setRoleMenuOpen] = useState(false)
   const [switchingRole, setSwitchingRole] = useState<ConstructionRole | null>(null)
   const [roleSwitchError, setRoleSwitchError] = useState<string | null>(null)
+  const [usernameModalOpen, setUsernameModalOpen] = useState(false)
   const [passwordModalOpen, setPasswordModalOpen] = useState(false)
   const [activeProfileId, setActiveProfileId] = useState('ceo')
   const location = useLocation()
@@ -678,6 +730,7 @@ function Shell({ authenticatedUser, onLogout, onSwitchRole, onPasswordChanged }:
                 </div>
                 {roleSwitchError && <p className="live-role-error">{roleSwitchError}</p>}
               </>}
+              <button className="live-account-action" onClick={() => { setRoleMenuOpen(false); setUsernameModalOpen(true) }}><Icon name="settings" size={15}/>Change username</button>
               <button className="live-account-action" onClick={() => { setRoleMenuOpen(false); setPasswordModalOpen(true) }}><Icon name="settings" size={15}/>Change password</button>
               <button className="live-logout" onClick={() => void onLogout?.()}><Icon name="lock" size={15}/>Sign out</button>
             </div>}
@@ -744,6 +797,14 @@ function Shell({ authenticatedUser, onLogout, onSwitchRole, onPasswordChanged }:
         </Routes>
       </div>
     </main>
+    {usernameModalOpen && authenticatedUser && <UsernameChangeModal
+      currentUsername={authenticatedUser.username}
+      onClose={() => setUsernameModalOpen(false)}
+      onChanged={() => {
+        setUsernameModalOpen(false)
+        onUsernameChanged?.()
+      }}
+    />}
     {passwordModalOpen && authenticatedUser && <PasswordChangeModal
       onClose={() => setPasswordModalOpen(false)}
       onChanged={() => {
@@ -1943,6 +2004,11 @@ function LiveSession() {
     authenticatedUser={currentUser}
     onLogout={logout}
     onSwitchRole={switchRole}
+    onUsernameChanged={() => {
+      setCurrentUser(null)
+      setSessionError(null)
+      setSessionMessage('Username changed. Sign in with your new username.')
+    }}
     onPasswordChanged={() => {
       setCurrentUser(null)
       setSessionError(null)

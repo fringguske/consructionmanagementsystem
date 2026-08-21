@@ -66,6 +66,7 @@ import type {
   PettyCashRequest,
   ControlEvent,
   ChangePasswordRequest,
+  ChangeUsernameRequest,
 } from './types'
 
 interface ProblemDetails {
@@ -295,6 +296,13 @@ export const authApi = {
 
   changePassword: (payload: ChangePasswordRequest, signal?: AbortSignal) =>
     requestWithoutResponse('/auth/change-password', {
+      method: 'POST',
+      body: payload,
+      signal,
+    }),
+
+  changeUsername: (payload: ChangeUsernameRequest, signal?: AbortSignal) =>
+    requestWithoutResponse('/auth/change-username', {
       method: 'POST',
       body: payload,
       signal,

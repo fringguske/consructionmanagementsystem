@@ -10,5 +10,6 @@ public sealed class ItVerificationOptions
     public const string SectionName = "ItVerification";
 
     public bool Enabled { get; init; }
+    public int? TesterUserId { get; init; }
     public string TesterUsername { get; init; } = string.Empty;
 }

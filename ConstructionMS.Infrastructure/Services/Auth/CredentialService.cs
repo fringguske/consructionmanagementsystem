@@ -7,6 +7,8 @@ using ConstructionMS.Infrastructure.Common;
 using ConstructionMS.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Npgsql;
+using System.Data;
 
 public sealed class CredentialService : ICredentialService
 {
@@ -19,6 +21,70 @@ public sealed class CredentialService : ICredentialService
     {
         _db = db;
         _logger = logger;
+    }
+
+    public async Task ChangeUsernameAsync(
+        int userId,
+        ChangeUsernameRequestDto request,
+        CancellationToken cancellationToken = default)
+    {
+        var newUsername = InputNormalizer.Username(request.NewUsername, nameof(request.NewUsername));
+        var currentPassword = InputNormalizer.Password(
+            request.CurrentPassword,
+            nameof(request.CurrentPassword),
+            minimumLength: 1,
+            maximumLength: 72,
+            maximumUtf8Bytes: 72);
+        var user = await _db.Users
+            .SingleOrDefaultAsync(candidate => candidate.Id == userId && candidate.IsActive, cancellationToken)
+            ?? throw new UnauthorizedAccessException("The authenticated account is inactive.");
+
+        if (!CurrentPasswordMatches(user, currentPassword))
+        {
+            throw new UnauthorizedAccessException("The current password is incorrect.");
+        }
+
+        if (string.Equals(user.Username, newUsername, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ArgumentException("Enter a different username.", nameof(request.NewUsername));
+        }
+
+        await using var transaction = await _db.Database.BeginTransactionAsync(
+            IsolationLevel.Serializable,
+            cancellationToken);
+        var usernameUnavailable = await _db.Users.AsNoTracking().AnyAsync(candidate =>
+                candidate.Id != user.Id
+                && EF.Property<string>(candidate, NormalizedUsernameProperty) == newUsername,
+                cancellationToken)
+            || await _db.AccessRequests.AsNoTracking().AnyAsync(candidate =>
+                EF.Property<string>(candidate, NormalizedUsernameProperty) == newUsername,
+                cancellationToken);
+        if (usernameUnavailable)
+        {
+            throw new InvalidOperationException("That username is already in use.");
+        }
+
+        user.Username = newUsername;
+        user.CredentialVersion = checked(user.CredentialVersion + 1);
+        _db.SecurityAuditEvents.Add(new SecurityAuditEvent
+        {
+            EventType = SecurityAuditEventTypes.UsernameChanged,
+            Source = SecurityAuditSources.SelfService,
+            TargetUserId = user.Id,
+            ActorUserId = user.Id,
+            OccurredAt = DateTime.UtcNow
+        });
+
+        try
+        {
+            await _db.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+        }
+        catch (DbUpdateException exception)
+            when (exception.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
+        {
+            throw new InvalidOperationException("That username is already in use.", exception);
+        }
     }
 
     public async Task ChangePasswordAsync(
@@ -38,18 +104,7 @@ public sealed class CredentialService : ICredentialService
             .SingleOrDefaultAsync(candidate => candidate.Id == userId && candidate.IsActive, cancellationToken)
             ?? throw new UnauthorizedAccessException("The authenticated account is inactive.");
 
-        bool currentPasswordMatches;
-        try
-        {
-            currentPasswordMatches = BCrypt.Net.BCrypt.Verify(currentPassword, user.PasswordHash);
-        }
-        catch (BCrypt.Net.SaltParseException exception)
-        {
-            _logger.LogError(exception, "User {UserId} has an invalid password hash.", user.Id);
-            currentPasswordMatches = false;
-        }
-
-        if (!currentPasswordMatches)
+        if (!CurrentPasswordMatches(user, currentPassword))
         {
             throw new UnauthorizedAccessException("The current password is incorrect.");
         }
@@ -129,6 +184,19 @@ public sealed class CredentialService : ICredentialService
 
         await _db.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+    }
+
+    private bool CurrentPasswordMatches(User user, string currentPassword)
+    {
+        try
+        {
+            return BCrypt.Net.BCrypt.Verify(currentPassword, user.PasswordHash);
+        }
+        catch (BCrypt.Net.SaltParseException exception)
+        {
+            _logger.LogError(exception, "User {UserId} has an invalid password hash.", user.Id);
+            return false;
+        }
     }
 
     private static string NormalizeNewPassword(string password, string confirmation)

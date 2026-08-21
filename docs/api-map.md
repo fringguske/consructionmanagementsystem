@@ -50,6 +50,8 @@ steps on the same requisition, order, transfer or payment.
 | `POST /auth/login` | Anonymous | Validate the unique username and password and issue the session cookie. Rate limited per forwarded client IP. |
 | `GET /auth/me` | Any signed-in user | Return actual/effective role metadata and projects in the current workspace scope. |
 | `POST /auth/role-context` | Configured IT verifier only | Select a temporary effective workspace role without changing the account's database role. |
+| `POST /auth/change-username` | Any signed-in user | Confirm the current password, reserve a new unique username, revoke existing sessions and append a security audit event. |
+| `POST /auth/change-password` | Any signed-in user | Confirm the current password, replace its hash, revoke existing sessions and append a security audit event. |
 | `POST /auth/logout` | Any signed-in user | Remove the session cookie. |
 | `GET /dashboard` | Any signed-in user | Return only counts inside the current user's project scope. |
 | `GET /access-requests` | Administrator | List pending or reviewed join requests. |

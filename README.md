@@ -37,7 +37,7 @@ Production must also override:
 
 - `AllowedHosts` with the public hostname;
 - `Cors__AllowedOrigins__0` only when the frontend is genuinely cross-origin;
-- `ItVerification__Enabled=true` and `ItVerification__TesterUsername=<username>` only
+- `ItVerification__Enabled=true` and `ItVerification__TesterUserId=<stable user ID>` are preferred. `ItVerification__TesterUsername=<username>` remains a fallback for initial setup.
   while the named Administrator account needs live role inspection during development;
 - TLS at nginx or the hosting platform, because production authentication cookies are Secure;
 - trusted forwarded-proxy addresses if nginx is not running on the same host.
