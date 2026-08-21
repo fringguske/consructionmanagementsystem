@@ -86,7 +86,7 @@ const demoProfiles: readonly DemoProfile[] = [
   { id: 'foreman-church-hq', role: 'Foreman', name: 'CHURCH & SNEP FOREMAN', initials: 'F2', workspace: 'Church & SNEP HQ field work', subtitle: 'Foreman', description: 'Church & SNEP HQ', projects: ['Church', 'SNEP HQ'] },
   { id: 'storekeeper', role: 'Storekeeper', name: 'LUCY NJERI', initials: 'LN', workspace: 'Stores workspace', subtitle: 'Storekeeper', description: 'Stock and material movement', projects: null },
   { id: 'procurement', role: 'Procurement Officer', name: 'PAUL KIMANI', initials: 'PK', workspace: 'Procurement workspace', subtitle: 'Procurement Officer', description: 'Sourcing and purchase orders', projects: null },
-  { id: 'finance', role: 'Finance Officer', name: 'JAMES KAMAU', initials: 'JK', workspace: 'Financial control workspace', subtitle: 'Finance Officer', description: 'Matching, authorization and payment control', projects: null },
+  { id: 'finance', role: 'Finance Officer', name: 'JAMES KAMAU', initials: 'JK', workspace: 'Financial control workspace', subtitle: 'Finance Officer', description: 'Invoice matching, payment execution and petty cash control', projects: null },
   { id: 'auditor', role: 'Auditor', name: 'MARY ATIENZA', initials: 'MA', workspace: 'Read-only audit workspace', subtitle: 'Auditor', description: 'All projects · independent review', projects: null },
 ]
 
@@ -398,6 +398,7 @@ const liveRoleNavigation: Record<ConstructionRole, readonly { to: string; label:
     { to: '/sourcing', label: 'Sourcing exceptions', icon: 'users' },
     { to: '/purchase-orders', label: 'Purchase orders', icon: 'file' },
     { to: '/inventory', label: 'Stock controls', icon: 'boxes' },
+    { to: '/finance', label: 'Payment approvals', icon: 'wallet' },
     { to: '/petty-cash', label: 'Petty cash', icon: 'wallet' },
   ],
   Engineer: [
@@ -596,7 +597,7 @@ function Shell({ authenticatedUser, onLogout, onSwitchRole, onUsernameChanged, o
     Foreman: [`Today · ${scopeLabel}`, 'Work and material records'],
     Storekeeper: ['Stores overview', 'Deliveries, issues and stock custody requiring action'],
     'Procurement Officer': ['Procurement overview', 'Source approved needs and control purchase orders'],
-    'Finance Officer': ['Financial control', 'Match evidence, authorise payments and protect project budgets'],
+    'Finance Officer': ['Financial control', 'Match invoices, execute approved payments and control petty cash'],
     Auditor: ['Audit overview', 'Read-only control assurance across every project'],
   }
   const titles: Record<string, [string, string]> = {
@@ -608,7 +609,7 @@ function Shell({ authenticatedUser, onLogout, onSwitchRole, onUsernameChanged, o
     '/access': ['Requests & access', 'Approve people, select roles and assign projects'],
     '/inventory': role === 'CEO' ? ['Stock & movement', ''] : role === 'Foreman' ? ['Materials on site', 'Confirm receipt, record use and report wastage'] : role === 'Storekeeper' ? ['Stock ledger', ''] : ['Inventory', 'Stock levels and material movement'],
     '/finance': role === 'Supervisor'
-        ? ['Budget tracking', 'Read-only cost position across projects']
+        ? ['Payment approvals', 'Authorize Finance-matched supplier payments for your projects']
         : role === 'Finance Officer'
           ? ['Budgets & payables', 'Control commitments, invoices and available project funds']
         : role === 'CEO'
@@ -1132,7 +1133,7 @@ export function FinancePaymentsDashboard() {
   const readyTotal = unpaidPayments.reduce((total, payment) => total + Number(payment.amount.replaceAll(',', '')), 0)
   return <div className="simple-dashboard">
     <section className="simple-role-header">
-      <div><span>FINANCE OFFICER</span><h2>Payments</h2><p>Record payments authorized by another Finance Officer.</p></div>
+      <div><span>FINANCE OFFICER</span><h2>Payments</h2><p>Record Supervisor-authorized payments.</p></div>
       <Button icon="receipt" onClick={() => navigate('/finance')}>Open payments desk</Button>
     </section>
 
@@ -1742,7 +1743,7 @@ export function FinancePaymentsDemo() {
         <div className="cashier-desk-row cashier-desk-labels"><span>PAYMENT</span><span>SUPPLIER</span><span>PROJECT</span><span>METHOD</span><span>AMOUNT</span><span>CONTROL CHECKS</span><span></span></div>
         {payments.map(payment=>{const isPaid=paid.includes(payment.reference);return <div className={`cashier-desk-row ${isPaid?'paid-row':''}`} key={payment.reference}>
           <div><b className="mono">{payment.reference}</b><small>{payment.invoice}</small></div><strong>{payment.supplier}</strong><span>{payment.project}</span><span>{payment.method}</span><b>KES {payment.amount}</b>
-          <div className="checks-passed"><span><Icon name="check" size={12}/>Finance authorised</span><span><Icon name="check" size={12}/>3-way matched</span></div>
+          <div className="checks-passed"><span><Icon name="check" size={12}/>Supervisor authorised</span><span><Icon name="check" size={12}/>3-way matched</span></div>
           {isPaid?<Status>Paid</Status>:<button onClick={()=>setSelectedPayment(payment)}>Execute <Icon name="arrow" size={13}/></button>}
         </div>})}
       </div>
@@ -1907,7 +1908,6 @@ function Settings() {
     ['E2','Church & SNEP Engineer','Engineer','Church · SNEP HQ','Active'],
     ['F1','Gilgal Sites Foreman','Foreman','Gilgal 2 · Gilgal 3','Active'],
     ['F2','Church & SNEP Foreman','Foreman','Church · SNEP HQ','Active'],
-    ['EN','Eunice Ngumbi','Finance Officer','All projects','Active'],
     ['LN','Lucy Njeri','Storekeeper','All projects','Active'],
     ['PK','Paul Kimani','Procurement Officer','All projects','Active'],
     ['JK','James Kamau','Finance Officer','All projects','Active'],
@@ -1923,7 +1923,7 @@ function Settings() {
       </div>
     </section>:tab==='Approval policy'?<section className="settings-grid">
       <div className="panel"><PanelHead title="Spend and payment thresholds" subtitle="Purchase commitment stays separate from invoice authorisation"/>
-        <div className="policy-list">{[['Up to KES 100,000','Supervisor PO approval → Finance authorisation','CEO observes'],['KES 100,001 – 500,000','Supervisor PO approval → Finance authorisation','Two independent controls'],['Above KES 500,000','Finance review → CEO exception decision','Before the PO is issued']].map(p=><div key={p[0]}><div><b>{p[0]}</b><span>{p[2]}</span></div><strong>{p[1]}</strong><button><Icon name="settings" size={15}/>Edit</button></div>)}</div>
+        <div className="policy-list">{[['Up to KES 100,000','Finance match → Supervisor authorisation','CEO observes'],['KES 100,001 – 500,000','Finance match → Supervisor authorisation','Two independent controls'],['Above KES 500,000','Finance review → CEO exception → Supervisor authorisation','Before payment']].map(p=><div key={p[0]}><div><b>{p[0]}</b><span>{p[2]}</span></div><strong>{p[1]}</strong><button><Icon name="settings" size={15}/>Edit</button></div>)}</div>
       </div>
       <aside className="panel"><PanelHead title="Structural controls" subtitle="Mandatory safeguards"/>
         <div className="toggle-list">{[['Segregation of duties','Requester cannot approve, receive or pay'],['Three-way invoice match','PO, GRN and invoice must agree'],['Dual-confirmed transfers','Both stores must confirm quantity'],['Immutable transaction history','Changes create a superseding version']].map(t=><div key={t[0]}><div><b>{t[0]}</b><span>{t[1]}</span></div><i className="toggle on"><em/></i></div>)}</div>

@@ -63,6 +63,7 @@ public class AppDbContext : DbContext
     public DbSet<PaymentReceipt> PaymentReceipts => Set<PaymentReceipt>();
     public DbSet<PettyCashRequest> PettyCashRequests => Set<PettyCashRequest>();
     public DbSet<PettyCashDisbursement> PettyCashDisbursements => Set<PettyCashDisbursement>();
+    public DbSet<PettyCashReceiptConfirmation> PettyCashReceiptConfirmations => Set<PettyCashReceiptConfirmation>();
     public DbSet<PettyCashReconciliation> PettyCashReconciliations => Set<PettyCashReconciliation>();
     public DbSet<PettyCashReconciliationEvent> PettyCashReconciliationEvents => Set<PettyCashReconciliationEvent>();
     public DbSet<ControlEvent> ControlEvents => Set<ControlEvent>();
@@ -94,6 +95,7 @@ public class AppDbContext : DbContext
                     or Payment
                     or PaymentReceipt
                     or PettyCashDisbursement
+                    or PettyCashReceiptConfirmation
                     or PettyCashReconciliationEvent
                     or ControlEvent
                     or SecurityAuditEvent);
@@ -313,6 +315,7 @@ public class AppDbContext : DbContext
         ConfigurePaymentReceipts(modelBuilder);
         ConfigurePettyCashRequests(modelBuilder);
         ConfigurePettyCashDisbursements(modelBuilder);
+        ConfigurePettyCashReceiptConfirmations(modelBuilder);
         ConfigurePettyCashReconciliations(modelBuilder);
         ConfigurePettyCashReconciliationEvents(modelBuilder);
         ConfigureControlEvents(modelBuilder);
@@ -381,7 +384,7 @@ public class AppDbContext : DbContext
             {
                 Id = 9,
                 RoleName = "Finance Officer",
-                Description = "Matches and authorizes payments or separately executes approved payments and records evidence",
+                Description = "Matches invoices, executes Supervisor-authorized payments, and controls petty cash evidence",
                 CreatedAt = seedDate
             },
             new Role
@@ -1356,6 +1359,25 @@ public class AppDbContext : DbContext
         disbursements.HasOne(item => item.PettyCashRequest).WithOne(item => item.Disbursement)
             .HasForeignKey<PettyCashDisbursement>(item => item.PettyCashRequestId).OnDelete(DeleteBehavior.Restrict);
         disbursements.HasOne(item => item.DisbursedByUser).WithMany().HasForeignKey(item => item.DisbursedByUserId).OnDelete(DeleteBehavior.Restrict);
+    }
+
+    private static void ConfigurePettyCashReceiptConfirmations(ModelBuilder modelBuilder)
+    {
+        var confirmations = modelBuilder.Entity<PettyCashReceiptConfirmation>();
+        confirmations.Property(item => item.ConfirmationNumber).HasMaxLength(30);
+        confirmations.Property(item => item.AmountReceived).HasPrecision(18, 2);
+        confirmations.Property(item => item.Notes).HasMaxLength(500);
+        confirmations.HasIndex(item => item.ConfirmationNumber).IsUnique();
+        confirmations.HasIndex(item => item.PettyCashRequestId).IsUnique();
+        confirmations.HasIndex(item => item.PettyCashDisbursementId).IsUnique();
+        confirmations.ToTable(table => table.HasCheckConstraint(
+            "CK_PettyCashReceiptConfirmations_Amount", "\"AmountReceived\" > 0"));
+        confirmations.HasOne(item => item.PettyCashRequest).WithOne(item => item.ReceiptConfirmation)
+            .HasForeignKey<PettyCashReceiptConfirmation>(item => item.PettyCashRequestId).OnDelete(DeleteBehavior.Restrict);
+        confirmations.HasOne(item => item.PettyCashDisbursement).WithMany()
+            .HasForeignKey(item => item.PettyCashDisbursementId).OnDelete(DeleteBehavior.Restrict);
+        confirmations.HasOne(item => item.ConfirmedByUser).WithMany()
+            .HasForeignKey(item => item.ConfirmedByUserId).OnDelete(DeleteBehavior.Restrict);
     }
 
     private static void ConfigurePettyCashReconciliations(ModelBuilder modelBuilder)

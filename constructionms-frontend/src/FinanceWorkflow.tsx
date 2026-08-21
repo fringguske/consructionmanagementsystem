@@ -47,7 +47,7 @@ const actors = {
   engineerGilgal: 'Gilgal Sites Engineer',
   engineerChurchHq: 'Church & SNEP Engineer',
   finance: 'James Kamau',
-  financePayments: 'Eunice Ngumbi',
+  financePayments: 'James Kamau',
   auditor: 'Mary Atienza',
 }
 
@@ -71,8 +71,9 @@ export const transactionChains: TransactionChain[] = [
       { role: 'Supervisor', actor: actors.supervisorChurchHq, action: 'Independently approved the PO within the delegated project limit', reference: 'POA-0188', evidence: 'PO approval record · order released', timestamp: '22 Jul · 12:04', state: 'complete' },
       { role: 'Storekeeper', actor: actors.storekeeper, action: 'Counted and accepted 180 undamaged bags independently', reference: 'GRN-0291', evidence: 'Delivery note · 2 photos', timestamp: '23 Jul · 09:14', state: 'complete' },
       { role: 'Engineer', actor: actors.engineerChurchHq, action: 'Validated specification and intended work location', reference: 'TEC-0137', evidence: 'Material inspection note', timestamp: '23 Jul · 10:03', state: 'complete' },
-      { role: 'Finance Officer', actor: actors.finance, action: 'Completed PO–GRN–invoice match and authorised payment', reference: 'FIN-0104', evidence: 'INV-7641 · KRA status · budget check', timestamp: '23 Jul · 14:36', state: 'complete' },
-      { role: 'Finance Officer', actor: actors.financePayments, action: 'Executed the payment authorized by another Finance Officer', reference: 'PAY-0418', evidence: 'Bank ref FT26206K1 · receipt', timestamp: '24 Jul · 09:18', state: 'complete' },
+      { role: 'Finance Officer', actor: actors.finance, action: 'Completed the PO–GRN–invoice match', reference: 'FIN-0104', evidence: 'INV-7641 · KRA status · budget check', timestamp: '23 Jul · 14:36', state: 'complete' },
+      { role: 'Supervisor', actor: actors.supervisorChurchHq, action: 'Authorized the matched supplier payment', reference: 'AUT-0104', evidence: 'Locked amount and project approval', timestamp: '23 Jul · 15:08', state: 'complete' },
+      { role: 'Finance Officer', actor: actors.financePayments, action: 'Executed the Supervisor-authorized payment', reference: 'PAY-0418', evidence: 'Bank ref FT26206K1 · receipt', timestamp: '24 Jul · 09:18', state: 'complete' },
       { role: 'Auditor', actor: actors.auditor, action: 'Verified actor separation, references and evidence hashes', reference: 'AUD-0087', evidence: 'Audit sample · hash manifest', timestamp: '25 Jul · 15:22', state: 'complete' },
     ],
   },
@@ -94,7 +95,8 @@ export const transactionChains: TransactionChain[] = [
       { role: 'Storekeeper', actor: actors.storekeeper, action: 'Received 240 lengths and recorded condition', reference: 'GRN-0296', evidence: 'Supplier note · 3 photos', timestamp: '26 Jul · 08:52', state: 'complete' },
       { role: 'Engineer', actor: actors.engineerGilgal, action: 'Verified grade, diameter and delivery quantity', reference: 'TEC-0141', evidence: 'Steel inspection checklist', timestamp: '26 Jul · 09:28', state: 'complete' },
       { role: 'Finance Officer', actor: actors.finance, action: 'Reviewing price variance, tax status and three-way match', reference: 'FIN-0108', evidence: 'INV-8831 · PO · GRN', timestamp: 'Today · 10:12', state: 'current' },
-      { role: 'Finance Officer', actor: actors.financePayments, action: 'Will execute only after another Finance Officer authorizes', reference: 'Not created', evidence: 'External payment proof required', timestamp: 'Waiting', state: 'pending' },
+      { role: 'Supervisor', actor: actors.supervisorGilgal, action: 'Will authorize after Finance completes the match', reference: 'Not created', evidence: 'Locked payment amount', timestamp: 'Waiting', state: 'pending' },
+      { role: 'Finance Officer', actor: actors.financePayments, action: 'Will execute only after Supervisor authorization', reference: 'Not created', evidence: 'External payment proof required', timestamp: 'Waiting', state: 'pending' },
       { role: 'Auditor', actor: actors.auditor, action: 'Will receive the closed evidence chain read-only', reference: 'Not sampled', evidence: 'Automated control log', timestamp: 'After payment', state: 'pending' },
     ],
   },
@@ -118,8 +120,9 @@ export const transactionChains: TransactionChain[] = [
       { role: 'Procurement Officer', actor: actors.procurement, action: 'Will issue the approved PO only after the owner decision', reference: 'Not issued', evidence: 'Draft remains locked', timestamp: 'Pending', state: 'pending' },
       { role: 'Storekeeper', actor: actors.storekeeper, action: 'Will independently count and record any later delivery', reference: 'Not created', evidence: 'GRN and delivery photos required', timestamp: 'After delivery', state: 'pending' },
       { role: 'Engineer', actor: actors.engineerChurchHq, action: 'Will inspect fabrication quality and specification after receipt', reference: 'Not created', evidence: 'Technical inspection required', timestamp: 'After receipt', state: 'pending' },
-      { role: 'Finance Officer', actor: actors.finance, action: 'Will complete the final PO–GRN–invoice match and authorise within the owner decision', reference: 'Not created', evidence: 'Final invoice and compliance pack required', timestamp: 'After inspection', state: 'pending' },
-      { role: 'Finance Officer', actor: actors.financePayments, action: 'Will execute only an instruction authorized by another Finance Officer', reference: 'Not created', evidence: 'External payment proof required', timestamp: 'After authorisation', state: 'pending' },
+      { role: 'Finance Officer', actor: actors.finance, action: 'Will complete the final PO–GRN–invoice match', reference: 'Not created', evidence: 'Final invoice and compliance pack required', timestamp: 'After inspection', state: 'pending' },
+      { role: 'Supervisor', actor: actors.supervisorChurchHq, action: 'Will authorize the locked amount after the CEO exception decision', reference: 'Not created', evidence: 'Matched invoice and owner decision', timestamp: 'After matching', state: 'pending' },
+      { role: 'Finance Officer', actor: actors.financePayments, action: 'Will execute only the Supervisor-authorized instruction', reference: 'Not created', evidence: 'External payment proof required', timestamp: 'After authorisation', state: 'pending' },
       { role: 'Auditor', actor: actors.auditor, action: 'Will independently review the complete closed chain', reference: 'Not sampled', evidence: 'Owner exception decision included', timestamp: 'After payment', state: 'pending' },
     ],
   },
@@ -165,7 +168,7 @@ function PageLead({ eyebrow, title, copy, side }: { eyebrow: string; title: stri
 function Guardrail({ compact = false }: { compact?: boolean }) {
   return <section className={`fw-guardrail ${compact ? 'fw-guardrail-compact' : ''}`}>
     <div><WorkflowIcon name="shield" size={19}/></div>
-    <p><b>One Finance Officer authorizes; another records the payment.</b></p>
+    <p><b>Finance matches, the Supervisor authorizes, and Finance records payment.</b></p>
     <span><WorkflowIcon name="lock" size={13}/> Segregation active</span>
   </section>
 }
@@ -367,7 +370,7 @@ export function FinanceOfficerDashboard() {
           <div className="yes"><WorkflowIcon name="check" size={16}/><span><b>Match independently</b><small>PO, GRN and supplier invoice</small></span></div>
           <div className="yes"><WorkflowIcon name="check" size={16}/><span><b>Validate before authorising</b><small>Budget, tax status and bank details</small></span></div>
           <div className="no"><WorkflowIcon name="lock" size={16}/><span><b>Cannot change source records</b><small>Return discrepancies to their owner</small></span></div>
-          <div className="no"><WorkflowIcon name="lock" size={16}/><span><b>Cannot execute own authorization</b><small>Another Finance Officer records payment</small></span></div>
+          <div className="no"><WorkflowIcon name="lock" size={16}/><span><b>Cannot execute own authorization</b><small>Finance records the Supervisor-approved payment</small></span></div>
         </div>
         <footer><WorkflowIcon name="eye" size={15}/><p><b>CEO is an informed observer.</b> Only FIN-0111 is above the owner threshold.</p></footer>
       </aside>
@@ -546,13 +549,13 @@ export function FinanceApprovals() {
     <section className="fw-authorisation-strip">
       <div><WorkflowIcon name="receipt"/><span><b>Evidence complete</b><small>PO + GRN + invoice</small></span><strong>3</strong></div>
       <i><WorkflowIcon name="arrow" size={15}/></i>
-      <div><WorkflowIcon name="shield"/><span><b>Finance authorises</b><small>Budget + tax + beneficiary</small></span><strong>1 ready</strong></div>
+      <div><WorkflowIcon name="shield"/><span><b>Supervisor authorises</b><small>Matched amount + project need</small></span><strong>1 ready</strong></div>
       <i><WorkflowIcon name="arrow" size={15}/></i>
-      <div><WorkflowIcon name="bank"/><span><b>Second Finance Officer pays</b><small>External reference required</small></span><strong>Separate person</strong></div>
+      <div><WorkflowIcon name="bank"/><span><b>Finance pays</b><small>External reference required</small></span><strong>Recorded proof</strong></div>
     </section>
 
     <section className="panel fw-approval-register">
-      <PanelHead title="Authorisation register" copy="A Finance approval cannot move money by itself" action={<span className="fw-live-dot"><i/> Control rules applied</span>}/>
+      <PanelHead title="Authorisation register" copy="Finance cannot pay before Supervisor authorization" action={<span className="fw-live-dot"><i/> Control rules applied</span>}/>
       <div className="fw-approval-row fw-approval-head"><span>PAYMENT CASE</span><span>SUPPLIER / PROJECT</span><span>DUE</span><span>AMOUNT</span><span>CONTROL STATE</span><span /></div>
       {initialItems.map(item => {
         const state = states[item.chain.id]
@@ -561,23 +564,23 @@ export function FinanceApprovals() {
           <div><b>{item.chain.supplier}</b><small>{item.chain.project}</small></div>
           <time>{item.due}</time>
           <strong>{kes(item.chain.amount)}</strong>
-          <div>{state === 'ready' ? <StatusPill tone="warning">Ready for Finance</StatusPill> : state === 'owner' ? <StatusPill tone="locked">Awaiting CEO</StatusPill> : <StatusPill tone="good">Finance authorised</StatusPill>}<small>{state === 'authorised' ? 'Waiting for separate Finance execution' : state === 'owner' ? 'Finance action unavailable' : 'All routine checks passed'}</small></div>
+          <div>{state === 'ready' ? <StatusPill tone="warning">Ready for Supervisor</StatusPill> : state === 'owner' ? <StatusPill tone="locked">Awaiting CEO</StatusPill> : <StatusPill tone="good">Supervisor authorised</StatusPill>}<small>{state === 'authorised' ? 'Waiting for Finance payment' : state === 'owner' ? 'Supervisor action unavailable' : 'All routine checks passed'}</small></div>
           <div className="fw-row-actions"><button type="button" onClick={() => setSelectedChain(item.chain)} aria-label={`Trace ${item.chain.id}`}><WorkflowIcon name="eye" size={15}/></button>{state === 'ready' && <button className="fw-authorise-button" type="button" onClick={() => setConfirmation(item)}>Authorise</button>}{state === 'owner' && <button className="fw-escalated-button" type="button" onClick={() => setSelectedChain(item.chain)}>View exception</button>}</div>
         </div>
       })}
     </section>
 
     <section className="fw-after-authorisation">
-      <WorkflowIcon name="lock" size={18}/><div><b>After authorization</b><p>A different Finance Officer records the bank, M-Pesa or cheque reference.</p></div>
+      <WorkflowIcon name="lock" size={18}/><div><b>After authorization</b><p>Finance records the bank, M-Pesa or cheque reference.</p></div>
     </section>
 
     {confirmation && <div className="fw-modal-wrap" role="dialog" aria-modal="true" aria-labelledby="fw-authorise-title">
       <button className="fw-modal-backdrop" type="button" onClick={() => setConfirmation(null)} aria-label="Close confirmation"/>
       <section className="fw-confirm-modal">
-        <header><div><span>FINANCE AUTHORISATION</span><h3 id="fw-authorise-title">Release a locked instruction</h3><p>{confirmation.chain.id} · {confirmation.chain.supplier}</p></div><button type="button" onClick={() => setConfirmation(null)} aria-label="Close"><WorkflowIcon name="close"/></button></header>
+        <header><div><span>SUPERVISOR AUTHORISATION</span><h3 id="fw-authorise-title">Release a locked instruction</h3><p>{confirmation.chain.id} · {confirmation.chain.supplier}</p></div><button type="button" onClick={() => setConfirmation(null)} aria-label="Close"><WorkflowIcon name="close"/></button></header>
         <div className="fw-confirm-facts"><div><span>Amount</span><strong>{kes(confirmation.chain.amount)}</strong></div><div><span>Source record</span><strong>{confirmation.source}</strong></div><div><span>Project</span><strong>{confirmation.chain.project}</strong></div></div>
         <div className="fw-confirm-checks"><span><WorkflowIcon name="check" size={14}/>Three-way match complete</span><span><WorkflowIcon name="check" size={14}/>Budget and cost code available</span><span><WorkflowIcon name="check" size={14}/>KRA and beneficiary account verified</span></div>
-        <label className="fw-confirm-box"><input type="checkbox" checked={confirmed} onChange={event => setConfirmed(event.target.checked)}/><span><b>I authorize this payment instruction.</b><small>Another Finance Officer must execute it.</small></span></label>
+        <label className="fw-confirm-box"><input type="checkbox" checked={confirmed} onChange={event => setConfirmed(event.target.checked)}/><span><b>I authorize this payment instruction.</b><small>Finance will execute the approved amount.</small></span></label>
         <footer><button className="fw-button fw-button-secondary" type="button" onClick={() => setConfirmation(null)}>Cancel</button><button className="fw-button fw-button-primary" type="button" disabled={!confirmed} onClick={authorise}>Authorise instruction</button></footer>
       </section>
     </div>}

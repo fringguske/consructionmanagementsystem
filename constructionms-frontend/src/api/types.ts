@@ -696,6 +696,11 @@ export interface PettyCashDisbursement {
   evidenceReference: string; disbursedByUserId: number; disbursedByName: string; disbursedAt: IsoDateTime
 }
 
+export interface PettyCashReceiptConfirmation {
+  id: number; confirmationNumber: string; amountReceived: number; notes: string | null
+  confirmedByUserId: number; confirmedByName: string; confirmedAt: IsoDateTime
+}
+
 export interface PettyCashReconciliation {
   id: number; reconciliationNumber: string; amountSpent: number; amountReturned: number
   amountUnaccounted: number; amountExpensed: number | null; evidenceReference: string; returnReference: string | null
@@ -712,6 +717,7 @@ export interface PettyCashRequest {
   requestedAt: IsoDateTime; financeApprovedByUserId: number | null; financeApprovedByName: string | null
   financeDecisionAt: IsoDateTime | null; financeDecisionNotes: string | null
   disbursement: PettyCashDisbursement | null
+  receiptConfirmation: PettyCashReceiptConfirmation | null
   latestReconciliation: PettyCashReconciliation | null
 }
 

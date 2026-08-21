@@ -14,7 +14,8 @@ All paths use the `/api/v1` prefix. Except for login, liveness and readiness, th
 | Collect comparable supplier offers | `sourcingRoundsApi`, `suppliersApi` | `SourcingRoundsController`, `SuppliersController` | `SourcingService`, `SupplierService` | `SourcingRounds`, `SourcingRoundEvents`, `SupplierQuotes`, `Suppliers` |
 | Prepare, approve and issue an order | `purchaseOrdersApi` | `PurchaseOrdersController` | `PurchaseOrderService` | `PurchaseOrders`, `PurchaseOrderLines`, `PurchaseOrderEvents` |
 | Receive, store, issue, transfer and account for material | `inventoryApi` | `InventoryController` | `InventoryWorkflowService` | `GoodsReceipts`, `StockBalances`, `StockLedgerEntries`, `MaterialIssues`, `MaterialUsageRecords`, `StockTransfers`, `StockCounts` |
-| Match invoices, authorize and execute payments | `financeApi` | `FinanceController` | `FinanceWorkflowService` | `SupplierInvoices`, `PaymentAuthorizations`, `Payments`, `PaymentReceipts` |
+| Match, authorize and execute supplier payments | `financeApi` | `FinanceController` | `FinanceWorkflowService` | `SupplierInvoices`, `PaymentAuthorizations`, `Payments`, `PaymentReceipts` |
+| Request, hand over, confirm and reconcile petty cash | `pettyCashApi` | `PettyCashController` | `PettyCashService` | `PettyCashRequests`, `PettyCashDisbursements`, `PettyCashReceiptConfirmations`, `PettyCashReconciliations` |
 | Trace the complete material-and-money chain | `financeApi.controlEvents` | `FinanceController` | `FinanceWorkflowService`, `ControlEventWriter` | Existing workflow event tables plus hash-linked `ControlEvents` |
 
 ## Live React routes
@@ -28,7 +29,8 @@ All paths use the `/api/v1` prefix. Except for login, liveness and readiness, th
 | `/suppliers` | Supplier application, independent approval and approved register | CEO, Procurement Officer, Finance Officer, Auditor |
 | `/purchase-orders` | Submit, approve/return/reject, correct, cancel and issue | CEO, Supervisor, Procurement Officer, Storekeeper, Finance Officer, Auditor |
 | `/inventory` | GRNs, store balances, issues, Foreman custody, transfers and stock counts | CEO, Supervisor, Engineer, Foreman, Storekeeper, Finance Officer, Auditor |
-| `/finance` | Supplier invoices, three-way match, authorization, separate Finance execution and receipts | CEO, Procurement Officer, Finance Officer, Auditor |
+| `/finance` | Supplier invoices, Finance matching, Supervisor authorization, payment execution and receipts | CEO, Supervisor, Procurement Officer, Finance Officer, Auditor |
+| `/petty-cash` | Requests, approval, handover, receipt confirmation and reconciliation | CEO, Supervisor, Finance Officer, Auditor |
 | `/audit` | One chronological evidence chain across materials and cash | CEO, Auditor |
 | `/access` | Review join requests, manage accounts and assign project scope | Administrator |
 
@@ -170,41 +172,43 @@ Materials come from one categorized catalog. The Foreman selects the material an
 
 ```text
 Accepted GRN → Procurement invoice capture → Finance three-way match
-             → CEO only for high-value exception → Finance authorization
-             → second Finance Officer executes → system receipt
+             → CEO only for high-value exception → assigned Supervisor authorization
+             → Finance executes → system receipt
 ```
 
 | Method and path | Role | Purpose |
 |---|---|---|
-| `GET /finance/invoices` | Procurement, Finance, CEO, Auditor | Read the scoped invoice queue without granting action rights. |
+| `GET /finance/invoices` | Procurement, Supervisor, Finance, CEO, Auditor | Read the scoped invoice queue without granting action rights. |
 | `POST /finance/invoices` | Assigned Procurement officer | Capture an immutable supplier invoice only after Stores has accepted the full PO quantity. This starter release does not silently treat one invoice as a partial-invoice schedule. |
 | `POST /finance/invoices/{id}/review` | Different Finance officer | Compare invoice quantity, unit price and amount exactly with accepted GRNs and the issued PO. |
 | `POST /finance/invoices/{id}/ceo-decision` | CEO | Decide only invoices above the configured high-value threshold; routine payments never require CEO operation. |
-| `POST /finance/invoices/{id}/authorize` | Reviewing Finance officer | Create one append-only authority for the locked, matched amount. |
-| `GET /finance/authorizations` | Finance, CEO, Auditor | Read payment instructions; `unpaidOnly=true` is the Finance execution queue. |
-| `POST /finance/authorizations/{id}/pay` | Finance | Execute exactly the amount authorized by another Finance Officer, with a unique external bank/M-Pesa/cheque/cash reference. |
-| `GET /finance/payments` | Finance, CEO, Auditor | Read immutable payments and system receipt numbers. |
+| `POST /finance/invoices/{id}/authorize` | Assigned Supervisor | Create one append-only authority for the locked amount after Finance matching and any required CEO exception decision. |
+| `GET /finance/authorizations` | Supervisor, Finance, CEO, Auditor | Read payment instructions; `unpaidOnly=true` is the Finance execution queue. |
+| `POST /finance/authorizations/{id}/pay` | Finance | Execute exactly the Supervisor-authorized amount with a unique external bank/M-Pesa/cheque/cash reference. |
+| `GET /finance/payments` | Supervisor, Finance, CEO, Auditor | Read immutable payments and system receipt numbers. |
 | `GET /finance/control-events` | CEO, Auditor | Read the full chronological chain for a project or requisition across request, sourcing, PO, stock and payment. |
 
 ### Petty cash
 
 ```text
-Supervisor request → Finance approval → second Finance Officer handover
-                   → requesting Supervisor receipts/return → Finance reconciliation
+Supervisor request → Finance approval and handover → requesting Supervisor confirms receipt
+                   → requesting Supervisor submits receipts/return → Finance reconciliation
 ```
 
 Petty cash is restricted to KES 100,000 per request and an active project cost code.
 The CEO observes the full chain but does not approve routine requests. The requesting
-Supervisor cannot approve or disburse. The Finance Officer who approves cannot disburse
-the same request, and the Finance Officer who disburses cannot approve its later reconciliation.
+Supervisor cannot approve or disburse. Finance cannot submit the recipient's confirmation
+or accountability evidence, and reconciliation cannot begin until the Supervisor confirms
+the exact handover amount.
 
 | Method and path | Role | Purpose |
 |---|---|---|
 | `GET /finance/petty-cash` | Supervisor, Finance, CEO, Auditor | Read role- and project-scoped requests, handovers and reconciliations. |
 | `POST /finance/petty-cash` | Supervisor | Request a capped amount for one specific purpose and budget area. |
 | `POST /finance/petty-cash/{id}/decision` | Finance | Independently approve a locked amount or reject with notes. |
-| `POST /finance/petty-cash/{id}/disburse` | Finance | A Finance Officer other than the approver records the exact handover, external reference, recipient acknowledgement and proof. |
-| `POST /finance/petty-cash/{id}/reconciliation` | Requesting Supervisor | Account for the full amount with receipt evidence and any cash-return reference. |
+| `POST /finance/petty-cash/{id}/disburse` | Finance | Record the exact approved handover, external reference, recipient acknowledgement and proof. |
+| `POST /finance/petty-cash/{id}/receipt-confirmation` | Requesting Supervisor | Independently confirm the exact amount received in an append-only record. |
+| `POST /finance/petty-cash/{id}/reconciliation` | Requesting Supervisor | After receipt confirmation, account for the full amount with receipt evidence and any cash-return reference. |
 | `POST /finance/petty-cash/{id}/reconciliation-decision` | Finance | Close the evidence or return it for correction. |
 
 New operational evidence is protected twice: application guards reject deletion/source-field rewrites, and PostgreSQL triggers independently reject the same mutations. `ControlEvents` are append-only and SHA-256 linked within each requisition chain.

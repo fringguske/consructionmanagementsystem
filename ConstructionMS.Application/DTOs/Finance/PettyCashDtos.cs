@@ -30,6 +30,13 @@ public sealed class DisbursePettyCashRequestDto
     [Required, StringLength(500, MinimumLength = 3)] public string EvidenceReference { get; set; } = string.Empty;
 }
 
+public sealed class ConfirmPettyCashReceiptDto
+{
+    [Range(typeof(decimal), "0.01", "100000")]
+    [DecimalPrecision(18, 2)] public decimal AmountReceived { get; set; }
+    [StringLength(500)] public string? Notes { get; set; }
+}
+
 public sealed class SubmitPettyCashReconciliationDto
 {
     [Range(typeof(decimal), "0", "100000")]
@@ -70,6 +77,7 @@ public sealed class PettyCashRequestResponseDto
     public DateTime? FinanceDecisionAt { get; set; }
     public string? FinanceDecisionNotes { get; set; }
     public PettyCashDisbursementResponseDto? Disbursement { get; set; }
+    public PettyCashReceiptConfirmationResponseDto? ReceiptConfirmation { get; set; }
     public PettyCashReconciliationResponseDto? LatestReconciliation { get; set; }
 }
 
@@ -86,6 +94,17 @@ public sealed class PettyCashDisbursementResponseDto
     public int DisbursedByUserId { get; set; }
     public string DisbursedByName { get; set; } = string.Empty;
     public DateTime DisbursedAt { get; set; }
+}
+
+public sealed class PettyCashReceiptConfirmationResponseDto
+{
+    public long Id { get; set; }
+    public string ConfirmationNumber { get; set; } = string.Empty;
+    public decimal AmountReceived { get; set; }
+    public string? Notes { get; set; }
+    public int ConfirmedByUserId { get; set; }
+    public string ConfirmedByName { get; set; } = string.Empty;
+    public DateTime ConfirmedAt { get; set; }
 }
 
 public sealed class PettyCashReconciliationResponseDto

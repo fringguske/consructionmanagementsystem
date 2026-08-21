@@ -780,6 +780,8 @@ export const pettyCashApi = {
     request<PettyCashRequest>(`/finance/petty-cash/${id}/decision`, { method: 'POST', body, signal }),
   disburse: (id: number, body: { method: string; externalReference: string; recipientName: string; recipientAcknowledgementReference: string; evidenceReference: string }, signal?: AbortSignal) =>
     request<PettyCashRequest>(`/finance/petty-cash/${id}/disburse`, { method: 'POST', body, signal }),
+  confirmReceipt: (id: number, body: { amountReceived: number; notes?: string | null }, signal?: AbortSignal) =>
+    request<PettyCashRequest>(`/finance/petty-cash/${id}/receipt-confirmation`, { method: 'POST', body, signal }),
   reconcile: (id: number, body: { amountSpent: number; amountReturned: number; evidenceReference: string; returnReference?: string | null; notes?: string | null }, signal?: AbortSignal) =>
     request<PettyCashRequest>(`/finance/petty-cash/${id}/reconciliation`, { method: 'POST', body, signal }),
   reviewReconciliation: (id: number, body: { approve: boolean; notes: string }, signal?: AbortSignal) =>

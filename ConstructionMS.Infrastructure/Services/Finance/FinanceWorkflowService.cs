@@ -34,7 +34,7 @@ public sealed class FinanceWorkflowService : IFinanceWorkflowService
     public async Task<PaginatedResult<SupplierInvoiceResponseDto>> GetInvoicesAsync(
         int page, int pageSize, int actorUserId, string actorRole, int? projectId = null, string? status = null)
     {
-        await RequireAnyRoleAsync(actorUserId, actorRole, "Procurement Officer", "Finance Officer", "CEO", "Auditor");
+        await RequireAnyRoleAsync(actorUserId, actorRole, "Procurement Officer", "Supervisor", "Finance Officer", "CEO", "Auditor");
         var query = _db.SupplierInvoices.AsNoTracking();
         if (actorRole is not ("CEO" or "Auditor") && !await CanVerifyAllProjectsAsync(actorUserId))
             query = query.Where(item => _db.UserProjectAssignments.Any(assignment => assignment.UserId == actorUserId && assignment.ProjectId == item.ProjectId && assignment.IsActive));
@@ -150,14 +150,14 @@ public sealed class FinanceWorkflowService : IFinanceWorkflowService
     public async Task<SupplierInvoiceResponseDto> AuthorizePaymentAsync(
         long id, AuthorizePaymentRequestDto request, int actorUserId, string actorRole)
     {
-        await RequireRoleAsync(actorUserId, actorRole, "Finance Officer");
+        await RequireRoleAsync(actorUserId, actorRole, "Supervisor");
         var notes = InputNormalizer.OptionalText(request.Notes, nameof(request.Notes), 1_000);
         await using var transaction = await _db.Database.BeginTransactionAsync(IsolationLevel.Serializable);
         var invoice = await _db.SupplierInvoices.Include(item => item.PurchaseOrder)
             .SingleOrDefaultAsync(item => item.Id == id) ?? throw new KeyNotFoundException("The supplier invoice was not found.");
         if (invoice.Status != InvoiceStatuses.ReadyForAuthorization) throw new InvalidOperationException("The invoice has not passed all required matching and exception checks.");
-        if (invoice.ReviewedByUserId != actorUserId)
-            throw new UnauthorizedAccessException("The Finance Officer who completed the documented match must authorize the locked result.");
+        if (invoice.ReviewedByUserId == actorUserId)
+            throw new UnauthorizedAccessException("The Finance reviewer cannot authorize the resulting payment.");
         await RequireProjectAccessAsync(actorUserId, invoice.ProjectId);
         var now = DateTime.UtcNow;
         var authorization = new PaymentAuthorization
@@ -179,7 +179,7 @@ public sealed class FinanceWorkflowService : IFinanceWorkflowService
     public async Task<PaginatedResult<PaymentAuthorizationResponseDto>> GetAuthorizationsAsync(
         int page, int pageSize, int actorUserId, string actorRole, bool unpaidOnly = false)
     {
-        await RequireAnyRoleAsync(actorUserId, actorRole, "Finance Officer", "CEO", "Auditor");
+        await RequireAnyRoleAsync(actorUserId, actorRole, "Supervisor", "Finance Officer", "CEO", "Auditor");
         var query = _db.PaymentAuthorizations.AsNoTracking();
         if (actorRole is not ("CEO" or "Auditor") && !await CanVerifyAllProjectsAsync(actorUserId))
             query = query.Where(item => _db.UserProjectAssignments.Any(assignment => assignment.UserId == actorUserId && assignment.ProjectId == item.SupplierInvoice.ProjectId && assignment.IsActive));
@@ -204,7 +204,7 @@ public sealed class FinanceWorkflowService : IFinanceWorkflowService
         var authorization = await _db.PaymentAuthorizations.Include(item => item.SupplierInvoice).ThenInclude(item => item.PurchaseOrder)
             .SingleOrDefaultAsync(item => item.Id == authorizationId) ?? throw new KeyNotFoundException("The payment authorization was not found.");
         if (authorization.SupplierInvoice.Status != InvoiceStatuses.Authorized) throw new InvalidOperationException("This authorization is not available for payment.");
-        if (authorization.AuthorizedByUserId == actorUserId) throw new UnauthorizedAccessException("The Finance authorizer cannot execute the payment.");
+        if (authorization.AuthorizedByUserId == actorUserId) throw new UnauthorizedAccessException("The payment authorizer cannot execute the payment.");
         await RequireProjectAccessAsync(actorUserId, authorization.SupplierInvoice.ProjectId);
         if (await _db.Payments.AnyAsync(item => item.PaymentAuthorizationId == authorization.Id)) throw new InvalidOperationException("This authorization has already been paid.");
         if (await _db.Payments.AnyAsync(item => item.ExternalReference == externalReference)
@@ -237,7 +237,7 @@ public sealed class FinanceWorkflowService : IFinanceWorkflowService
 
     public async Task<PaginatedResult<PaymentResponseDto>> GetPaymentsAsync(int page, int pageSize, int actorUserId, string actorRole)
     {
-        await RequireAnyRoleAsync(actorUserId, actorRole, "Finance Officer", "CEO", "Auditor");
+        await RequireAnyRoleAsync(actorUserId, actorRole, "Supervisor", "Finance Officer", "CEO", "Auditor");
         var query = _db.Payments.AsNoTracking();
         if (actorRole is not ("CEO" or "Auditor") && !await CanVerifyAllProjectsAsync(actorUserId))
             query = query.Where(item => _db.UserProjectAssignments.Any(assignment => assignment.UserId == actorUserId && assignment.ProjectId == item.PaymentAuthorization.SupplierInvoice.ProjectId && assignment.IsActive));

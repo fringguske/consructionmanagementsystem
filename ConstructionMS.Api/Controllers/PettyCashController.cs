@@ -42,6 +42,11 @@ public sealed class PettyCashController(IPettyCashService pettyCash) : Controlle
     public async Task<IActionResult> Disburse(long id, [FromBody] DisbursePettyCashRequestDto request) =>
         Ok(ApiResponse<PettyCashRequestResponseDto>.Ok(await pettyCash.DisburseAsync(id, request, ActorId(), Role())));
 
+    [HttpPost("{id:long}/receipt-confirmation")]
+    [Authorize(Roles = "Supervisor")]
+    public async Task<IActionResult> ConfirmReceipt(long id, [FromBody] ConfirmPettyCashReceiptDto request) =>
+        Ok(ApiResponse<PettyCashRequestResponseDto>.Ok(await pettyCash.ConfirmReceiptAsync(id, request, ActorId(), Role())));
+
     [HttpPost("{id:long}/reconciliation")]
     [Authorize(Roles = "Supervisor")]
     public async Task<IActionResult> Reconcile(long id, [FromBody] SubmitPettyCashReconciliationDto request) =>

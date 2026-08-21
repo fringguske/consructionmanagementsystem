@@ -53,10 +53,11 @@ public sealed class PettyCashRequest
     public string? FinanceDecisionNotes { get; set; }
     public decimal? AmountCommitted { get; set; }
     public PettyCashDisbursement? Disbursement { get; set; }
+    public PettyCashReceiptConfirmation? ReceiptConfirmation { get; set; }
     public ICollection<PettyCashReconciliation> Reconciliations { get; set; } = [];
 }
 
-/// <summary>Immutable evidence that a Finance Officer, separate from the approver, handed over one approved petty-cash amount.</summary>
+/// <summary>Immutable evidence that Finance handed over one approved petty-cash amount.</summary>
 public sealed class PettyCashDisbursement
 {
     public long Id { get; set; }
@@ -72,6 +73,22 @@ public sealed class PettyCashDisbursement
     public int DisbursedByUserId { get; set; }
     public User DisbursedByUser { get; set; } = null!;
     public DateTime DisbursedAt { get; set; }
+}
+
+/// <summary>Immutable confirmation by the requesting Supervisor that the recorded petty cash was received.</summary>
+public sealed class PettyCashReceiptConfirmation
+{
+    public long Id { get; set; }
+    public string ConfirmationNumber { get; set; } = string.Empty;
+    public long PettyCashRequestId { get; set; }
+    public PettyCashRequest PettyCashRequest { get; set; } = null!;
+    public long PettyCashDisbursementId { get; set; }
+    public PettyCashDisbursement PettyCashDisbursement { get; set; } = null!;
+    public decimal AmountReceived { get; set; }
+    public string? Notes { get; set; }
+    public int ConfirmedByUserId { get; set; }
+    public User ConfirmedByUser { get; set; } = null!;
+    public DateTime ConfirmedAt { get; set; }
 }
 
 /// <summary>Immutable expenditure evidence with a controlled Finance decision.</summary>
@@ -143,7 +160,7 @@ public sealed class SupplierInvoice
     public DateTime? CeoDecisionAt { get; set; }
 }
 
-/// <summary>Finance authority for one locked invoice amount.</summary>
+/// <summary>Supervisor authority for one Finance-matched, locked invoice amount.</summary>
 public sealed class PaymentAuthorization
 {
     public long Id { get; set; }
@@ -157,7 +174,7 @@ public sealed class PaymentAuthorization
     public DateTime AuthorizedAt { get; set; }
 }
 
-/// <summary>Immutable evidence that a second Finance Officer executed a Finance-authorized instruction.</summary>
+/// <summary>Immutable evidence that Finance executed a Supervisor-authorized instruction.</summary>
 public sealed class Payment
 {
     public long Id { get; set; }

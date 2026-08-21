@@ -111,7 +111,7 @@ public sealed class PettyCashService(AppDbContext db, IActorRoleResolver roles) 
         var item = await db.PettyCashRequests.SingleOrDefaultAsync(candidate => candidate.Id == id)
             ?? throw new KeyNotFoundException("The petty-cash request was not found.");
         if (item.Status != PettyCashStatuses.Approved || !item.AmountApproved.HasValue) throw new InvalidOperationException("Finance has not approved this petty-cash request for disbursement.");
-        if (item.FinanceApprovedByUserId == actorUserId || item.RequestedByUserId == actorUserId) throw new UnauthorizedAccessException("The requester or Finance approver cannot execute this disbursement.");
+        if (item.RequestedByUserId == actorUserId) throw new UnauthorizedAccessException("The requester cannot execute this disbursement.");
         await RequireProjectAccessAsync(actorUserId, item.ProjectId);
         if (await db.PettyCashDisbursements.AnyAsync(candidate => candidate.PettyCashRequestId == item.Id)) throw new InvalidOperationException("This petty-cash request has already been disbursed.");
         if (await db.PettyCashDisbursements.AnyAsync(candidate => candidate.ExternalReference == reference)
@@ -135,6 +135,43 @@ public sealed class PettyCashService(AppDbContext db, IActorRoleResolver roles) 
         return await LoadAsync(item.Id);
     }
 
+    public async Task<PettyCashRequestResponseDto> ConfirmReceiptAsync(
+        long id, ConfirmPettyCashReceiptDto request, int actorUserId, string actorRole)
+    {
+        await RequireAnyRoleAsync(actorUserId, actorRole, "Supervisor");
+        var amountReceived = InputNormalizer.Positive(request.AmountReceived, nameof(request.AmountReceived), 18, 2);
+        var notes = InputNormalizer.OptionalText(request.Notes, nameof(request.Notes), 500);
+        await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable);
+        var item = await db.PettyCashRequests.Include(candidate => candidate.Disbursement)
+            .SingleOrDefaultAsync(candidate => candidate.Id == id)
+            ?? throw new KeyNotFoundException("The petty-cash request was not found.");
+        if (item.Status != PettyCashStatuses.Disbursed || item.Disbursement is null)
+            throw new InvalidOperationException("Only a recorded petty-cash handover can be confirmed.");
+        if (item.RequestedByUserId != actorUserId)
+            throw new UnauthorizedAccessException("The requesting Supervisor must confirm receipt.");
+        await RequireProjectAccessAsync(actorUserId, item.ProjectId);
+        if (amountReceived != item.Disbursement.Amount)
+            throw new ArgumentException("The received amount must equal the recorded handover amount. Ask Finance to resolve any difference before confirming.");
+        if (await db.PettyCashReceiptConfirmations.AnyAsync(candidate =>
+            candidate.PettyCashRequestId == item.Id || candidate.PettyCashDisbursementId == item.Disbursement.Id))
+            throw new InvalidOperationException("Receipt of this petty-cash handover has already been confirmed.");
+        var now = DateTime.UtcNow;
+        var confirmation = new PettyCashReceiptConfirmation
+        {
+            ConfirmationNumber = Reference("PCRC", now), PettyCashRequestId = item.Id,
+            PettyCashDisbursementId = item.Disbursement.Id, AmountReceived = amountReceived,
+            Notes = notes, ConfirmedByUserId = actorUserId, ConfirmedAt = now
+        };
+        db.PettyCashReceiptConfirmations.Add(confirmation);
+        await db.SaveChangesAsync();
+        await _events.AppendAsync(Chain(item.Id), null, item.ProjectId, "PettyCashReceiptConfirmation", confirmation.Id,
+            confirmation.ConfirmationNumber, "PettyCashReceiptConfirmed", actorUserId, actorRole,
+            new { amountReceived, notes }, now);
+        await db.SaveChangesAsync();
+        await transaction.CommitAsync();
+        return await LoadAsync(item.Id);
+    }
+
     public async Task<PettyCashRequestResponseDto> SubmitReconciliationAsync(
         long id, SubmitPettyCashReconciliationDto request, int actorUserId, string actorRole)
     {
@@ -146,11 +183,14 @@ public sealed class PettyCashService(AppDbContext db, IActorRoleResolver roles) 
         var notes = InputNormalizer.OptionalText(request.Notes, nameof(request.Notes), 1_000);
         await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable);
         var item = await db.PettyCashRequests.Include(candidate => candidate.Disbursement)
+            .Include(candidate => candidate.ReceiptConfirmation)
             .Include(candidate => candidate.Reconciliations)
             .SingleOrDefaultAsync(candidate => candidate.Id == id) ?? throw new KeyNotFoundException("The petty-cash request was not found.");
         if (item.Status != PettyCashStatuses.Disbursed) throw new InvalidOperationException("Only disbursed petty cash can be reconciled.");
         if (item.RequestedByUserId != actorUserId) throw new UnauthorizedAccessException("The requesting Supervisor must submit the accountability evidence.");
         if (item.Disbursement is null) throw new InvalidOperationException("No petty-cash disbursement exists.");
+        if (item.ReceiptConfirmation is null)
+            throw new InvalidOperationException("Confirm receipt of the petty cash before submitting receipts and returned funds.");
         if (item.Reconciliations.Any(candidate => candidate.Status == PettyCashReconciliationStatuses.Approved))
             throw new InvalidOperationException("This petty-cash request has already been reconciled.");
         if (spent + returned != item.Disbursement.Amount) throw new ArgumentException("Amount spent plus amount returned must equal the disbursed amount.");
@@ -185,8 +225,6 @@ public sealed class PettyCashService(AppDbContext db, IActorRoleResolver roles) 
         if (item.Status != PettyCashStatuses.ReconciliationSubmitted) throw new InvalidOperationException("No petty-cash reconciliation is awaiting review.");
         var reconciliation = item.Reconciliations.Single(candidate => candidate.Status == PettyCashReconciliationStatuses.PendingReview);
         if (reconciliation.SubmittedByUserId == actorUserId) throw new UnauthorizedAccessException("The person submitting evidence cannot review it.");
-        if (item.Disbursement?.DisbursedByUserId == actorUserId)
-            throw new UnauthorizedAccessException("The Finance Officer who disbursed the cash cannot review its reconciliation.");
         await RequireProjectAccessAsync(actorUserId, item.ProjectId);
         var now = DateTime.UtcNow;
         reconciliation.Status = request.Approve ? PettyCashReconciliationStatuses.Approved : PettyCashReconciliationStatuses.Returned;
@@ -216,6 +254,7 @@ public sealed class PettyCashService(AppDbContext db, IActorRoleResolver roles) 
     private static IQueryable<PettyCashRequest> RequestQuery(IQueryable<PettyCashRequest> query) => query
         .Include(item => item.Project).Include(item => item.CostCode).Include(item => item.RequestedByUser)
         .Include(item => item.FinanceApprovedByUser).Include(item => item.Disbursement).ThenInclude(item => item!.DisbursedByUser)
+        .Include(item => item.ReceiptConfirmation).ThenInclude(item => item!.ConfirmedByUser)
         .Include(item => item.Reconciliations).ThenInclude(item => item.SubmittedByUser)
         .Include(item => item.Reconciliations).ThenInclude(item => item.ReviewedByUser).AsSplitQuery();
 
@@ -246,6 +285,16 @@ public sealed class PettyCashService(AppDbContext db, IActorRoleResolver roles) 
                 DisbursedByUserId = item.Disbursement.DisbursedByUserId,
                 DisbursedByName = item.Disbursement.DisbursedByUser.FullName,
                 DisbursedAt = item.Disbursement.DisbursedAt
+            },
+            ReceiptConfirmation = item.ReceiptConfirmation is null ? null : new PettyCashReceiptConfirmationResponseDto
+            {
+                Id = item.ReceiptConfirmation.Id,
+                ConfirmationNumber = item.ReceiptConfirmation.ConfirmationNumber,
+                AmountReceived = item.ReceiptConfirmation.AmountReceived,
+                Notes = item.ReceiptConfirmation.Notes,
+                ConfirmedByUserId = item.ReceiptConfirmation.ConfirmedByUserId,
+                ConfirmedByName = item.ReceiptConfirmation.ConfirmedByUser.FullName,
+                ConfirmedAt = item.ReceiptConfirmation.ConfirmedAt
             },
             LatestReconciliation = latest is null ? null : new PettyCashReconciliationResponseDto
             {

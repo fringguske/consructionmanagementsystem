@@ -9,6 +9,7 @@ public interface IPettyCashService
     Task<PettyCashRequestResponseDto> CreateRequestAsync(CreatePettyCashRequestDto request, int actorUserId, string actorRole);
     Task<PettyCashRequestResponseDto> DecideRequestAsync(long id, DecidePettyCashRequestDto request, int actorUserId, string actorRole);
     Task<PettyCashRequestResponseDto> DisburseAsync(long id, DisbursePettyCashRequestDto request, int actorUserId, string actorRole);
+    Task<PettyCashRequestResponseDto> ConfirmReceiptAsync(long id, ConfirmPettyCashReceiptDto request, int actorUserId, string actorRole);
     Task<PettyCashRequestResponseDto> SubmitReconciliationAsync(long id, SubmitPettyCashReconciliationDto request, int actorUserId, string actorRole);
     Task<PettyCashRequestResponseDto> ReviewReconciliationAsync(long id, ReviewPettyCashReconciliationDto request, int actorUserId, string actorRole);
 }
