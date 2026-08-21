@@ -56,7 +56,7 @@ public sealed class PettyCashRequest
     public ICollection<PettyCashReconciliation> Reconciliations { get; set; } = [];
 }
 
-/// <summary>Immutable evidence that a Cashier handed over one approved petty-cash amount.</summary>
+/// <summary>Immutable evidence that a Finance Officer, separate from the approver, handed over one approved petty-cash amount.</summary>
 public sealed class PettyCashDisbursement
 {
     public long Id { get; set; }
@@ -157,7 +157,7 @@ public sealed class PaymentAuthorization
     public DateTime AuthorizedAt { get; set; }
 }
 
-/// <summary>Immutable evidence that Cashier executed a Finance-authorized instruction.</summary>
+/// <summary>Immutable evidence that a second Finance Officer executed a Finance-authorized instruction.</summary>
 public sealed class Payment
 {
     public long Id { get; set; }

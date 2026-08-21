@@ -10,7 +10,7 @@ using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
 
 [ApiController]
-[Authorize(Roles = "Supervisor,Finance Officer,Cashier,CEO,Auditor")]
+[Authorize(Roles = "Supervisor,Finance Officer,CEO,Auditor")]
 [Route("api/v1/finance/petty-cash")]
 [Produces("application/json")]
 public sealed class PettyCashController(IPettyCashService pettyCash) : ControllerBase
@@ -38,7 +38,7 @@ public sealed class PettyCashController(IPettyCashService pettyCash) : Controlle
         Ok(ApiResponse<PettyCashRequestResponseDto>.Ok(await pettyCash.DecideRequestAsync(id, request, ActorId(), Role())));
 
     [HttpPost("{id:long}/disburse")]
-    [Authorize(Roles = "Cashier")]
+    [Authorize(Roles = "Finance Officer")]
     public async Task<IActionResult> Disburse(long id, [FromBody] DisbursePettyCashRequestDto request) =>
         Ok(ApiResponse<PettyCashRequestResponseDto>.Ok(await pettyCash.DisburseAsync(id, request, ActorId(), Role())));
 

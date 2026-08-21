@@ -19,7 +19,7 @@ public sealed class PettyCashService(AppDbContext db, IActorRoleResolver roles) 
     public async Task<PaginatedResult<PettyCashRequestResponseDto>> GetRequestsAsync(
         int page, int pageSize, int actorUserId, string actorRole, int? projectId = null, string? status = null)
     {
-        var actor = await RequireAnyRoleAsync(actorUserId, actorRole, "Supervisor", "Finance Officer", "Cashier", "CEO", "Auditor");
+        var actor = await RequireAnyRoleAsync(actorUserId, actorRole, "Supervisor", "Finance Officer", "CEO", "Auditor");
         var query = db.PettyCashRequests.AsNoTracking();
         if (actor.EffectiveRole is not ("CEO" or "Auditor") && !actor.CanSwitchRoles)
         {
@@ -100,7 +100,7 @@ public sealed class PettyCashService(AppDbContext db, IActorRoleResolver roles) 
     public async Task<PettyCashRequestResponseDto> DisburseAsync(
         long id, DisbursePettyCashRequestDto request, int actorUserId, string actorRole)
     {
-        await RequireAnyRoleAsync(actorUserId, actorRole, "Cashier");
+        await RequireAnyRoleAsync(actorUserId, actorRole, "Finance Officer");
         var method = InputNormalizer.RequiredText(request.Method, nameof(request.Method), maximumLength: 30);
         if (method is not ("MPesa" or "BankTransfer" or "Cheque" or "Cash")) throw new ArgumentException("Method must be MPesa, BankTransfer, Cheque, or Cash.");
         var reference = InputNormalizer.RequiredText(request.ExternalReference, nameof(request.ExternalReference), 3, 100).ToUpperInvariant();
@@ -180,10 +180,13 @@ public sealed class PettyCashService(AppDbContext db, IActorRoleResolver roles) 
         var notes = InputNormalizer.RequiredText(request.Notes, nameof(request.Notes), 3, 1_000);
         await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable);
         var item = await db.PettyCashRequests.Include(candidate => candidate.Reconciliations)
+            .Include(candidate => candidate.Disbursement)
             .SingleOrDefaultAsync(candidate => candidate.Id == id) ?? throw new KeyNotFoundException("The petty-cash request was not found.");
         if (item.Status != PettyCashStatuses.ReconciliationSubmitted) throw new InvalidOperationException("No petty-cash reconciliation is awaiting review.");
         var reconciliation = item.Reconciliations.Single(candidate => candidate.Status == PettyCashReconciliationStatuses.PendingReview);
         if (reconciliation.SubmittedByUserId == actorUserId) throw new UnauthorizedAccessException("The person submitting evidence cannot review it.");
+        if (item.Disbursement?.DisbursedByUserId == actorUserId)
+            throw new UnauthorizedAccessException("The Finance Officer who disbursed the cash cannot review its reconciliation.");
         await RequireProjectAccessAsync(actorUserId, item.ProjectId);
         var now = DateTime.UtcNow;
         reconciliation.Status = request.Approve ? PettyCashReconciliationStatuses.Approved : PettyCashReconciliationStatuses.Returned;
@@ -230,6 +233,7 @@ public sealed class PettyCashService(AppDbContext db, IActorRoleResolver roles) 
             AmountCommitted = item.AmountCommitted,
             NeededByDate = item.NeededByDate, Status = item.Status, RequestedByName = item.RequestedByUser.FullName,
             RequestedByUserId = item.RequestedByUserId, RequestedAt = item.RequestedAt,
+            FinanceApprovedByUserId = item.FinanceApprovedByUserId,
             FinanceApprovedByName = item.FinanceApprovedByUser?.FullName, FinanceDecisionAt = item.FinanceDecisionAt,
             FinanceDecisionNotes = item.FinanceDecisionNotes,
             Disbursement = item.Disbursement is null ? null : new PettyCashDisbursementResponseDto
@@ -238,7 +242,9 @@ public sealed class PettyCashService(AppDbContext db, IActorRoleResolver roles) 
                 Amount = item.Disbursement.Amount, Method = item.Disbursement.Method,
                 ExternalReference = item.Disbursement.ExternalReference, RecipientName = item.Disbursement.RecipientName,
                 RecipientAcknowledgementReference = item.Disbursement.RecipientAcknowledgementReference,
-                EvidenceReference = item.Disbursement.EvidenceReference, DisbursedByName = item.Disbursement.DisbursedByUser.FullName,
+                EvidenceReference = item.Disbursement.EvidenceReference,
+                DisbursedByUserId = item.Disbursement.DisbursedByUserId,
+                DisbursedByName = item.Disbursement.DisbursedByUser.FullName,
                 DisbursedAt = item.Disbursement.DisbursedAt
             },
             LatestReconciliation = latest is null ? null : new PettyCashReconciliationResponseDto

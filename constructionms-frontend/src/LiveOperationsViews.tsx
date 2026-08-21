@@ -253,17 +253,17 @@ export function LiveFinanceView({ currentUser }: { currentUser: CurrentUser }) {
   useEffect(() => {
     const controller = new AbortController()
     const tasks: Promise<unknown>[] = [financeApi.invoices(controller.signal)]
-    if (role !== 'Procurement Officer') tasks.push(financeApi.authorizations(role === 'Cashier', controller.signal), financeApi.payments(controller.signal))
+    if (role !== 'Procurement Officer') tasks.push(financeApi.authorizations(role === 'Finance Officer', controller.signal), financeApi.payments(controller.signal))
     if (role === 'Procurement Officer') tasks.push(purchaseOrdersApi.list({ page: 1, pageSize: 100, status: 'Issued' }, controller.signal), inventoryApi.receipts(controller.signal))
     Promise.all(tasks).then(results => { let i = 0; setInvoices((results[i++] as { items: SupplierInvoice[] }).items); if (role !== 'Procurement Officer') { setAuthorizations((results[i++] as { items: PaymentAuthorization[] }).items); setPayments((results[i] as { items: Payment[] }).items) } else { setOrders((results[i++] as { items: PurchaseOrder[] }).items); setReceipts((results[i] as { items: GoodsReceipt[] }).items) } setError(null) }).catch(error => { if (!(error instanceof DOMException && error.name === 'AbortError')) setError(messageOf(error)) }).finally(() => { if (!controller.signal.aborted) setLoadedRequest({ role, refresh }) })
     return () => controller.abort()
   }, [refresh, role])
   const run = async (action: () => Promise<unknown>, text: string) => { try { await action(); setNotice(text); setError(null); setRefresh(v => v + 1); return true } catch (error) { setError(messageOf(error)); return false } }
-  return <div className="lav-view ops-view"><header className="lav-page-head"><div><h1>{role === 'Cashier' ? 'Approved payments' : role === 'Procurement Officer' ? 'Supplier invoices' : 'Invoices and payments'}</h1></div></header>{error && <Notice tone="error">{error}</Notice>}{notice && <Notice tone="success">{notice}</Notice>}
+  return <div className="lav-view ops-view"><header className="lav-page-head"><div><h1>{role === 'Procurement Officer' ? 'Supplier invoices' : 'Invoices and payments'}</h1></div></header>{error && <Notice tone="error">{error}</Notice>}{notice && <Notice tone="success">{notice}</Notice>}
     {loading ? <Loading>Loading finance records…</Loading> : <>
     {role === 'Procurement Officer' && <InvoiceCapture orders={orders} receipts={receipts} invoices={invoices} onRun={run}/>}
-    <section className="lav-panel ops-panel"><header className="lav-panel-head"><div><span className="lav-kicker">THREE-WAY MATCH</span><h2>Supplier invoices</h2></div><strong>{invoices.length} records</strong></header>{invoices.length ? <div className="ops-invoice-grid">{invoices.map(invoice => <InvoiceCard key={invoice.id} invoice={invoice} role={role} run={run}/>)}</div> : <Empty>Invoices appear only after an issued PO has an accepted GRN.</Empty>}</section>
-    {role === 'Cashier' && <CashierActions authorizations={authorizations} run={run}/>}
+    <section className="lav-panel ops-panel"><header className="lav-panel-head"><div><span className="lav-kicker">THREE-WAY MATCH</span><h2>Supplier invoices</h2></div><strong>{invoices.length} records</strong></header>{invoices.length ? <div className="ops-invoice-grid">{invoices.map(invoice => <InvoiceCard key={invoice.id} invoice={invoice} currentUser={currentUser} run={run}/>)}</div> : <Empty>Invoices appear only after an issued PO has an accepted GRN.</Empty>}</section>
+    {role === 'Finance Officer' && <FinancePaymentActions currentUser={currentUser} authorizations={authorizations} run={run}/>}
     {role !== 'Procurement Officer' && <section className="lav-panel ops-panel"><header className="lav-panel-head"><div><span className="lav-kicker">PAYMENT PROOF</span><h2>Executed payments</h2></div></header>{payments.length ? <div className="ops-table"><div className="ops-row payment head"><span>Payment</span><span>Amount</span><span>Method</span><span>External proof</span></div>{payments.map(payment => <div className="ops-row payment" key={payment.id}><span><b>{payment.displayNumber}</b><small>{when(payment.paidAt)}</small></span><span>{money(payment.amount)}</span><span>{payment.method}</span><span><b>{payment.externalReference}</b><small>Recorded by {payment.paidByName}</small></span></div>)}</div> : <Empty>No payment has been executed.</Empty>}</section>}
     </>}
   </div>
@@ -280,21 +280,49 @@ function InvoiceCapture({ orders, receipts, invoices, onRun }: { orders: Purchas
   return <form className="lav-panel ops-form ops-invoice-form" onSubmit={event => { event.preventDefault(); void onRun(() => financeApi.createInvoice({ purchaseOrderId: Number(form.order), invoiceNumber: form.number, quantity: Number(form.quantity), unitPrice: Number(form.price), amount: Number(form.amount), documentReference: form.document || null }), 'Invoice captured for independent Finance review.').then(saved => { if (saved) setForm({ order: '', number: '', quantity: '', price: '', amount: '', document: '' }) }) }}><h2>Capture supplier invoice</h2><p>The source is immutable. A mismatch must be replaced, never edited over.</p><div className="ops-fields four"><label><span>Issued PO fully received</span><select required value={form.order} onChange={e => { const order = orders.find(item => item.id === Number(e.target.value)); const nextLine = order?.lines[0]; const accepted = receipts.filter(receipt => receipt.purchaseOrderId === order?.id).reduce((total, receipt) => total + receipt.acceptedQuantity, 0); const unitPrice = nextLine?.unitPrice ?? 0; setForm({ ...form, order: e.target.value, quantity: accepted ? String(accepted) : '', price: unitPrice ? String(unitPrice) : '', amount: accepted && unitPrice ? (accepted * unitPrice).toFixed(2) : '' }) }}><option value="">Choose order</option>{available.map(order => { const accepted = receipts.filter(receipt => receipt.purchaseOrderId === order.id).reduce((total, receipt) => total + receipt.acceptedQuantity, 0); return <option value={order.id} key={order.id}>{order.supplierName} · {accepted} {order.lines[0]?.materialUnit} accepted</option> })}</select></label><label><span>Invoice number</span><input required value={form.number} onChange={e => setForm({ ...form, number: e.target.value })}/></label><label><span>Quantity {line ? `(${line.materialUnit})` : ''}</span><input type="number" min="0.001" step="0.001" required value={form.quantity} onChange={e => setForm({ ...form, quantity: e.target.value })}/></label><label><span>Unit price</span><input type="number" min="0.01" step="0.01" required value={form.price} onChange={e => setForm({ ...form, price: e.target.value })}/></label><label><span>Invoice amount</span><input type="number" min="0.01" step="0.01" required value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })}/></label><label><span>Document reference</span><input value={form.document} onChange={e => setForm({ ...form, document: e.target.value })}/></label></div><button className="lav-button primary">Send to Finance</button></form>
 }
 
-function InvoiceCard({ invoice, role, run }: { invoice: SupplierInvoice; role: CurrentUser['role']; run: (action: () => Promise<unknown>, text: string) => Promise<boolean> }) {
+function InvoiceCard({ invoice, currentUser, run }: { invoice: SupplierInvoice; currentUser: CurrentUser; run: (action: () => Promise<unknown>, text: string) => Promise<boolean> }) {
+  const role = currentUser.role
   const action = () => {
     if (role === 'Finance Officer' && invoice.status === 'PendingReview') return <button className="lav-button primary" onClick={() => void run(() => financeApi.reviewInvoice(invoice.id, 'PO, accepted GRN and invoice compared by Finance'), 'Three-way match completed.')}>Run match</button>
-    if (role === 'Finance Officer' && invoice.status === 'ReadyForAuthorization') return <button className="lav-button primary" onClick={() => void run(() => financeApi.authorize(invoice.id, 'Matched instruction released to Cashier'), 'Locked payment instruction created.')}>Authorize payment</button>
+    if (role === 'Finance Officer' && invoice.status === 'ReadyForAuthorization' && invoice.reviewedByUserId === currentUser.id) return <button className="lav-button primary" onClick={() => void run(() => financeApi.authorize(invoice.id, 'Matched instruction released for separate Finance execution'), 'Payment instruction created.')}>Authorize payment</button>
     if (role === 'CEO' && invoice.status === 'AwaitingCeoApproval') return <div className="ops-buttons"><button className="lav-button primary" onClick={() => void run(() => financeApi.ceoDecision(invoice.id, true, 'High-value exception approved after reviewing the complete evidence chain'), 'Exception approved.')}>Approve exception</button><button className="lav-button secondary" onClick={() => void run(() => financeApi.ceoDecision(invoice.id, false, 'High-value exception rejected by CEO'), 'Exception rejected.')}>Reject</button></div>
     return null
   }
   return <article><header><div><span>{invoice.projectName}</span><h3>{invoice.supplierName}</h3><small>Invoice {invoice.invoiceNumber}</small></div><b className={`ops-status ${invoice.status.toLowerCase()}`}>{invoice.status.replaceAll(/([A-Z])/g, ' $1').trim()}</b></header><strong>{money(invoice.amount)}</strong><p>{invoice.quantity} {invoice.materialUnit} of {invoice.materialName}</p>{invoice.reviewedAt && <div className="ops-match"><span className={invoice.quantityMatches ? 'pass' : 'fail'}>Quantity {invoice.quantityMatches ? 'matches' : 'differs'}</span><span className={invoice.priceMatches ? 'pass' : 'fail'}>Price {invoice.priceMatches ? 'matches' : 'differs'}</span><span className={invoice.amountMatches ? 'pass' : 'fail'}>Total {invoice.amountMatches ? 'matches' : 'differs'}</span></div>}<footer><small>Captured by {invoice.capturedByName} · {when(invoice.capturedAt)}</small>{action()}</footer></article>
 }
 
-function CashierActions({ authorizations, run }: { authorizations: PaymentAuthorization[]; run: (action: () => Promise<unknown>, text: string) => Promise<boolean> }) {
+function FinancePaymentActions({ currentUser, authorizations, run }: { currentUser: CurrentUser; authorizations: PaymentAuthorization[]; run: (action: () => Promise<unknown>, text: string) => Promise<boolean> }) {
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [form, setForm] = useState({ method: 'BankTransfer', reference: '', evidence: '' })
   const selected = authorizations.find(item => item.id === selectedId)
-  return <section className="lav-panel ops-panel"><header className="lav-panel-head"><div><span className="lav-kicker">READY TO PAY</span><h2>Locked Finance instructions</h2></div></header><div className="ops-issue-grid">{authorizations.filter(item => !item.isPaid).map(item => <article key={item.id}><div><span>{item.projectName}</span><b>{item.supplierName}</b><strong>{money(item.amount)}</strong></div><p>Authorised by {item.authorizedByName}</p><button type="button" className="lav-button primary" onClick={() => { setSelectedId(item.id); setForm({ method: 'BankTransfer', reference: '', evidence: '' }) }}>Record payment</button></article>)}{!authorizations.some(item => !item.isPaid) && <Empty>No Finance-authorized payment is waiting.</Empty>}</div>{selected && <div className="ops-modal-wrap" role="presentation"><button type="button" className="ops-modal-backdrop" aria-label="Close payment form" onClick={() => setSelectedId(null)}/><form className="lav-panel ops-form ops-modal" onSubmit={event => { event.preventDefault(); void run(() => financeApi.pay(selected.id, { method: form.method, externalReference: form.reference, evidenceReference: form.evidence.trim() || null }), `Payment executed. External reference ${form.reference} locked.`).then(saved => { if (saved) setSelectedId(null) }) }}><header><div><span className="lav-kicker">PAYMENT EXECUTION</span><h2>Execute approved payment</h2><p>{selected.supplierName} · {selected.projectName}</p></div><button type="button" className="ops-modal-close" onClick={() => setSelectedId(null)}>×</button></header><div className="ops-payment-lock"><span>Finance-locked amount</span><strong>{money(selected.amount)}</strong><small>You cannot change this amount.</small></div><label><span>Payment method</span><select value={form.method} onChange={event => setForm({ ...form, method: event.target.value })}><option value="BankTransfer">Bank transfer</option><option value="MPesa">M-Pesa</option><option value="Cheque">Cheque</option><option value="Cash">Cash</option></select></label><label><span>External transaction reference</span><input required minLength={3} maxLength={100} value={form.reference} onChange={event => setForm({ ...form, reference: event.target.value })} placeholder="Bank, M-Pesa or cheque reference"/></label><label><span>Evidence reference (optional)</span><input maxLength={500} value={form.evidence} onChange={event => setForm({ ...form, evidence: event.target.value })} placeholder="Receipt or confirmation file"/></label><div className="ops-buttons"><button type="button" className="lav-button secondary" onClick={() => setSelectedId(null)}>Cancel</button><button className="lav-button primary">Execute locked payment</button></div></form></div>}</section>
+  const unpaid = authorizations.filter(item => !item.isPaid)
+  return <section className="lav-panel ops-panel">
+    <header className="lav-panel-head"><div><span className="lav-kicker">READY TO PAY</span><h2>Authorized payments</h2></div></header>
+    <div className="ops-issue-grid">
+      {unpaid.map(item => {
+        const canExecute = item.authorizedByUserId !== currentUser.id
+        return <article key={item.id}>
+          <div><span>{item.projectName}</span><b>{item.supplierName}</b><strong>{money(item.amount)}</strong></div>
+          <p>Authorized by {item.authorizedByName}</p>
+          {canExecute
+            ? <button type="button" className="lav-button primary" onClick={() => { setSelectedId(item.id); setForm({ method: 'BankTransfer', reference: '', evidence: '' }) }}>Record payment</button>
+            : <span className="ops-status awaitingconfirmation">Another Finance Officer must pay</span>}
+        </article>
+      })}
+      {unpaid.length === 0 && <Empty>No authorized payment is waiting.</Empty>}
+    </div>
+    {selected && <div className="ops-modal-wrap" role="presentation">
+      <button type="button" className="ops-modal-backdrop" aria-label="Close payment form" onClick={() => setSelectedId(null)}/>
+      <form className="lav-panel ops-form ops-modal" onSubmit={event => { event.preventDefault(); void run(() => financeApi.pay(selected.id, { method: form.method, externalReference: form.reference, evidenceReference: form.evidence.trim() || null }), `Payment recorded with external reference ${form.reference}.`).then(saved => { if (saved) setSelectedId(null) }) }}>
+        <header><div><span className="lav-kicker">PAYMENT</span><h2>Record approved payment</h2><p>{selected.supplierName} · {selected.projectName}</p></div><button type="button" className="ops-modal-close" onClick={() => setSelectedId(null)}>×</button></header>
+        <div className="ops-payment-lock"><span>Authorized amount</span><strong>{money(selected.amount)}</strong></div>
+        <label><span>Payment method</span><select value={form.method} onChange={event => setForm({ ...form, method: event.target.value })}><option value="BankTransfer">Bank transfer</option><option value="MPesa">M-Pesa</option><option value="Cheque">Cheque</option><option value="Cash">Cash</option></select></label>
+        <label><span>External transaction reference</span><input required minLength={3} maxLength={100} value={form.reference} onChange={event => setForm({ ...form, reference: event.target.value })} placeholder="Bank, M-Pesa or cheque reference"/></label>
+        <label><span>Evidence reference (optional)</span><input maxLength={500} value={form.evidence} onChange={event => setForm({ ...form, evidence: event.target.value })} placeholder="Receipt or confirmation file"/></label>
+        <div className="ops-buttons"><button type="button" className="lav-button secondary" onClick={() => setSelectedId(null)}>Cancel</button><button className="lav-button primary">Record payment</button></div>
+      </form>
+    </div>}
+  </section>
 }
 
 export function LivePettyCashView({ currentUser }: { currentUser: CurrentUser }) {
@@ -330,7 +358,7 @@ export function LivePettyCashView({ currentUser }: { currentUser: CurrentUser })
 
   if (loading) return <Loading>Loading petty cash records…</Loading>
   return <div className="lav-view ops-view petty-cash-view">
-    <header className="lav-page-head"><div><span className="lav-kicker">SMALL SITE EXPENSES</span><h1>Petty cash</h1><p>Supervisor requests, Finance approves, Cashier pays, and Finance closes the evidence.</p></div></header>
+    <header className="lav-page-head"><div><span className="lav-kicker">SMALL SITE EXPENSES</span><h1>Petty cash</h1></div></header>
     {error && <Notice tone="error">{error}</Notice>}{notice && <Notice tone="success">{notice}</Notice>}
     {role === 'Supervisor' && <PettyCashRequestForm summaries={projectSummaries} run={run}/>}
     <section className="lav-panel ops-panel"><header className="lav-panel-head"><div><span className="lav-kicker">ACCOUNTABILITY QUEUE</span><h2>Petty cash records</h2></div><strong>{items.length} records</strong></header>
@@ -360,9 +388,11 @@ function PettyCashCard({ item, currentUser, run }: { item: PettyCashRequest; cur
     {item.latestReconciliation && <p className="petty-cash-proof">Accounted: {money(item.latestReconciliation.amountSpent)} spent + {money(item.latestReconciliation.amountReturned)} returned · {item.latestReconciliation.status}</p>}
     <div className="ops-buttons petty-cash-actions">
       {role === 'Finance Officer' && item.status === 'PendingFinanceApproval' && <button className="lav-button primary" onClick={() => setOpen('decision')}>Review request</button>}
-      {role === 'Cashier' && item.status === 'Approved' && <button className="lav-button primary" onClick={() => setOpen('disburse')}>Record handover</button>}
+      {role === 'Finance Officer' && item.status === 'Approved' && item.financeApprovedByUserId !== currentUser.id && <button className="lav-button primary" onClick={() => setOpen('disburse')}>Record handover</button>}
+      {role === 'Finance Officer' && item.status === 'Approved' && item.financeApprovedByUserId === currentUser.id && <span className="ops-status awaitingconfirmation">Another Finance Officer must disburse</span>}
       {role === 'Supervisor' && item.status === 'Disbursed' && item.requestedByUserId === currentUser.id && <button className="lav-button primary" onClick={() => setOpen('reconcile')}>Submit receipts</button>}
-      {role === 'Finance Officer' && item.status === 'ReconciliationSubmitted' && <button className="lav-button primary" onClick={() => setOpen('review')}>Review evidence</button>}
+      {role === 'Finance Officer' && item.status === 'ReconciliationSubmitted' && item.disbursement?.disbursedByUserId !== currentUser.id && <button className="lav-button primary" onClick={() => setOpen('review')}>Review evidence</button>}
+      {role === 'Finance Officer' && item.status === 'ReconciliationSubmitted' && item.disbursement?.disbursedByUserId === currentUser.id && <span className="ops-status awaitingconfirmation">Another Finance Officer must review</span>}
     </div>
     {open === 'decision' && <PettyCashDecision item={item} close={() => setOpen(null)} run={run}/>}
     {open === 'disburse' && <PettyCashDisbursementForm item={item} close={() => setOpen(null)} run={run}/>}
@@ -373,7 +403,7 @@ function PettyCashCard({ item, currentUser, run }: { item: PettyCashRequest; cur
 
 function PettyCashDecision({ item, close, run }: { item: PettyCashRequest; close: () => void; run: (action: () => Promise<unknown>, text: string) => Promise<boolean> }) {
   const [amount, setAmount] = useState(String(item.amountRequested)); const [notes, setNotes] = useState('')
-  const decide = (approve: boolean) => void run(() => pettyCashApi.decide(item.id, { approve, amountApproved: approve ? Number(amount) : null, notes }), approve ? 'Petty cash approved for Cashier disbursement.' : 'Petty cash rejected.').then(saved => { if (saved) close() })
+  const decide = (approve: boolean) => void run(() => pettyCashApi.decide(item.id, { approve, amountApproved: approve ? Number(amount) : null, notes }), approve ? 'Petty cash approved for separate Finance disbursement.' : 'Petty cash rejected.').then(saved => { if (saved) close() })
   return <div className="petty-cash-inline"><label><span>Approved amount</span><input type="number" min="1" max={item.amountRequested} step="0.01" value={amount} onChange={event => setAmount(event.target.value)}/></label><label><span>Decision notes</span><input required minLength={3} value={notes} onChange={event => setNotes(event.target.value)}/></label><div className="ops-buttons"><button className="lav-button secondary" disabled={notes.trim().length < 3} onClick={() => decide(false)}>Reject</button><button className="lav-button primary" disabled={notes.trim().length < 3} onClick={() => decide(true)}>Approve</button><button className="lav-button secondary" onClick={close}>Cancel</button></div></div>
 }
 

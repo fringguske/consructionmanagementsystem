@@ -7,7 +7,6 @@ export type ConstructionRole =
   | 'Supervisor'
   | 'Engineer'
   | 'Foreman'
-  | 'Cashier'
   | 'Storekeeper'
   | 'Procurement Officer'
   | 'Finance Officer'
@@ -666,14 +665,14 @@ export interface SupplierInvoice {
   orderedUnitPrice: number; acceptedQuantity: number; quantity: number; unitPrice: number; amount: number
   documentReference: string | null; status: string; quantityMatches: boolean; priceMatches: boolean
   amountMatches: boolean; requiresCeoApproval: boolean; matchNotes: string | null
-  capturedByName: string; capturedAt: IsoDateTime; reviewedByName: string | null
+  capturedByName: string; capturedAt: IsoDateTime; reviewedByUserId: number | null; reviewedByName: string | null
   reviewedAt: IsoDateTime | null; ceoDecision: string | null; ceoDecisionNotes: string | null
   ceoDecisionAt: IsoDateTime | null; authorization: PaymentAuthorization | null; payment: Payment | null
 }
 
 export interface PaymentAuthorization {
   id: number; authorizationNumber: string; supplierInvoiceId: number; amount: number
-  supplierName: string; projectName: string; authorizedByName: string; notes: string | null
+  supplierName: string; projectName: string; authorizedByUserId: number; authorizedByName: string; notes: string | null
   authorizedAt: IsoDateTime; isPaid: boolean
 }
 
@@ -694,7 +693,7 @@ export type PettyCashStatus =
 export interface PettyCashDisbursement {
   id: number; disbursementNumber: string; amount: number; method: string
   externalReference: string; recipientName: string; recipientAcknowledgementReference: string
-  evidenceReference: string; disbursedByName: string; disbursedAt: IsoDateTime
+  evidenceReference: string; disbursedByUserId: number; disbursedByName: string; disbursedAt: IsoDateTime
 }
 
 export interface PettyCashReconciliation {
@@ -710,7 +709,7 @@ export interface PettyCashRequest {
   costCodeId: number; costCode: string; costCodeName: string; purpose: string
   amountRequested: number; amountApproved: number | null; amountCommitted: number | null; neededByDate: IsoDate
   status: PettyCashStatus; requestedByName: string; requestedByUserId: number
-  requestedAt: IsoDateTime; financeApprovedByName: string | null
+  requestedAt: IsoDateTime; financeApprovedByUserId: number | null; financeApprovedByName: string | null
   financeDecisionAt: IsoDateTime | null; financeDecisionNotes: string | null
   disbursement: PettyCashDisbursement | null
   latestReconciliation: PettyCashReconciliation | null

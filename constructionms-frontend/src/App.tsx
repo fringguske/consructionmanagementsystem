@@ -84,10 +84,9 @@ const demoProfiles: readonly DemoProfile[] = [
   { id: 'engineer-church-hq', role: 'Engineer', name: 'CHURCH & SNEP ENGINEER', initials: 'E2', workspace: 'Church & SNEP HQ technical', subtitle: 'Engineer', description: 'Church & SNEP HQ', projects: ['Church', 'SNEP HQ'] },
   { id: 'foreman-gilgal', role: 'Foreman', name: 'GILGAL SITES FOREMAN', initials: 'F1', workspace: 'Gilgal 2 & 3 field work', subtitle: 'Foreman', description: 'Gilgal 2 & Gilgal 3', projects: ['Gilgal 2', 'Gilgal 3'] },
   { id: 'foreman-church-hq', role: 'Foreman', name: 'CHURCH & SNEP FOREMAN', initials: 'F2', workspace: 'Church & SNEP HQ field work', subtitle: 'Foreman', description: 'Church & SNEP HQ', projects: ['Church', 'SNEP HQ'] },
-  { id: 'cashier', role: 'Cashier', name: 'EUNICE NGUMBI', initials: 'EN', workspace: 'Payments workspace', subtitle: 'Cashier', description: 'Payments and accountable cash', projects: null },
   { id: 'storekeeper', role: 'Storekeeper', name: 'LUCY NJERI', initials: 'LN', workspace: 'Stores workspace', subtitle: 'Storekeeper', description: 'Stock and material movement', projects: null },
   { id: 'procurement', role: 'Procurement Officer', name: 'PAUL KIMANI', initials: 'PK', workspace: 'Procurement workspace', subtitle: 'Procurement Officer', description: 'Sourcing and purchase orders', projects: null },
-  { id: 'finance', role: 'Finance Officer', name: 'JAMES KAMAU', initials: 'JK', workspace: 'Financial control workspace', subtitle: 'Finance Officer', description: 'Matching and payment control', projects: null },
+  { id: 'finance', role: 'Finance Officer', name: 'JAMES KAMAU', initials: 'JK', workspace: 'Financial control workspace', subtitle: 'Finance Officer', description: 'Matching, authorization and payment control', projects: null },
   { id: 'auditor', role: 'Auditor', name: 'MARY ATIENZA', initials: 'MA', workspace: 'Read-only audit workspace', subtitle: 'Auditor', description: 'All projects · independent review', projects: null },
 ]
 
@@ -291,7 +290,6 @@ const roleNavigation: Record<DemoRole, string[]> = {
   Supervisor: ['/', '/projects', '/procurement', '/inventory', '/finance', '/workforce', '/equipment'],
   Engineer: ['/', '/projects', '/quality', '/drawings'],
   Foreman: ['/', '/procurement', '/inventory', '/workforce', '/equipment'],
-  Cashier: ['/', '/finance'],
   Storekeeper: ['/', '/inventory', '/receiving', '/issues', '/transfers', '/stock-counts'],
   'Procurement Officer': ['/', '/procurement', '/purchase-orders', '/suppliers'],
   'Finance Officer': ['/', '/finance', '/finance-matching', '/finance-approvals', '/finance-reconciliation'],
@@ -412,11 +410,6 @@ const liveRoleNavigation: Record<ConstructionRole, readonly { to: string; label:
     { to: '/requisitions', label: 'My material requests', icon: 'cart' },
     { to: '/inventory', label: 'Materials with me', icon: 'boxes' },
   ],
-  Cashier: [
-    { to: '/', label: 'Overview', icon: 'grid' },
-    { to: '/finance', label: 'Approved payments', icon: 'wallet' },
-    { to: '/petty-cash', label: 'Petty cash', icon: 'receipt' },
-  ],
   Storekeeper: [
     { to: '/', label: 'Overview', icon: 'grid' },
     { to: '/purchase-orders', label: 'Issued orders', icon: 'truck' },
@@ -434,7 +427,7 @@ const liveRoleNavigation: Record<ConstructionRole, readonly { to: string; label:
     { to: '/projects', label: 'Project budgets', icon: 'wallet' },
     { to: '/purchase-orders', label: 'Purchase orders', icon: 'file' },
     { to: '/suppliers', label: 'Supplier approvals', icon: 'users' },
-    { to: '/finance', label: 'Match & authorize', icon: 'check' },
+    { to: '/finance', label: 'Invoices & payments', icon: 'check' },
     { to: '/inventory', label: 'GRNs & stock', icon: 'boxes' },
     { to: '/petty-cash', label: 'Petty cash control', icon: 'receipt' },
   ],
@@ -592,11 +585,7 @@ function Shell({ authenticatedUser, onLogout, onSwitchRole, onUsernameChanged, o
   const scopeLabel = projectScopeLabel(projectScope)
   const standardNav = nav.filter(item => roleNavigation[role].includes(item.to)).map(item => ({
     ...item,
-    label: role === 'Cashier' && item.to === '/finance'
-      ? 'Payments & cash'
-      : role === 'Supervisor' && item.to === '/finance'
-        ? 'Budget tracking'
-        : item.label,
+    label: role === 'Supervisor' && item.to === '/finance' ? 'Budget tracking' : item.label,
   }))
   const visibleNav = liveMode ? liveRoleNavigation[role] : fieldRoleNav[role] ?? standardNav
   const roleHomeTitles: Record<DemoRole, [string, string]> = {
@@ -605,7 +594,6 @@ function Shell({ authenticatedUser, onLogout, onSwitchRole, onUsernameChanged, o
     Supervisor: ['Supervisor overview', `Projects and actions across ${scopeLabel}`],
     Engineer: ['Technical overview', `Progress, quality and compliance across ${scopeLabel}`],
     Foreman: [`Today · ${scopeLabel}`, 'Work and material records'],
-    Cashier: ['Payments', 'Approved payments ready to execute'],
     Storekeeper: ['Stores overview', 'Deliveries, issues and stock custody requiring action'],
     'Procurement Officer': ['Procurement overview', 'Source approved needs and control purchase orders'],
     'Finance Officer': ['Financial control', 'Match evidence, authorise payments and protect project budgets'],
@@ -619,9 +607,7 @@ function Shell({ authenticatedUser, onLogout, onSwitchRole, onUsernameChanged, o
     '/sourcing': ['Supplier sourcing', 'Quotes and supplier selection for approved material needs'],
     '/access': ['Requests & access', 'Approve people, select roles and assign projects'],
     '/inventory': role === 'CEO' ? ['Stock & movement', ''] : role === 'Foreman' ? ['Materials on site', 'Confirm receipt, record use and report wastage'] : role === 'Storekeeper' ? ['Stock ledger', ''] : ['Inventory', 'Stock levels and material movement'],
-    '/finance': role === 'Cashier'
-      ? ['Payments & cash', 'Execute approved payments and reconcile site floats']
-      : role === 'Supervisor'
+    '/finance': role === 'Supervisor'
         ? ['Budget tracking', 'Read-only cost position across projects']
         : role === 'Finance Officer'
           ? ['Budgets & payables', 'Control commitments, invoices and available project funds']
@@ -639,7 +625,7 @@ function Shell({ authenticatedUser, onLogout, onSwitchRole, onUsernameChanged, o
     '/purchase-orders': ['Purchase orders', ''],
     '/suppliers': ['Suppliers & quotations', ''],
     '/finance-matching': ['Three-way matching', 'Compare purchase orders, physical receipts and supplier invoices'],
-    '/finance-approvals': ['Payment authorisation', 'Release only fully supported invoices to the Cashier'],
+    '/finance-approvals': ['Payment authorisation', 'Release only fully supported invoices for separate execution'],
     '/finance-reconciliation': ['Reconciliation', 'Prove that ledgers, statements and project cash agree'],
     '/petty-cash': ['Petty cash', ''],
     '/audit-samples': ['Evidence review', 'Trace selected transactions from request to final movement'],
@@ -774,7 +760,7 @@ function Shell({ authenticatedUser, onLogout, onSwitchRole, onUsernameChanged, o
           <Route path="/projects" element={canAccess('/projects') ? role === 'Engineer' ? <EngineerProgress projectScope={projectScope}/> : <Projects readOnly={role === 'CEO'} projectScope={projectScope}/> : <AccessRestricted role={role}/>}/>
           <Route path="/procurement" element={canAccess('/procurement') ? role === 'Foreman' ? <ForemanRequests projectScope={projectScope}/> : role === 'Procurement Officer' ? <ProcurementApprovedRequests/> : <Procurement readOnly={role === 'CEO'} projectScope={projectScope}/> : <AccessRestricted role={role}/>}/>
           <Route path="/inventory" element={canAccess('/inventory') ? role === 'Foreman' ? <ForemanMaterials projectScope={projectScope}/> : role === 'Storekeeper' ? <StorekeeperLedger/> : <Inventory readOnly={role === 'CEO' || role === 'Supervisor'} ownerView={role === 'CEO'} projectScope={projectScope}/> : <AccessRestricted role={role}/>}/>
-          <Route path="/finance" element={canAccess('/finance') ? role === 'Cashier' ? <CashierFinance/> : role === 'Supervisor' ? <SupervisorBudget projectScope={projectScope}/> : role === 'Finance Officer' ? <FinanceControl/> : <Finance/> : <AccessRestricted role={role}/>}/>
+          <Route path="/finance" element={canAccess('/finance') ? role === 'Supervisor' ? <SupervisorBudget projectScope={projectScope}/> : role === 'Finance Officer' ? <FinanceControl/> : <Finance/> : <AccessRestricted role={role}/>}/>
           <Route path="/workforce" element={canAccess('/workforce') ? role === 'Foreman' ? <ForemanDailyLog projectScope={projectScope}/> : <Workforce readOnly={role === 'CEO' || role === 'Supervisor'} projectScope={projectScope}/> : <AccessRestricted role={role}/>}/>
           <Route path="/equipment" element={canAccess('/equipment') ? role === 'Foreman' ? <ForemanTools projectScope={projectScope}/> : <Equipment readOnly={role === 'CEO' || role === 'Supervisor'} projectScope={projectScope}/> : <AccessRestricted role={role}/>}/>
           <Route path="/quality" element={canAccess('/quality') ? <EngineerQuality projectScope={projectScope}/> : <AccessRestricted role={role}/>}/>
@@ -819,7 +805,6 @@ function RoleDashboard({ role, profile, projectScope }: { role: DemoRole; profil
   if (role === 'Supervisor') return <SupervisorDashboard projectScope={projectScope}/>
   if (role === 'Engineer') return <EngineerDashboard profile={profile} projectScope={projectScope}/>
   if (role === 'Foreman') return <ForemanDashboard profile={profile} projectScope={projectScope}/>
-  if (role === 'Cashier') return <CashierDashboard/>
   if (role === 'Storekeeper') return <StorekeeperDashboard/>
   if (role === 'Procurement Officer') return <ProcurementOfficerDashboard/>
   if (role === 'Finance Officer') return <FinanceOfficerDashboard/>
@@ -1124,7 +1109,7 @@ function AuditorDashboard() {
   </>
 }
 
-function CashierDashboard() {
+export function FinancePaymentsDashboard() {
   const navigate = useNavigate()
   const [paid, setPaid] = useState<string[]>([])
   const [toast, setToast] = useState('')
@@ -1147,7 +1132,7 @@ function CashierDashboard() {
   const readyTotal = unpaidPayments.reduce((total, payment) => total + Number(payment.amount.replaceAll(',', '')), 0)
   return <div className="simple-dashboard">
     <section className="simple-role-header">
-      <div><span>CASHIER</span><h2>Payments</h2><p>Execute payments approved by Finance.</p></div>
+      <div><span>FINANCE OFFICER</span><h2>Payments</h2><p>Record payments authorized by another Finance Officer.</p></div>
       <Button icon="receipt" onClick={() => navigate('/finance')}>Open payments desk</Button>
     </section>
 
@@ -1181,9 +1166,9 @@ function CashierDashboard() {
 function PaymentExecutionModal({payment,onClose,onComplete}:{payment:PaymentCandidate;onClose:()=>void;onComplete:()=>void}) {
   const submit=(event:FormEvent)=>{event.preventDefault();onComplete()}
   return <div className="modal-wrap"><div className="modal-backdrop" onClick={onClose}/><form className="modal payment-modal" onSubmit={submit}>
-    <div className="modal-head"><div><span className="eyebrow">CASHIER EXECUTION</span><h2>Record payment</h2><p>The approved payment details below are locked.</p></div><button type="button" onClick={onClose}><Icon name="close"/></button></div>
+    <div className="modal-head"><div><span className="eyebrow">FINANCE PAYMENT</span><h2>Record payment</h2><p>The approved payment details below are locked.</p></div><button type="button" onClick={onClose}><Icon name="close"/></button></div>
     <div className="locked-payment">
-      <div className="locked-amount"><span>APPROVED AMOUNT</span><strong>KES {payment.amount}</strong><small><Icon name="lock" size={12}/>Cannot be changed by Cashier</small></div>
+      <div className="locked-amount"><span>APPROVED AMOUNT</span><strong>KES {payment.amount}</strong><small><Icon name="lock" size={12}/>Amount cannot be changed</small></div>
       <div><span>Beneficiary</span><b>{payment.supplier}</b></div><div><span>Project</span><b>{payment.project}</b></div>
       <div><span>Invoice</span><b>{payment.invoice}</b></div><div><span>Payment method</span><b>{payment.method}</b></div>
     </div>
@@ -1193,7 +1178,7 @@ function PaymentExecutionModal({payment,onClose,onComplete}:{payment:PaymentCand
       <label>Payment note <textarea rows={2} placeholder="Optional note for Finance or the Auditor"/></label>
       <label className="cashier-confirm"><input required type="checkbox"/><span>I confirm that I sent exactly <b>KES {payment.amount}</b> to <b>{payment.supplier}</b> using {payment.method}.</span></label>
     </div>
-    <div className="payment-audit-note"><Icon name="shield" size={16}/><span>This creates an immutable payment event linked to {payment.reference}, {payment.invoice}, and your Cashier account.</span></div>
+    <div className="payment-audit-note"><Icon name="shield" size={16}/><span>Payment proof is linked to {payment.reference} and {payment.invoice}.</span></div>
     <div className="modal-actions"><Button variant="secondary" onClick={onClose}>Cancel</Button><Button type="submit" icon="lock">Confirm payment</Button></div>
   </form></div>
 }
@@ -1724,7 +1709,7 @@ function SupervisorBudget({ projectScope }: { projectScope: ProjectName[] }) {
   </>
 }
 
-function CashierFinance() {
+export function FinancePaymentsDemo() {
   const [tab,setTab]=useState('Ready to pay')
   const [paid,setPaid]=useState<string[]>([])
   const [toast,setToast]=useState('')
@@ -1743,7 +1728,7 @@ function CashierFinance() {
   }
   return <>
     <PageIntro title="Payments & site cash" copy="Move only pre-approved money and leave a complete receipt trail." action="Record petty cash" icon="plus"/>
-    <section className="cashier-guardrail compact-guardrail"><Icon name="lock" size={18}/><div><b>Amounts are locked to their approved invoices.</b><span>If anything is wrong, return the payment to Finance—never edit it at the cashier stage.</span></div></section>
+    <section className="cashier-guardrail compact-guardrail"><Icon name="lock" size={18}/><div><b>Amounts are locked to their approved invoices.</b></div></section>
     <section className="cashier-finance-summary">
       <div><span>Ready to pay</span><strong>KES 738,800</strong><small>4 approved payments</small></div>
       <div><span>Paid today</span><strong>KES 684,000</strong><small>1 completed payment</small></div>
@@ -1922,7 +1907,7 @@ function Settings() {
     ['E2','Church & SNEP Engineer','Engineer','Church · SNEP HQ','Active'],
     ['F1','Gilgal Sites Foreman','Foreman','Gilgal 2 · Gilgal 3','Active'],
     ['F2','Church & SNEP Foreman','Foreman','Church · SNEP HQ','Active'],
-    ['EN','Eunice Ngumbi','Cashier','All projects','Active'],
+    ['EN','Eunice Ngumbi','Finance Officer','All projects','Active'],
     ['LN','Lucy Njeri','Storekeeper','All projects','Active'],
     ['PK','Paul Kimani','Procurement Officer','All projects','Active'],
     ['JK','James Kamau','Finance Officer','All projects','Active'],

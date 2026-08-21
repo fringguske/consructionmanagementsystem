@@ -248,10 +248,7 @@ function dashboardActions(role: CurrentUser['role']): DashboardAction[] {
         { destination: 'suppliers', label: 'Supplier approvals', detail: 'Verify supplier identity before sourcing', count: 'pendingSupplierOnboardingCount', countLabel: 'waiting for review' },
         { destination: 'finance', label: 'Invoice matching', detail: 'Match invoice, order and received goods', count: 'pendingInvoiceReviewCount', countLabel: 'waiting for review' },
         { destination: 'finance', label: 'Payment authority', detail: 'Lock an independently matched amount', count: 'pendingPaymentAuthorizationCount', countLabel: 'ready to authorize' },
-      ]
-    case 'Cashier':
-      return [
-        { destination: 'finance', label: 'Ready to pay', detail: 'Execute only locked Finance instructions', count: 'pendingPaymentCount', countLabel: 'approved payments waiting' },
+        { destination: 'finance', label: 'Ready to pay', detail: 'Record payments authorized by another Finance Officer', count: 'pendingPaymentCount', countLabel: 'approved payments waiting' },
       ]
     default:
       return []
@@ -298,11 +295,7 @@ function dashboardSummary(role: CurrentUser['role'], dashboard: DashboardRespons
       return [
         { label: 'Suppliers to review', value: dashboard.pendingSupplierOnboardingCount, detail: 'Companies not yet available for sourcing.', tone: 'projects' },
         { label: 'Invoices to match', value: dashboard.pendingInvoiceReviewCount, detail: 'Waiting for the three-way check.', tone: 'pending' },
-        { label: 'Ready to authorize', value: dashboard.pendingPaymentAuthorizationCount, detail: 'Matched amounts awaiting Finance.', tone: 'approved' }]
-    case 'Cashier':
-      return [projects,
-        { label: 'Ready to pay', value: dashboard.pendingPaymentCount, detail: 'Locked instructions approved by Finance.', tone: 'pending' },
-        { label: 'Payments recorded', value: dashboard.completedPaymentCount, detail: 'Completed with system receipts.', tone: 'approved' }]
+        { label: 'Payment actions', value: dashboard.pendingPaymentAuthorizationCount + dashboard.pendingPaymentCount, detail: 'Amounts waiting for authorization or separate execution.', tone: 'approved' }]
     default:
       return [projects]
   }
@@ -507,7 +500,7 @@ export function LiveDashboardView({ currentUser, onNavigate }: LiveDashboardView
   const summaryItems = dashboard ? dashboardSummary(currentUser.role, dashboard) : []
 
   return (
-    <div className={`lav-view ${currentUser.role === 'CEO' ? 'ceo-readable' : ''}`}>
+    <div className="lav-view ceo-readable">
       <header className="lav-page-head">
         <div>
           <span className="lav-kicker">{currentUser.role} workspace</span>
@@ -669,7 +662,7 @@ export function LiveProjectsView({ currentUser }: LiveProjectsViewProps) {
   }
 
   return (
-    <div className={`lav-view ${currentUser.role === 'CEO' ? 'ceo-readable' : ''}`}>
+    <div className="lav-view ceo-readable">
       <header className="lav-page-head">
         <div>
           <span className="lav-kicker">Live project records</span>
@@ -1312,7 +1305,6 @@ function ProgressVerificationForm({
           <span className="lav-kicker">Engineer action</span>
           <h3>Record verified progress</h3>
         </div>
-        <small>This creates a new record; it does not overwrite the previous check.</small>
       </header>
 
       {message && <Notice tone={message.tone}>{message.text}</Notice>}
@@ -1440,7 +1432,7 @@ export function LiveRequisitionsView({ currentUser }: LiveRequisitionsViewProps)
   }
 
   return (
-    <div className={`lav-view ${currentUser.role === 'CEO' ? 'ceo-readable' : ''}`}>
+    <div className="lav-view ceo-readable">
       <header className="lav-page-head">
         <div>
           <span className="lav-kicker">Controlled material requests</span>

@@ -92,7 +92,7 @@
 @media(max-width:800px){.store-site-grid{grid-template-columns:1fr 1fr;gap:14px}.store-site-grid>div:nth-child(3){border-left:0}.evidence-facts{grid-template-columns:1fr 1fr;gap:12px}.evidence-facts>div:nth-child(3){border-left:0}.audit-risk-list{overflow-x:auto}.audit-risk-list>div{min-width:650px}.sourcing-list{overflow-x:auto}.sourcing-list article{min-width:650px}}
 @media(max-width:650px){.storekeeper-guardrail,.procurement-guardrail,.auditor-guardrail{align-items:flex-start}.receiving-board,.transfer-workspace,.audit-report-grid{grid-template-columns:1fr}.store-action-list article{grid-template-columns:28px 1fr}.store-action-list article>button{grid-column:2;justify-self:start}.store-site-grid{padding:10px}.store-site-grid>div{padding:9px;border-left:0;border-top:1px solid #dfe3df}.store-site-grid>div:nth-child(-n+2){border-top:0}.locked-order{margin:15px 18px 0}.count-cycle{display:block}.count-cycle>div:last-child{text-align:left;margin-top:14px}.evidence-head{display:block}.evidence-head>.status{margin-top:10px}.evidence-facts{padding:10px}.evidence-facts>div{padding:7px;border-left:0;border-top:1px solid #dfe4df}.evidence-facts>div:nth-child(-n+2){border-top:0}.hash-proof{align-items:flex-start}.hash-proof button{display:none}.audit-project-list{overflow-x:auto}.audit-project-list>div{min-width:500px}}
 
-/* Simple first-release homes for CEO, Supervisor, Foreman and Cashier. */
+/* Simple first-release role workspaces. */
 .simple-dashboard{display:grid;gap:16px}
 .simple-role-header{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;padding:3px 0 2px}
 .simple-role-header>div>span{display:block;color:#9d5636;font-size:10px;font-weight:800;letter-spacing:1.1px;margin-bottom:7px}

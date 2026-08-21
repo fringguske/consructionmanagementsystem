@@ -65,6 +65,7 @@ public sealed class PettyCashRequestResponseDto
     public string RequestedByName { get; set; } = string.Empty;
     public int RequestedByUserId { get; set; }
     public DateTime RequestedAt { get; set; }
+    public int? FinanceApprovedByUserId { get; set; }
     public string? FinanceApprovedByName { get; set; }
     public DateTime? FinanceDecisionAt { get; set; }
     public string? FinanceDecisionNotes { get; set; }
@@ -82,6 +83,7 @@ public sealed class PettyCashDisbursementResponseDto
     public string RecipientName { get; set; } = string.Empty;
     public string RecipientAcknowledgementReference { get; set; } = string.Empty;
     public string EvidenceReference { get; set; } = string.Empty;
+    public int DisbursedByUserId { get; set; }
     public string DisbursedByName { get; set; } = string.Empty;
     public DateTime DisbursedAt { get; set; }
 }

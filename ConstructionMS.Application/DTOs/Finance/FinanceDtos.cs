@@ -67,6 +67,7 @@ public sealed class SupplierInvoiceResponseDto
     public string? MatchNotes { get; set; }
     public string CapturedByName { get; set; } = string.Empty;
     public DateTime CapturedAt { get; set; }
+    public int? ReviewedByUserId { get; set; }
     public string? ReviewedByName { get; set; }
     public DateTime? ReviewedAt { get; set; }
     public string? CeoDecision { get; set; }
@@ -84,6 +85,7 @@ public sealed class PaymentAuthorizationResponseDto
     public decimal Amount { get; set; }
     public string SupplierName { get; set; } = string.Empty;
     public string ProjectName { get; set; } = string.Empty;
+    public int AuthorizedByUserId { get; set; }
     public string AuthorizedByName { get; set; } = string.Empty;
     public string? Notes { get; set; }
     public DateTime AuthorizedAt { get; set; }

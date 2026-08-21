@@ -10,7 +10,7 @@ using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
 
 [ApiController]
-[Authorize(Roles = "Procurement Officer,Finance Officer,Cashier,CEO,Auditor")]
+[Authorize(Roles = "Procurement Officer,Finance Officer,CEO,Auditor")]
 [Route("api/v1/finance")]
 [Produces("application/json")]
 public sealed class FinanceController(IFinanceWorkflowService finance) : ControllerBase
@@ -48,7 +48,7 @@ public sealed class FinanceController(IFinanceWorkflowService finance) : Control
         Ok(ApiResponse<SupplierInvoiceResponseDto>.Ok(await finance.AuthorizePaymentAsync(id, request, ActorId(), Role())));
 
     [HttpGet("authorizations")]
-    [Authorize(Roles = "Finance Officer,Cashier,CEO,Auditor")]
+    [Authorize(Roles = "Finance Officer,CEO,Auditor")]
     public async Task<IActionResult> GetAuthorizations(
         [FromQuery, Range(1, int.MaxValue)] int page = 1,
         [FromQuery, Range(1, Pagination.MaxPageSize)] int pageSize = Pagination.DefaultPageSize,
@@ -57,12 +57,12 @@ public sealed class FinanceController(IFinanceWorkflowService finance) : Control
             await finance.GetAuthorizationsAsync(page, pageSize, ActorId(), Role(), unpaidOnly)));
 
     [HttpPost("authorizations/{id:long}/pay")]
-    [Authorize(Roles = "Cashier")]
+    [Authorize(Roles = "Finance Officer")]
     public async Task<IActionResult> Pay(long id, [FromBody] ExecutePaymentRequestDto request) =>
         Ok(ApiResponse<PaymentResponseDto>.Ok(await finance.ExecutePaymentAsync(id, request, ActorId(), Role())));
 
     [HttpGet("payments")]
-    [Authorize(Roles = "Finance Officer,Cashier,CEO,Auditor")]
+    [Authorize(Roles = "Finance Officer,CEO,Auditor")]
     public async Task<IActionResult> GetPayments(
         [FromQuery, Range(1, int.MaxValue)] int page = 1,
         [FromQuery, Range(1, Pagination.MaxPageSize)] int pageSize = Pagination.DefaultPageSize) =>

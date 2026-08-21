@@ -34,7 +34,7 @@ public sealed class FinanceWorkflowService : IFinanceWorkflowService
     public async Task<PaginatedResult<SupplierInvoiceResponseDto>> GetInvoicesAsync(
         int page, int pageSize, int actorUserId, string actorRole, int? projectId = null, string? status = null)
     {
-        await RequireAnyRoleAsync(actorUserId, actorRole, "Procurement Officer", "Finance Officer", "Cashier", "CEO", "Auditor");
+        await RequireAnyRoleAsync(actorUserId, actorRole, "Procurement Officer", "Finance Officer", "CEO", "Auditor");
         var query = _db.SupplierInvoices.AsNoTracking();
         if (actorRole is not ("CEO" or "Auditor") && !await CanVerifyAllProjectsAsync(actorUserId))
             query = query.Where(item => _db.UserProjectAssignments.Any(assignment => assignment.UserId == actorUserId && assignment.ProjectId == item.ProjectId && assignment.IsActive));
@@ -179,7 +179,7 @@ public sealed class FinanceWorkflowService : IFinanceWorkflowService
     public async Task<PaginatedResult<PaymentAuthorizationResponseDto>> GetAuthorizationsAsync(
         int page, int pageSize, int actorUserId, string actorRole, bool unpaidOnly = false)
     {
-        await RequireAnyRoleAsync(actorUserId, actorRole, "Finance Officer", "Cashier", "CEO", "Auditor");
+        await RequireAnyRoleAsync(actorUserId, actorRole, "Finance Officer", "CEO", "Auditor");
         var query = _db.PaymentAuthorizations.AsNoTracking();
         if (actorRole is not ("CEO" or "Auditor") && !await CanVerifyAllProjectsAsync(actorUserId))
             query = query.Where(item => _db.UserProjectAssignments.Any(assignment => assignment.UserId == actorUserId && assignment.ProjectId == item.SupplierInvoice.ProjectId && assignment.IsActive));
@@ -194,7 +194,7 @@ public sealed class FinanceWorkflowService : IFinanceWorkflowService
     public async Task<PaymentResponseDto> ExecutePaymentAsync(
         long authorizationId, ExecutePaymentRequestDto request, int actorUserId, string actorRole)
     {
-        await RequireRoleAsync(actorUserId, actorRole, "Cashier");
+        await RequireRoleAsync(actorUserId, actorRole, "Finance Officer");
         var method = InputNormalizer.RequiredText(request.Method, nameof(request.Method), maximumLength: 30);
         if (method is not ("BankTransfer" or "MPesa" or "Cheque" or "Cash"))
             throw new ArgumentException("Payment method must be BankTransfer, MPesa, Cheque, or Cash.");
@@ -237,7 +237,7 @@ public sealed class FinanceWorkflowService : IFinanceWorkflowService
 
     public async Task<PaginatedResult<PaymentResponseDto>> GetPaymentsAsync(int page, int pageSize, int actorUserId, string actorRole)
     {
-        await RequireAnyRoleAsync(actorUserId, actorRole, "Finance Officer", "Cashier", "CEO", "Auditor");
+        await RequireAnyRoleAsync(actorUserId, actorRole, "Finance Officer", "CEO", "Auditor");
         var query = _db.Payments.AsNoTracking();
         if (actorRole is not ("CEO" or "Auditor") && !await CanVerifyAllProjectsAsync(actorUserId))
             query = query.Where(item => _db.UserProjectAssignments.Any(assignment => assignment.UserId == actorUserId && assignment.ProjectId == item.PaymentAuthorization.SupplierInvoice.ProjectId && assignment.IsActive));
@@ -351,6 +351,7 @@ public sealed class FinanceWorkflowService : IFinanceWorkflowService
             AmountMatches = invoice.ReviewedAt.HasValue && invoice.Amount == decimal.Round(invoice.Quantity * invoice.UnitPrice, 2, MidpointRounding.AwayFromZero),
             RequiresCeoApproval = invoice.Amount > CeoExceptionThreshold, MatchNotes = invoice.MatchNotes,
             CapturedByName = invoice.CapturedByUser.FullName, CapturedAt = invoice.CapturedAt,
+            ReviewedByUserId = invoice.ReviewedByUserId,
             ReviewedByName = invoice.ReviewedByUser?.FullName, ReviewedAt = invoice.ReviewedAt,
             CeoDecision = invoice.CeoDecision, CeoDecisionNotes = invoice.CeoDecisionNotes, CeoDecisionAt = invoice.CeoDecisionAt,
             Authorization = authorization is null ? null : ToDto(authorization),
@@ -365,7 +366,8 @@ public sealed class FinanceWorkflowService : IFinanceWorkflowService
     {
         Id = item.Id, AuthorizationNumber = item.AuthorizationNumber, SupplierInvoiceId = item.SupplierInvoiceId,
         Amount = item.Amount, SupplierName = item.SupplierInvoice.Supplier.Name, ProjectName = item.SupplierInvoice.Project.Name,
-        AuthorizedByName = item.AuthorizedByUser.FullName, Notes = item.Notes, AuthorizedAt = item.AuthorizedAt,
+        AuthorizedByUserId = item.AuthorizedByUserId, AuthorizedByName = item.AuthorizedByUser.FullName,
+        Notes = item.Notes, AuthorizedAt = item.AuthorizedAt,
         IsPaid = item.SupplierInvoice.Status == InvoiceStatuses.Paid
     };
 

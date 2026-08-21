@@ -358,13 +358,6 @@ public class AppDbContext : DbContext
             },
             new Role
             {
-                Id = 5,
-                RoleName = "Cashier",
-                Description = "Executes approved payments and records payment evidence",
-                CreatedAt = seedDate
-            },
-            new Role
-            {
                 Id = 6,
                 RoleName = "Storekeeper",
                 Description = "Receives, safeguards, issues and counts inventory",
@@ -388,7 +381,7 @@ public class AppDbContext : DbContext
             {
                 Id = 9,
                 RoleName = "Finance Officer",
-                Description = "Performs three-way matching and independently authorizes payments",
+                Description = "Matches and authorizes payments or separately executes approved payments and records evidence",
                 CreatedAt = seedDate
             },
             new Role

@@ -310,7 +310,7 @@ export function LiveProcurementView({ currentUser }: LiveProcurementViewProps) {
   }
 
   return (
-    <div className={`lav-view lav-procurement-view ${currentUser.role === 'CEO' ? 'ceo-readable' : ''}`}>
+    <div className="lav-view lav-procurement-view ceo-readable">
       <header className="lav-page-head">
         <div>
           <span className="lav-kicker">Controlled purchasing</span>
@@ -511,7 +511,6 @@ function CreateSourcingRoundForm({
                 </label>
               </div>
               <div className="lav-form-actions">
-                <span>The approved quantity and material cannot be changed here.</span>
                 <button className="lav-button primary" type="submit" disabled={busy}>
                   {busy ? 'Opening…' : 'Open sourcing round'}
                 </button>
@@ -634,11 +633,6 @@ function SourcingRoundCard({
 
       {(procurement || independentReviewer) && (
         <div className="lav-card-action-row lav-multi-actions">
-          <span>
-            {round.status === 'Open'
-              ? 'A draft PO is a proposal; approval makes the supplier award.'
-              : 'Completed stages remain visible as a permanent record.'}
-          </span>
           {procurement && round.status === 'Open' && !liveOrder && (
             <button
               className="lav-button secondary"
@@ -906,7 +900,7 @@ function CreatePurchaseOrderForm({
       </header>
       {error && <Notice tone="error">{error}</Notice>}
       <Notice>
-        Proposed value: {formatMoney(round.requestedQuantity * quote.unitPrice)}. This does not select the supplier until an independent approval.
+        Proposed value: {formatMoney(round.requestedQuantity * quote.unitPrice)}
       </Notice>
       <div className="lav-form-grid lav-purchase-form-grid">
         <label className="lav-field compact">
@@ -1090,7 +1084,7 @@ export function LivePurchaseOrdersView({ currentUser }: LivePurchaseOrdersViewPr
   }
 
   return (
-    <div className={`lav-view lav-procurement-view ${currentUser.role === 'CEO' ? 'ceo-readable' : ''}`}>
+    <div className="lav-view lav-procurement-view ceo-readable">
       <header className="lav-page-head">
         <div>
           <h1>Purchase orders</h1>

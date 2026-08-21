@@ -108,7 +108,7 @@ export function LiveSuppliersView({ currentUser }: LiveSuppliersViewProps) {
   }
 
   return (
-    <div className={`supplier-view ${currentUser.role === 'CEO' ? 'ceo-readable' : ''}`}>
+    <div className="supplier-view ceo-readable">
       <header className="supplier-page-head">
         <div>
           <span>SUPPLIER CONTROL</span>
@@ -252,7 +252,7 @@ function SupplierApplicationForm({
     <section className={`supplier-application ${open ? 'open' : ''}`}>
       <button type="button" className="supplier-application-toggle" onClick={() => setOpen(value => !value)}>
         <span>+</span>
-        <div><strong>Submit a new supplier</strong><small>The supplier stays unavailable until independent approval.</small></div>
+        <div><strong>Submit a new supplier</strong></div>
         <b>{open ? 'Close' : 'Open form'}</b>
       </button>
       {open && (
@@ -267,7 +267,7 @@ function SupplierApplicationForm({
             <label><span>KRA PIN</span><input required minLength={5} maxLength={20} value={form.kraPin} onChange={event => setForm({ ...form, kraPin: event.currentTarget.value.toUpperCase() })}/></label>
             <label><span>M-Pesa business number <small>Optional</small></span><input type="tel" maxLength={30} value={form.mpesaNumber} onChange={event => setForm({ ...form, mpesaNumber: event.currentTarget.value })}/></label>
           </div>
-          <div className="supplier-form-actions"><span>Submitted details are locked. Corrections require a new application.</span><button disabled={busy}>{busy ? 'Submitting…' : 'Send for approval'}</button></div>
+          <div className="supplier-form-actions" style={{ justifyContent: 'flex-end' }}><button disabled={busy}>{busy ? 'Submitting…' : 'Send for approval'}</button></div>
         </form>
       )}
     </section>

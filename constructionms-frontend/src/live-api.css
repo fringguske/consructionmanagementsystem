@@ -2745,14 +2745,14 @@
 .lav-access-user-copy small {
   margin-top: 3px;
   color: #3f665c;
-  font-size: 9.5px;
+  font-size: 11px;
   font-weight: 700;
 }
 
 .lav-access-user-copy > span {
   margin-top: 3px;
   color: var(--lav-muted);
-  font-size: 9px;
+  font-size: 10.5px;
 }
 
 .lav-access-state {
@@ -2761,7 +2761,7 @@
   align-items: center;
   padding: 0 7px;
   border-radius: 0;
-  font-size: 8.5px;
+  font-size: 10.5px;
   font-weight: 800;
   font-style: normal;
 }
@@ -2800,7 +2800,7 @@
 
 .lav-access-person-head .lav-kicker {
   margin-bottom: 4px;
-  font-size: 8.5px;
+  font-size: 10.5px;
 }
 
 .lav-access-person-head h2 {
@@ -2844,7 +2844,7 @@
 .lav-access-section-head p {
   margin: 4px 0 0;
   color: var(--lav-muted);
-  font-size: 10px;
+  font-size: 11px;
   line-height: 1.45;
 }
 
@@ -2898,7 +2898,7 @@
 .lav-access-projects small {
   margin-top: 3px;
   color: var(--lav-muted);
-  font-size: 9.5px;
+  font-size: 10.5px;
 }
 
 .lav-access-inline-loading,
@@ -2922,7 +2922,7 @@
 .lav-access-auto p,
 .lav-access-self-note p {
   margin: 5px 0 0;
-  font-size: 10px;
+  font-size: 11px;
   line-height: 1.5;
 }
 
