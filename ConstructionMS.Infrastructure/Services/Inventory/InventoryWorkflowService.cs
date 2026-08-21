@@ -156,9 +156,11 @@ public sealed class InventoryWorkflowService : IInventoryWorkflowService
     {
         await RequireAnyRoleAsync(actorUserId, actorRole, "Storekeeper", "Foreman", "Supervisor", "Engineer", "Finance Officer", "CEO", "Auditor");
         var query = _db.MaterialIssues.AsNoTracking();
-        if (actorRole is not ("CEO" or "Auditor") && !await CanVerifyAllProjectsAsync(actorUserId))
+        var canVerifyAllProjects = await CanVerifyAllProjectsAsync(actorUserId);
+        if (actorRole is not ("CEO" or "Auditor") && !canVerifyAllProjects)
             query = query.Where(item => _db.UserProjectAssignments.Any(assignment => assignment.UserId == actorUserId && assignment.ProjectId == item.ProjectId && assignment.IsActive));
-        if (actorRole == "Foreman") query = query.Where(item => item.IssuedToUserId == actorUserId);
+        if (actorRole == "Foreman" && !canVerifyAllProjects)
+            query = query.Where(item => item.IssuedToUserId == actorUserId);
         if (projectId.HasValue) query = query.Where(item => item.ProjectId == projectId.Value);
         var pagination = Pagination.Normalize(page, pageSize);
         var total = await query.CountAsync();
