@@ -64,7 +64,17 @@ public sealed class CredentialService : ICredentialService
             throw new InvalidOperationException("That username is already in use.");
         }
 
+        var displayNameFollowsUsername = string.Equals(
+            user.FullName.Trim(),
+            user.Username,
+            StringComparison.OrdinalIgnoreCase);
+
         user.Username = newUsername;
+        if (displayNameFollowsUsername)
+        {
+            user.FullName = newUsername;
+        }
+
         user.CredentialVersion = checked(user.CredentialVersion + 1);
         _db.SecurityAuditEvents.Add(new SecurityAuditEvent
         {
