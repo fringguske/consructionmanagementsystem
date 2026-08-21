@@ -263,7 +263,7 @@ export function LiveFinanceView({ currentUser }: { currentUser: CurrentUser }) {
     {role === 'Procurement Officer' && <InvoiceCapture orders={orders} receipts={receipts} invoices={invoices} onRun={run}/>}
     <section className="lav-panel ops-panel"><header className="lav-panel-head"><div><span className="lav-kicker">THREE-WAY MATCH</span><h2>Supplier invoices</h2></div><strong>{invoices.length} records</strong></header>{invoices.length ? <div className="ops-invoice-grid">{invoices.map(invoice => <InvoiceCard key={invoice.id} invoice={invoice} role={role} run={run}/>)}</div> : <Empty>Invoices appear only after an issued PO has an accepted GRN.</Empty>}</section>
     {role === 'Cashier' && <CashierActions authorizations={authorizations} run={run}/>}
-    {role !== 'Procurement Officer' && <section className="lav-panel ops-panel"><header className="lav-panel-head"><div><span className="lav-kicker">PAYMENT PROOF</span><h2>Executed payments</h2></div></header>{payments.length ? <div className="ops-table"><div className="ops-row payment head"><span>Payment</span><span>Amount</span><span>Method</span><span>External proof</span></div>{payments.map(payment => <div className="ops-row payment" key={payment.id}><span><b>{payment.paymentNumber}</b><small>{when(payment.paidAt)}</small></span><span>{money(payment.amount)}</span><span>{payment.method}</span><span><b>{payment.externalReference}</b><small>Receipt {payment.receiptNumber}</small></span></div>)}</div> : <Empty>No payment has been executed.</Empty>}</section>}
+    {role !== 'Procurement Officer' && <section className="lav-panel ops-panel"><header className="lav-panel-head"><div><span className="lav-kicker">PAYMENT PROOF</span><h2>Executed payments</h2></div></header>{payments.length ? <div className="ops-table"><div className="ops-row payment head"><span>Payment</span><span>Amount</span><span>Method</span><span>External proof</span></div>{payments.map(payment => <div className="ops-row payment" key={payment.id}><span><b>{payment.displayNumber}</b><small>{when(payment.paidAt)}</small></span><span>{money(payment.amount)}</span><span>{payment.method}</span><span><b>{payment.externalReference}</b><small>Recorded by {payment.paidByName}</small></span></div>)}</div> : <Empty>No payment has been executed.</Empty>}</section>}
     </>}
   </div>
 }
@@ -286,7 +286,7 @@ function InvoiceCard({ invoice, role, run }: { invoice: SupplierInvoice; role: C
     if (role === 'CEO' && invoice.status === 'AwaitingCeoApproval') return <div className="ops-buttons"><button className="lav-button primary" onClick={() => void run(() => financeApi.ceoDecision(invoice.id, true, 'High-value exception approved after reviewing the complete evidence chain'), 'Exception approved.')}>Approve exception</button><button className="lav-button secondary" onClick={() => void run(() => financeApi.ceoDecision(invoice.id, false, 'High-value exception rejected by CEO'), 'Exception rejected.')}>Reject</button></div>
     return null
   }
-  return <article><header><div><span>{invoice.projectName}</span><h3>{invoice.invoiceNumber}</h3><small>{invoice.supplierName}</small></div><b className={`ops-status ${invoice.status.toLowerCase()}`}>{invoice.status.replaceAll(/([A-Z])/g, ' $1').trim()}</b></header><strong>{money(invoice.amount)}</strong><p>{invoice.quantity} {invoice.materialUnit} of {invoice.materialName}</p>{invoice.reviewedAt && <div className="ops-match"><span className={invoice.quantityMatches ? 'pass' : 'fail'}>Quantity {invoice.quantityMatches ? 'matches' : 'differs'}</span><span className={invoice.priceMatches ? 'pass' : 'fail'}>Price {invoice.priceMatches ? 'matches' : 'differs'}</span><span className={invoice.amountMatches ? 'pass' : 'fail'}>Total {invoice.amountMatches ? 'matches' : 'differs'}</span></div>}<footer><small>Captured by {invoice.capturedByName} · {when(invoice.capturedAt)}</small>{action()}</footer></article>
+  return <article><header><div><span>{invoice.projectName}</span><h3>{invoice.supplierName}</h3><small>Invoice {invoice.invoiceNumber}</small></div><b className={`ops-status ${invoice.status.toLowerCase()}`}>{invoice.status.replaceAll(/([A-Z])/g, ' $1').trim()}</b></header><strong>{money(invoice.amount)}</strong><p>{invoice.quantity} {invoice.materialUnit} of {invoice.materialName}</p>{invoice.reviewedAt && <div className="ops-match"><span className={invoice.quantityMatches ? 'pass' : 'fail'}>Quantity {invoice.quantityMatches ? 'matches' : 'differs'}</span><span className={invoice.priceMatches ? 'pass' : 'fail'}>Price {invoice.priceMatches ? 'matches' : 'differs'}</span><span className={invoice.amountMatches ? 'pass' : 'fail'}>Total {invoice.amountMatches ? 'matches' : 'differs'}</span></div>}<footer><small>Captured by {invoice.capturedByName} · {when(invoice.capturedAt)}</small>{action()}</footer></article>
 }
 
 function CashierActions({ authorizations, run }: { authorizations: PaymentAuthorization[]; run: (action: () => Promise<unknown>, text: string) => Promise<boolean> }) {
@@ -391,14 +391,92 @@ function PettyCashReview({ item, close, run }: { item: PettyCashRequest; close: 
   return <div className="petty-cash-inline"><p>{item.latestReconciliation?.evidenceReference} · {money(item.latestReconciliation?.amountSpent ?? 0)} spent · {money(item.latestReconciliation?.amountReturned ?? 0)} returned</p><label><span>Review notes</span><input minLength={3} required value={notes} onChange={event => setNotes(event.target.value)}/></label><div className="ops-buttons"><button className="lav-button secondary" disabled={notes.trim().length < 3} onClick={() => decide(false)}>Return</button><button className="lav-button primary" disabled={notes.trim().length < 3} onClick={() => decide(true)}>Reconcile and close</button><button className="lav-button secondary" onClick={close}>Cancel</button></div></div>
 }
 
-function controlEventLabel(eventType: string) {
-  return eventType.replaceAll(/([A-Z])/g, ' $1').trim()
+function controlEventLabel(item: ControlEvent) {
+  const labels: Record<string, string> = {
+    'Requisition:Requested': 'Material request created',
+    'Requisition:StockReplenishmentRequested': 'Store restock requested',
+    'Requisition:Revised': 'Material request revised',
+    'Requisition:TechnicalCheckVerified': 'Material request verified',
+    'Requisition:TechnicalRevisionRequired': 'Material request returned by Engineer',
+    'Requisition:SupervisorApproved': 'Material request approved',
+    'Requisition:SupervisorRejected': 'Material request rejected',
+    'Requisition:SupervisorReturnedForRevision': 'Material request returned by Supervisor',
+    'SourcingRound:Created': 'Supplier sourcing opened',
+    'SourcingRound:Awarded': 'Supplier quotation awarded',
+    'SourcingRound:AwardCancelled': 'Supplier quotation award cancelled',
+    'SourcingRound:Closed': 'Supplier sourcing closed',
+    'SourcingRound:Cancelled': 'Supplier sourcing cancelled',
+    'SourcingRound:Reopened': 'Supplier sourcing reopened',
+    'PurchaseOrder:Created': 'Purchase order created',
+    'PurchaseOrder:Submitted': 'Purchase order submitted',
+    'PurchaseOrder:Approved': 'Purchase order approved',
+    'PurchaseOrder:ReturnedToDraft': 'Purchase order returned for correction',
+    'PurchaseOrder:Corrected': 'Purchase order corrected',
+    'PurchaseOrder:Rejected': 'Purchase order rejected',
+    'PurchaseOrder:Cancelled': 'Purchase order cancelled',
+    'PurchaseOrder:Issued': 'Purchase order sent to supplier',
+    'GoodsReceipt:GoodsReceived': 'Delivery received into store',
+    'MaterialIssue:MaterialIssued': 'Material issued to Foreman',
+    'MaterialIssue:MaterialReceiptConfirmed': 'Foreman confirmed material received',
+    'MaterialIssue:MaterialReceiptDisputed': 'Foreman disputed material received',
+    'MaterialUsage:MaterialUsed': 'Material use recorded',
+    'MaterialUsage:MaterialWastageRecorded': 'Material wastage recorded',
+    'SupplierInvoice:InvoiceCaptured': 'Supplier invoice recorded',
+    'SupplierInvoice:InvoiceMatched': 'Supplier invoice matched',
+    'SupplierInvoice:InvoiceMatchedCeoException': 'Supplier invoice sent for CEO decision',
+    'SupplierInvoice:InvoiceMismatch': 'Supplier invoice mismatch recorded',
+    'SupplierInvoice:CeoExceptionApproved': 'Supplier invoice approved by CEO',
+    'SupplierInvoice:CeoExceptionRejected': 'Supplier invoice rejected by CEO',
+    'PaymentAuthorization:PaymentAuthorized': 'Supplier payment authorized',
+    'Payment:PaymentExecuted': 'Supplier payment completed',
+    'StockTransfer:TransferRequested': 'Store transfer requested',
+    'StockTransfer:TransferDispatched': 'Store transfer dispatched',
+    'StockTransfer:TransferReceived': 'Store transfer received',
+    'StockTransfer:TransferDisputed': 'Store transfer disputed',
+    'StockCount:StockCountSubmitted': 'Physical stock count submitted',
+    'StockCount:StockCountApproved': 'Physical stock count approved',
+    'StockCount:StockCountRejected': 'Physical stock count rejected',
+    'PettyCashRequest:PettyCashRequested': 'Petty cash requested',
+    'PettyCashRequest:PettyCashApproved': 'Petty cash approved',
+    'PettyCashRequest:PettyCashRejected': 'Petty cash rejected',
+    'PettyCashDisbursement:PettyCashDisbursed': 'Petty cash handed over',
+    'PettyCashReconciliation:PettyCashAccountabilitySubmitted': 'Petty cash receipts submitted',
+    'PettyCashReconciliation:PettyCashReconciled': 'Petty cash reconciled',
+    'PettyCashReconciliation:PettyCashAccountabilityReturned': 'Petty cash receipts returned for correction',
+  }
+  return labels[`${item.entityType}:${item.eventType}`]
+    ?? `${item.entityType.replaceAll(/([A-Z])/g, ' $1').trim()} ${item.eventType.replaceAll(/([A-Z])/g, ' $1').trim().toLowerCase()}`
 }
 
 function controlEventMaterial(item: ControlEvent) {
   if (!item.materialName || !item.materialUnit || item.requestedQuantity === null) return null
   const quantity = new Intl.NumberFormat('en-KE', { maximumFractionDigits: 3 }).format(item.requestedQuantity)
-  return `${quantity} ${item.materialUnit} · ${item.materialName}`
+  return `${quantity} ${item.materialUnit} of ${item.materialName}`
+}
+
+function controlRecordTitle(item: ControlEvent) {
+  if (item.materialName) return item.materialName
+  if (item.entityType.startsWith('PettyCash')) return 'Petty cash'
+  if (item.entityType === 'StockTransfer') return 'Store transfer'
+  if (item.entityType === 'StockCount') return 'Physical stock count'
+  return item.entityType.replaceAll(/([A-Z])/g, ' $1').trim()
+}
+
+function keyControlMilestones(items: ControlEvent[]) {
+  const ordered = [...items].sort((left, right) => new Date(left.occurredAt).getTime() - new Date(right.occurredAt).getTime())
+  const findFirst = (matches: (item: ControlEvent) => boolean) => ordered.find(matches)
+  const findLast = (matches: (item: ControlEvent) => boolean) => [...ordered].reverse().find(matches)
+  const candidates = [
+    findFirst(item => item.entityType === 'Requisition' && ['Requested', 'StockReplenishmentRequested'].includes(item.eventType)),
+    findLast(item => item.entityType === 'Requisition' && item.eventType === 'SupervisorApproved'),
+    findLast(item => (item.entityType === 'PurchaseOrder' && ['Approved', 'Issued'].includes(item.eventType)) || (item.entityType === 'SourcingRound' && item.eventType === 'Awarded')),
+    findLast(item => (item.entityType === 'GoodsReceipt' && item.eventType === 'GoodsReceived') || (item.entityType === 'MaterialIssue' && item.eventType === 'MaterialIssued')),
+    findLast(item => item.entityType === 'MaterialUsage' && ['MaterialUsed', 'MaterialWastageRecorded'].includes(item.eventType)),
+    findLast(item => (item.entityType === 'Payment' && item.eventType === 'PaymentExecuted') || (item.entityType === 'PaymentAuthorization' && item.eventType === 'PaymentAuthorized')),
+  ].filter((item): item is ControlEvent => Boolean(item))
+
+  if (candidates.length > 0) return [...new Map(candidates.map(item => [`${item.entityType}:${item.entityId}:${item.sequenceNumber}`, item])).values()]
+  return ordered.slice(0, 6)
 }
 
 export function LiveAuditView() {
@@ -425,25 +503,57 @@ export function LiveAuditView() {
     <header className="lav-page-head"><div><h1>Complete control chain</h1></div></header>
     {error && <Notice tone="error">{error}</Notice>}
     {loading ? <Loading>Loading complete control chain…</Loading> : <div className="ops-chain-list">
-      {chains.map(([key, items]) => <section className="lav-panel ops-panel" key={key}>
-        <header className="lav-panel-head"><div><h2>{items[0]?.projectName}</h2></div><strong>{items.length} recorded steps</strong></header>
-        <div className="ops-timeline">
-          {[...items]
-            .sort((a, b) => new Date(a.occurredAt).getTime() - new Date(b.occurredAt).getTime())
-            .map((item, index) => {
-              const material = controlEventMaterial(item)
-              return <article key={`${item.entityType}-${item.entityId}-${item.sequenceNumber}`}>
+      {chains.map(([key, items]) => {
+        const ordered = [...items].sort((left, right) => new Date(left.occurredAt).getTime() - new Date(right.occurredAt).getTime())
+        const first = ordered[0]
+        const latest = ordered[ordered.length - 1]
+        const material = ordered.map(controlEventMaterial).find(Boolean)
+        const milestones = keyControlMilestones(ordered)
+        return <section className="lav-panel ops-panel ops-record-card" key={key}>
+          <header className="ops-record-summary">
+            <div>
+              <span>{first.projectName}</span>
+              <h2>{controlRecordTitle(first)}</h2>
+              {material && <p>{material}</p>}
+            </div>
+            <div className="ops-record-status">
+              <span>Current stage</span>
+              <strong>{controlEventLabel(latest)}</strong>
+              <small>{when(latest.occurredAt)}</small>
+            </div>
+          </header>
+
+          <section className="ops-milestone-section">
+            <h3>Key milestones</h3>
+            <div className="ops-milestones">
+              {milestones.map((item, index) => <article key={`${item.entityType}-${item.entityId}-${item.sequenceNumber}`}>
                 <i>{index + 1}</i>
                 <div>
-                  <span>{item.actorRole} · {item.actorName}</span>
-                  <b>{controlEventLabel(item.eventType)}</b>
-                  {material && <small className="ops-event-material">{material}</small>}
+                  <strong>{controlEventLabel(item)}</strong>
+                  <span>{item.actorRole} · {when(item.occurredAt)}</span>
                 </div>
-                <time>{when(item.occurredAt)}</time>
-              </article>
-            })}
-        </div>
-      </section>)}
+              </article>)}
+            </div>
+          </section>
+
+          <details className="ops-audit-details">
+            <summary><span>Full audit history</span><strong>{ordered.length} events</strong></summary>
+            <div className="ops-timeline">
+              {ordered.map((item, index) => {
+                const eventMaterial = controlEventMaterial(item)
+                return <article key={`${item.entityType}-${item.entityId}-${item.sequenceNumber}`}>
+                  <i>{index + 1}</i>
+                  <div>
+                    <span>{item.actorRole} · {item.actorName}</span>
+                    <b>{controlEventLabel(item)}{eventMaterial ? `: ${eventMaterial}` : ''}</b>
+                  </div>
+                  <time>{when(item.occurredAt)}</time>
+                </article>
+              })}
+            </div>
+          </details>
+        </section>
+      })}
       {!chains.length && !error && <Empty>The trace will appear as controlled transactions are recorded.</Empty>}
     </div>}
   </div>

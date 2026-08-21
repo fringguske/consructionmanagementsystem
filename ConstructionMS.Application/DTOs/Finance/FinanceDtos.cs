@@ -94,6 +94,7 @@ public sealed class PaymentResponseDto
 {
     public long Id { get; set; }
     public string PaymentNumber { get; set; } = string.Empty;
+    public string DisplayNumber { get; set; } = string.Empty;
     public long PaymentAuthorizationId { get; set; }
     public decimal Amount { get; set; }
     public string Method { get; set; } = string.Empty;

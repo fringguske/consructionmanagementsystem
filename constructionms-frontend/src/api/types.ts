@@ -673,7 +673,7 @@ export interface PaymentAuthorization {
 }
 
 export interface Payment {
-  id: number; paymentNumber: string; paymentAuthorizationId: number; amount: number; method: string
+  id: number; paymentNumber: string; displayNumber: string; paymentAuthorizationId: number; amount: number; method: string
   externalReference: string; evidenceReference: string | null; paidByName: string
   paidAt: IsoDateTime; receiptNumber: string
 }

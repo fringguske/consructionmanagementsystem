@@ -379,7 +379,9 @@ public sealed class FinanceWorkflowService : IFinanceWorkflowService
     {
         return new PaymentResponseDto
         {
-            Id = item.Id, PaymentNumber = item.PaymentNumber, PaymentAuthorizationId = item.PaymentAuthorizationId,
+            Id = item.Id, PaymentNumber = item.PaymentNumber,
+            DisplayNumber = $"PAY-{item.PaidAt.Year}-{item.Id:0000}",
+            PaymentAuthorizationId = item.PaymentAuthorizationId,
             Amount = item.Amount, Method = item.Method, ExternalReference = item.ExternalReference,
             EvidenceReference = item.EvidenceReference, PaidByName = item.PaidByUser.FullName, PaidAt = item.PaidAt,
             ReceiptNumber = item.Receipt?.ReceiptNumber ?? string.Empty
