@@ -64,6 +64,16 @@ function dateTime(value: string) {
   }).format(new Date(value))
 }
 
+function documentReference(entry: StockLedgerEntry) {
+  const prefix = {
+    MaterialIssue: 'MIV',
+    GoodsReceipt: 'GRN',
+    StockTransfer: 'TRF',
+    StockCount: 'CNT',
+  }[entry.referenceType] ?? entry.referenceNumber.split('-')[0] ?? 'MOV'
+  return `${prefix}-${String(entry.referenceId).padStart(4, '0')}`
+}
+
 function inputDate(value: Date) {
   const year = value.getFullYear()
   const month = String(value.getMonth() + 1).padStart(2, '0')
@@ -152,7 +162,7 @@ function movementContext(
   }
   if (receipt) return {
     entry,
-    action: 'Received',
+    action: `Received by ${receipt.receivedByName}`,
     route: `${receipt.supplierName} → ${entry.projectName} Store`,
     recipient: `${entry.projectName} Store`,
     approvedBy: order?.approvedByUserName ?? 'Purchase order approval recorded',
@@ -160,7 +170,9 @@ function movementContext(
   }
   if (transfer) return {
     entry,
-    action: entry.movementType === 'TransferOut' ? 'Transfer dispatched' : 'Transfer received',
+    action: entry.movementType === 'TransferOut'
+      ? 'Transfer dispatched'
+      : `Transfer received by ${transfer.receivedByName ?? 'receiving Storekeeper'}`,
     route: `${transfer.fromProjectName} Store → ${transfer.toProjectName} Store`,
     recipient: transfer.receivedByName ?? `${transfer.toProjectName} Store`,
     approvedBy: transfer.requestedByName,
@@ -367,13 +379,12 @@ function MaterialStockCard({ position, movements, issues, expandedMovementId, se
 }) {
   const custody = issues.filter(item => custodyAmount(item) > 0)
   return <section className="ceo-inventory material-stock-card">
-    <button type="button" className="inventory-back" onClick={onBack}>← Materials Inventory</button>
+    <button type="button" className="inventory-back" onClick={onBack}><span aria-hidden="true">←</span> Back to Materials Inventory</button>
     <header className="material-stock-heading"><div><h1>{position.materialName}</h1><span>{position.category}</span></div><b className={`inventory-state ${position.status.toLowerCase().replaceAll(' ', '-')}`}>{position.status}</b></header>
     <div className="material-stock-facts">
       <span>In store<strong>{quantity(position.inStore, position.unit)}</strong></span>
       <span>Site custody<strong>{quantity(position.siteCustody, position.unit)}</strong></span>
       <span>In transit<strong>{quantity(position.inTransit, position.unit)}</strong></span>
-      <span>Reorder level<strong>{quantity(position.reorderLevel, position.unit)}</strong></span>
       <span className="total">Total company-controlled quantity<strong>{quantity(position.totalControlled, position.unit)}</strong></span>
     </div>
     {custody.length > 0 && <section className="ceo-inventory-panel"><header><h2>Site custody</h2></header><div className="custody-list">{custody.map(item => <article key={item.id}><div><strong>{item.issuedToName}</strong><span>{item.projectName}</span></div><b>{quantity(custodyAmount(item), item.materialUnit)}</b><span>{item.status === 'AwaitingConfirmation' ? 'Awaiting confirmation' : 'Confirmed'}</span></article>)}</div></section>}
@@ -392,7 +403,7 @@ function MovementHistory({ movements, expandedMovementId, setExpandedMovementId 
     {movements.map(item => <div className={`movement-history-item ${expandedMovementId === item.entry.id ? 'expanded' : ''}`} key={item.entry.id}>
       <button type="button" className="movement-history-row" onClick={() => setExpandedMovementId(expandedMovementId === item.entry.id ? null : item.entry.id)}>
         <span data-label="Date">{dateTime(item.entry.occurredAt)}</span>
-        <span data-label="Reference"><strong>{item.entry.referenceNumber}</strong></span>
+        <span data-label="Reference"><strong>{documentReference(item.entry)}</strong></span>
         <span data-label="Material"><strong>{item.entry.materialName}</strong><small>{item.entry.projectName}</small></span>
         <span data-label="Movement">{item.action}</span>
         <span data-label="From to">{item.route}</span>
