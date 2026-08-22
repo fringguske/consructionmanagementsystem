@@ -102,6 +102,7 @@ WITH required_table("Name") AS (
         ('PaymentReceipts'),
         ('Payments'),
         ('PettyCashDisbursements'),
+        ('PettyCashReceiptConfirmations'),
         ('PettyCashReconciliationEvents'),
         ('PettyCashReconciliations'),
         ('PettyCashRequests'),
