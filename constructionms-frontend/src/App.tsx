@@ -301,7 +301,7 @@ const fieldRoleNav: Partial<Record<DemoRole, typeof nav>> = {
     { to: '/', label: 'Overview', icon: 'grid' },
     { to: '/projects', label: 'Projects', icon: 'building' },
     { to: '/finance', label: 'Money', icon: 'wallet' },
-    { to: '/inventory', label: 'Stock & movement', icon: 'boxes' },
+    { to: '/inventory', label: 'Materials Inventory', icon: 'boxes' },
     { to: '/audit', label: 'Records', icon: 'shield' },
   ],
   Supervisor: [
@@ -386,7 +386,7 @@ const liveRoleNavigation: Record<ConstructionRole, readonly { to: string; label:
     { to: '/sourcing', label: 'Supplier sourcing', icon: 'users' },
     { to: '/suppliers', label: 'Supplier register', icon: 'users' },
     { to: '/purchase-orders', label: 'Purchase orders', icon: 'file' },
-    { to: '/inventory', label: 'Stock & movement', icon: 'boxes' },
+    { to: '/inventory', label: 'Materials Inventory', icon: 'boxes' },
     { to: '/finance', label: 'Money path', icon: 'wallet' },
     { to: '/petty-cash', label: 'Petty cash', icon: 'receipt' },
     { to: '/audit', label: 'Complete chain', icon: 'shield' },
@@ -607,7 +607,7 @@ function Shell({ authenticatedUser, onLogout, onSwitchRole, onUsernameChanged, o
     '/requisitions': role === 'Foreman' ? ['My material requests', 'Request what the site needs and follow its approval'] : role === 'Engineer' ? ['Technical checks', 'Verify the site need before a supervisor decides'] : role === 'Supervisor' ? ['Material approvals', 'Decide only after an engineer has checked the request'] : ['Material requests', ''],
     '/sourcing': ['Supplier sourcing', 'Quotes and supplier selection for approved material needs'],
     '/access': ['Requests & access', 'Approve people, select roles and assign projects'],
-    '/inventory': role === 'CEO' ? ['Stock & movement', ''] : role === 'Foreman' ? ['Materials on site', 'Confirm receipt, record use and report wastage'] : role === 'Storekeeper' ? ['Stock ledger', ''] : ['Inventory', 'Stock levels and material movement'],
+    '/inventory': role === 'CEO' ? ['Materials Inventory', ''] : role === 'Foreman' ? ['Materials on site', 'Confirm receipt, record use and report wastage'] : role === 'Storekeeper' ? ['Stock ledger', ''] : ['Inventory', 'Stock levels and material movement'],
     '/finance': role === 'Supervisor'
         ? ['Payment approvals', 'Authorize Finance-matched supplier payments for your projects']
         : role === 'Finance Officer'

@@ -607,7 +607,7 @@ export interface CorrectPurchaseOrderRequest {
 
 export interface GoodsReceipt {
   id: number; receiptNumber: string; purchaseOrderId: number; purchaseOrderNumber: string
-  requisitionId: number; projectId: number; projectName: string; materialId: number
+  supplierName: string; requisitionId: number; projectId: number; projectName: string; materialId: number
   materialName: string; materialUnit: string; orderedQuantity: number; deliveredQuantity: number
   acceptedQuantity: number; rejectedQuantity: number; condition: 'Good' | 'Damaged' | 'Mixed'
   deliveryNoteReference: string; evidenceReference: string | null; discrepancyNotes: string | null
@@ -622,7 +622,8 @@ export interface StockBalance {
 export interface StockLedgerEntry {
   id: number; projectId: number; projectName: string; materialId: number; materialName: string
   unit: string; movementType: string; quantityDelta: number; balanceAfter: number
-  referenceNumber: string; actorName: string; notes: string | null; occurredAt: IsoDateTime
+  referenceType: string; referenceId: number; referenceNumber: string
+  actorName: string; notes: string | null; occurredAt: IsoDateTime
 }
 
 export interface MaterialUsage {

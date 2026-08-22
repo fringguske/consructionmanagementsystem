@@ -36,6 +36,7 @@ public sealed class InventoryWorkflowService : IInventoryWorkflowService
         var total = await query.CountAsync();
         var items = await query
             .Include(item => item.PurchaseOrder).ThenInclude(order => order.Requisition)
+            .Include(item => item.PurchaseOrder).ThenInclude(order => order.Supplier)
             .Include(item => item.PurchaseOrderLine)
             .Include(item => item.Project).Include(item => item.Material).Include(item => item.ReceivedByUser)
             .OrderByDescending(item => item.ReceivedAt).ThenByDescending(item => item.Id)
@@ -61,7 +62,7 @@ public sealed class InventoryWorkflowService : IInventoryWorkflowService
         await using var transaction = await _db.Database.BeginTransactionAsync(IsolationLevel.Serializable);
         var order = await _db.PurchaseOrders
             .Include(item => item.Lines).ThenInclude(line => line.Material)
-            .Include(item => item.Project).Include(item => item.Requisition)
+            .Include(item => item.Project).Include(item => item.Requisition).Include(item => item.Supplier)
             .SingleOrDefaultAsync(item => item.Id == request.PurchaseOrderId)
             ?? throw new KeyNotFoundException("The purchase order was not found.");
         if (order.Status != PurchaseOrderWorkflowStates.Issued) throw new InvalidOperationException("Goods can be received only against an issued purchase order.");
@@ -147,6 +148,7 @@ public sealed class InventoryWorkflowService : IInventoryWorkflowService
             Id = item.Id, ProjectId = item.ProjectId, ProjectName = item.Project.Name,
             MaterialId = item.MaterialId, MaterialName = item.Material.Name, Unit = item.Material.Unit,
             MovementType = item.MovementType, QuantityDelta = item.QuantityDelta, BalanceAfter = item.BalanceAfter,
+            ReferenceType = item.ReferenceType, ReferenceId = item.ReferenceId,
             ReferenceNumber = item.ReferenceNumber, ActorName = item.ActorUser.FullName, Notes = item.Notes, OccurredAt = item.OccurredAt
         }).ToList(), total, pagination.Page, pagination.PageSize);
     }
@@ -501,7 +503,8 @@ public sealed class InventoryWorkflowService : IInventoryWorkflowService
     private static GoodsReceiptResponseDto ToDto(GoodsReceipt item) => new()
     {
         Id = item.Id, ReceiptNumber = item.ReceiptNumber, PurchaseOrderId = item.PurchaseOrderId,
-        PurchaseOrderNumber = item.PurchaseOrder.PurchaseOrderNumber, RequisitionId = item.PurchaseOrder.RequisitionId,
+        PurchaseOrderNumber = item.PurchaseOrder.PurchaseOrderNumber, SupplierName = item.PurchaseOrder.Supplier.Name,
+        RequisitionId = item.PurchaseOrder.RequisitionId,
         ProjectId = item.ProjectId, ProjectName = item.Project.Name, MaterialId = item.MaterialId,
         MaterialName = item.Material.Name, MaterialUnit = item.Material.Unit, OrderedQuantity = item.PurchaseOrderLine.Quantity,
         DeliveredQuantity = item.DeliveredQuantity, AcceptedQuantity = item.AcceptedQuantity, RejectedQuantity = item.RejectedQuantity,

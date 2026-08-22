@@ -27,6 +27,7 @@ import {
 } from './api'
 import './live-api.css'
 import './live-operations.css'
+import { CeoMaterialsInventory } from './CeoMaterialsInventory'
 
 function messageOf(error: unknown) {
   return error instanceof ApiError || error instanceof Error ? error.message : 'The action could not be completed.'
@@ -78,6 +79,11 @@ export function LiveInventoryView({ currentUser }: { currentUser: CurrentUser })
     if (['Storekeeper', 'Supervisor', 'Finance Officer', 'CEO', 'Auditor'].includes(role)) {
       tasks.push(inventoryApi.ledger(controller.signal))
     }
+    if (role === 'CEO') {
+      tasks.push(inventoryApi.receipts(controller.signal))
+      tasks.push(requisitionsApi.list({ page: 1, pageSize: 100 }, controller.signal))
+      tasks.push(purchaseOrdersApi.list({ page: 1, pageSize: 100 }, controller.signal))
+    }
     if (role === 'Storekeeper') {
       tasks.push(purchaseOrdersApi.list({ page: 1, pageSize: 100, status: 'Issued' }, controller.signal))
       tasks.push(requisitionsApi.list({ page: 1, pageSize: 100, status: 'Approved' }, controller.signal))
@@ -97,6 +103,11 @@ export function LiveInventoryView({ currentUser }: { currentUser: CurrentUser })
       }
       if (['Storekeeper', 'Supervisor', 'Finance Officer', 'CEO', 'Auditor'].includes(role)) {
         setLedger((results[index++] as { items: StockLedgerEntry[] }).items)
+      }
+      if (role === 'CEO') {
+        setReceipts((results[index++] as { items: GoodsReceipt[] }).items)
+        setRequisitions((results[index++] as { items: Requisition[] }).items)
+        setOrders((results[index++] as { items: PurchaseOrder[] }).items)
       }
       if (role === 'Storekeeper') {
         setOrders((results[index++] as { items: PurchaseOrder[] }).items)
@@ -122,11 +133,15 @@ export function LiveInventoryView({ currentUser }: { currentUser: CurrentUser })
     {role === 'Storekeeper' && <StorekeeperActions currentUser={currentUser} projectSummaries={projectSummaries} orders={orders} receipts={receipts} requisitions={requisitions} balances={balances} materials={materials} issues={issues} transfers={transfers} counts={counts} onChanged={changed}/>}
     {role === 'Supervisor' && <SupervisorInventoryActions currentUser={currentUser} balances={balances} materials={materials} transfers={transfers} counts={counts} onChanged={changed}/>}
     {role === 'Foreman' && <ForemanIssueActions currentUser={currentUser} issues={issues} onChanged={changed}/>}
-    <StockCards balances={balances}/>
-    {role !== 'Foreman' && <section className="lav-panel ops-panel">
-      {ledger.length ? <div className="ops-table"><div className="ops-row head"><span>Material</span><span>Movement</span><span>Quantity</span><span>Balance</span><span>Recorded by</span></div>{ledger.slice(0, 12).map(item => <div className="ops-row movement" key={item.id}><span data-label="Material"><b>{item.materialName}</b><small>{item.projectName}</small></span><span data-label="Movement">{item.movementType}</span><span data-label="Quantity" className={item.quantityDelta < 0 ? 'negative' : 'positive'}>{item.quantityDelta > 0 ? '+' : ''}{item.quantityDelta} {item.unit}</span><span data-label="Balance">{item.balanceAfter} {item.unit}</span><span data-label="Recorded by"><b>{item.actorName}</b><small>{when(item.occurredAt)}</small></span></div>)}</div> : <Empty>No receipts, issues, transfers or count adjustments yet.</Empty>}
-    </section>}
-    {['CEO', 'Auditor', 'Storekeeper', 'Supervisor'].includes(role) && <MovementSummary issues={issues} transfers={transfers} counts={counts}/>}
+    {role === 'CEO'
+      ? <CeoMaterialsInventory currentUser={currentUser} balances={balances} ledger={ledger} issues={issues} transfers={transfers} counts={counts} receipts={receipts} requisitions={requisitions} orders={orders}/>
+      : <>
+        <StockCards balances={balances}/>
+        {role !== 'Foreman' && <section className="lav-panel ops-panel">
+          {ledger.length ? <div className="ops-table"><div className="ops-row head"><span>Material</span><span>Movement</span><span>Quantity</span><span>Balance</span><span>Recorded by</span></div>{ledger.slice(0, 12).map(item => <div className="ops-row movement" key={item.id}><span data-label="Material"><b>{item.materialName}</b><small>{item.projectName}</small></span><span data-label="Movement">{item.movementType}</span><span data-label="Quantity" className={item.quantityDelta < 0 ? 'negative' : 'positive'}>{item.quantityDelta > 0 ? '+' : ''}{item.quantityDelta} {item.unit}</span><span data-label="Balance">{item.balanceAfter} {item.unit}</span><span data-label="Recorded by"><b>{item.actorName}</b><small>{when(item.occurredAt)}</small></span></div>)}</div> : <Empty>No receipts, issues, transfers or count adjustments yet.</Empty>}
+        </section>}
+        {['Auditor', 'Storekeeper', 'Supervisor'].includes(role) && <MovementSummary issues={issues} transfers={transfers} counts={counts}/>}
+      </>}
   </div>
 }
 

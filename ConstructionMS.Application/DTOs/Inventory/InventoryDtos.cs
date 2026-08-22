@@ -78,6 +78,7 @@ public sealed class GoodsReceiptResponseDto
     public string ReceiptNumber { get; set; } = string.Empty;
     public int PurchaseOrderId { get; set; }
     public string PurchaseOrderNumber { get; set; } = string.Empty;
+    public string SupplierName { get; set; } = string.Empty;
     public int RequisitionId { get; set; }
     public int ProjectId { get; set; }
     public string ProjectName { get; set; } = string.Empty;
@@ -121,6 +122,8 @@ public sealed class StockLedgerEntryResponseDto
     public string MovementType { get; set; } = string.Empty;
     public decimal QuantityDelta { get; set; }
     public decimal BalanceAfter { get; set; }
+    public string ReferenceType { get; set; } = string.Empty;
+    public long ReferenceId { get; set; }
     public string ReferenceNumber { get; set; } = string.Empty;
     public string ActorName { get; set; } = string.Empty;
     public string? Notes { get; set; }
