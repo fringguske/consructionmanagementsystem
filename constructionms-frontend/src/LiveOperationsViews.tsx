@@ -294,11 +294,12 @@ export function LiveFinanceView({ currentUser }: { currentUser: CurrentUser }) {
 
 function CeoCashBook({ cashBook }: { cashBook: CashBook }) {
   const [openProjectId, setOpenProjectId] = useState<number | null>(null)
+  const openProject = cashBook.projects.find(project => project.projectId === openProjectId)
 
   return <section className="lav-panel ops-panel cashbook-panel">
     <header className="lav-panel-head"><div><h2>Cash book</h2></div><strong>{cashBook.projects.length} projects</strong></header>
     <div className="cashbook-table">
-      <div className="cashbook-row head"><span>Project</span><span>Allocated budget</span><span>Used</span><span>In progress</span><span>Available</span></div>
+      <div className="cashbook-row head"><span>Project</span><span>Allocated budget</span><span>Used</span><span>Committed</span><span>Waiting</span><span>Available</span></div>
       {cashBook.projects.map(project => {
         const isOpen = project.projectId === openProjectId
         return <article className={isOpen ? 'open' : ''} key={project.projectId}>
@@ -306,21 +307,22 @@ function CeoCashBook({ cashBook }: { cashBook: CashBook }) {
             <span className="cashbook-project" data-label="Project"><b>{project.projectName}</b><i aria-hidden="true">{isOpen ? '−' : '+'}</i></span>
             <span data-label="Allocated budget"><b>{money(project.allocatedBudget)}</b></span>
             <span data-label="Used"><b>{money(project.totalUsed)}</b><small>{money(project.supplierPayments)} suppliers · {money(project.pettyCashSpent)} petty cash</small></span>
-            <span data-label="In progress"><b>{money(project.openCommitments + project.cashAwaitingAccountability)}</b><small>{money(project.openCommitments)} committed · {money(project.cashAwaitingAccountability)} awaiting accountability</small></span>
+            <span data-label="Committed"><b>{money(project.openCommitments)}</b></span>
+            <span data-label="Waiting"><b>{money(project.cashAwaitingAccountability)}</b><small>Accountability</small></span>
             <span className={project.budgetAvailable < 0 ? 'over' : ''} data-label="Available"><b>{money(project.budgetAvailable)}</b></span>
           </button>
-          {isOpen && <div className="cashbook-sheet">
-            <header><div><span>{project.projectName} · latest {project.recentEntries.length} of {project.entryCount}</span><h3>Money use</h3></div><button type="button" onClick={() => setOpenProjectId(null)}>Close</button></header>
-            {project.recentEntries.length ? <div className="cashbook-entries">{project.recentEntries.map((entry, index) => <div className="cashbook-entry" key={`${entry.occurredAt}-${entry.entryType}-${index}`}>
-              <time dateTime={entry.occurredAt}>{new Intl.DateTimeFormat('en-KE', { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(entry.occurredAt))}</time>
-              <span><b>{entry.title}</b><small>{entry.detail}</small></span>
-              <span><b>{entry.entryType}</b><small>{entry.state}</small></span>
-              <strong>{money(entry.amount)}</strong>
-            </div>)}</div> : <Empty>No recorded use for this project.</Empty>}
-          </div>}
         </article>
       })}
     </div>
+    {openProject && <div className="cashbook-sheet">
+      <header><div><span>{openProject.projectName} · latest {openProject.recentEntries.length} of {openProject.entryCount}</span><h3>Money use</h3></div><button type="button" onClick={() => setOpenProjectId(null)}>Close</button></header>
+      {openProject.recentEntries.length ? <div className="cashbook-entries">{openProject.recentEntries.map((entry, index) => <div className="cashbook-entry" key={`${entry.occurredAt}-${entry.entryType}-${index}`}>
+        <time dateTime={entry.occurredAt}>{new Intl.DateTimeFormat('en-KE', { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(entry.occurredAt))}</time>
+        <span><b>{entry.title}</b><small>{entry.detail}</small></span>
+        <span><b>{entry.entryType}</b><small>{entry.state}</small></span>
+        <strong>{money(entry.amount)}</strong>
+      </div>)}</div> : <Empty>No recorded use for this project.</Empty>}
+    </div>}
   </section>
 }
 
