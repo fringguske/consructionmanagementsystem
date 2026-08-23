@@ -295,6 +295,17 @@ export function LiveFinanceView({ currentUser }: { currentUser: CurrentUser }) {
 function CeoCashBook({ cashBook }: { cashBook: CashBook }) {
   const [openProjectId, setOpenProjectId] = useState<number | null>(null)
   const openProject = cashBook.projects.find(project => project.projectId === openProjectId)
+  useEffect(() => {
+    if (openProjectId === null) return
+    const previousOverflow = document.body.style.overflow
+    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === 'Escape') setOpenProjectId(null) }
+    document.body.style.overflow = 'hidden'
+    document.addEventListener('keydown', closeOnEscape)
+    return () => {
+      document.body.style.overflow = previousOverflow
+      document.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [openProjectId])
 
   return <section className="lav-panel ops-panel cashbook-panel">
     <header className="lav-panel-head"><div><h2>Cash book</h2></div><strong>{cashBook.projects.length} projects</strong></header>
@@ -314,14 +325,17 @@ function CeoCashBook({ cashBook }: { cashBook: CashBook }) {
         </article>
       })}
     </div>
-    {openProject && <div className="cashbook-sheet">
-      <header><div><span>{openProject.projectName} · latest {openProject.recentEntries.length} of {openProject.entryCount}</span><h3>Money use</h3></div><button type="button" onClick={() => setOpenProjectId(null)}>Close</button></header>
-      {openProject.recentEntries.length ? <div className="cashbook-entries">{openProject.recentEntries.map((entry, index) => <div className="cashbook-entry" key={`${entry.occurredAt}-${entry.entryType}-${index}`}>
-        <time dateTime={entry.occurredAt}>{new Intl.DateTimeFormat('en-KE', { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(entry.occurredAt))}</time>
-        <span><b>{entry.title}</b><small>{entry.detail}</small></span>
-        <span><b>{entry.entryType}</b><small>{entry.state}</small></span>
-        <strong>{money(entry.amount)}</strong>
-      </div>)}</div> : <Empty>No recorded use for this project.</Empty>}
+    {openProject && <div className="ops-modal-wrap cashbook-modal-wrap" role="presentation">
+      <button type="button" className="ops-modal-backdrop" aria-label="Close money use" onClick={() => setOpenProjectId(null)}/>
+      <div className="cashbook-sheet cashbook-floating-card" role="dialog" aria-modal="true" aria-labelledby="cashbook-money-use-title">
+        <header><div><span>{openProject.projectName} · latest {openProject.recentEntries.length} of {openProject.entryCount}</span><h3 id="cashbook-money-use-title">Money use</h3></div><button type="button" onClick={() => setOpenProjectId(null)}>Close</button></header>
+        {openProject.recentEntries.length ? <div className="cashbook-entries">{openProject.recentEntries.map((entry, index) => <div className="cashbook-entry" key={`${entry.occurredAt}-${entry.entryType}-${index}`}>
+          <time dateTime={entry.occurredAt}>{new Intl.DateTimeFormat('en-KE', { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(entry.occurredAt))}</time>
+          <span><b>{entry.title}</b><small>{entry.detail}</small></span>
+          <span><b>{entry.entryType}</b><small>{entry.state}</small></span>
+          <strong>{money(entry.amount)}</strong>
+        </div>)}</div> : <Empty>No recorded use for this project.</Empty>}
+      </div>
     </div>}
   </section>
 }
