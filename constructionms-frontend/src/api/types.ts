@@ -683,6 +683,34 @@ export interface Payment {
   paidAt: IsoDateTime; receiptNumber: string
 }
 
+export interface CashBookEntry {
+  entryType: 'Supplier payment' | 'Petty cash'
+  title: string
+  detail: string
+  amount: number
+  state: 'Used' | 'Awaiting accountability'
+  occurredAt: IsoDateTime
+}
+
+export interface CashBookProject {
+  projectId: number
+  projectName: string
+  allocatedBudget: number
+  supplierPayments: number
+  pettyCashSpent: number
+  openCommitments: number
+  cashAwaitingAccountability: number
+  totalUsed: number
+  budgetAvailable: number
+  entryCount: number
+  recentEntries: CashBookEntry[]
+}
+
+export interface CashBook {
+  generatedAt: IsoDateTime
+  projects: CashBookProject[]
+}
+
 export type PettyCashStatus =
   | 'PendingFinanceApproval'
   | 'Rejected'

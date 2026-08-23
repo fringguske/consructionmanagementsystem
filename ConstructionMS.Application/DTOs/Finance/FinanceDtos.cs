@@ -107,6 +107,37 @@ public sealed class PaymentResponseDto
     public string ReceiptNumber { get; set; } = string.Empty;
 }
 
+public sealed class CashBookResponseDto
+{
+    public DateTime GeneratedAt { get; set; }
+    public IReadOnlyList<CashBookProjectResponseDto> Projects { get; set; } = [];
+}
+
+public sealed class CashBookProjectResponseDto
+{
+    public int ProjectId { get; set; }
+    public string ProjectName { get; set; } = string.Empty;
+    public decimal AllocatedBudget { get; set; }
+    public decimal SupplierPayments { get; set; }
+    public decimal PettyCashSpent { get; set; }
+    public decimal OpenCommitments { get; set; }
+    public decimal CashAwaitingAccountability { get; set; }
+    public decimal TotalUsed { get; set; }
+    public decimal BudgetAvailable { get; set; }
+    public int EntryCount { get; set; }
+    public IReadOnlyList<CashBookEntryResponseDto> RecentEntries { get; set; } = [];
+}
+
+public sealed class CashBookEntryResponseDto
+{
+    public string EntryType { get; set; } = string.Empty;
+    public string Title { get; set; } = string.Empty;
+    public string Detail { get; set; } = string.Empty;
+    public decimal Amount { get; set; }
+    public string State { get; set; } = string.Empty;
+    public DateTime OccurredAt { get; set; }
+}
+
 public sealed class ControlEventResponseDto
 {
     public string ChainKey { get; set; } = string.Empty;

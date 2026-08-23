@@ -180,7 +180,7 @@ public sealed class PettyCashService(AppDbContext db, IActorRoleResolver roles) 
         var returned = InputNormalizer.NonNegative(request.AmountReturned, nameof(request.AmountReturned), 18, 2);
         var evidence = InputNormalizer.RequiredText(request.EvidenceReference, nameof(request.EvidenceReference), 3, 500);
         var returnReference = InputNormalizer.OptionalText(request.ReturnReference, nameof(request.ReturnReference), 100);
-        var notes = InputNormalizer.OptionalText(request.Notes, nameof(request.Notes), 1_000);
+        var notes = InputNormalizer.RequiredText(request.Notes, nameof(request.Notes), 3, 1_000);
         await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable);
         var item = await db.PettyCashRequests.Include(candidate => candidate.Disbursement)
             .Include(candidate => candidate.ReceiptConfirmation)

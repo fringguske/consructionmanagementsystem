@@ -248,6 +248,178 @@ public sealed class FinanceWorkflowService : IFinanceWorkflowService
         return Page(items.Select(ToDto).ToList(), total, pagination.Page, pagination.PageSize);
     }
 
+    public async Task<CashBookResponseDto> GetCashBookAsync(int actorUserId, string actorRole)
+    {
+        await RequireAnyRoleAsync(actorUserId, actorRole, "CEO", "Auditor");
+
+        var projects = await _db.Projects.AsNoTracking()
+            .OrderBy(item => item.Id)
+            .Select(item => new { item.Id, item.Name, item.Budget })
+            .ToListAsync();
+        var projectIds = projects.Select(item => item.Id).ToList();
+
+        var budgetRevisions = await _db.ProjectBudgets.AsNoTracking()
+            .Where(item => projectIds.Contains(item.ProjectId))
+            .OrderByDescending(item => item.CreatedAt)
+            .ThenByDescending(item => item.Id)
+            .Select(item => new { item.ProjectId, item.ApprovedAmount })
+            .ToListAsync();
+        var budgets = budgetRevisions
+            .GroupBy(item => item.ProjectId)
+            .ToDictionary(group => group.Key, group => group.First().ApprovedAmount);
+
+        var supplierRows = await _db.Payments.AsNoTracking()
+            .Where(item => projectIds.Contains(item.PaymentAuthorization.SupplierInvoice.ProjectId))
+            .Select(item => new
+            {
+                ProjectId = item.PaymentAuthorization.SupplierInvoice.ProjectId,
+                item.Amount,
+                SupplierName = item.PaymentAuthorization.SupplierInvoice.Supplier.Name,
+                InvoiceNumber = item.PaymentAuthorization.SupplierInvoice.InvoiceNumber,
+                MaterialName = item.PaymentAuthorization.SupplierInvoice.PurchaseOrder.Lines
+                    .Select(line => line.Material.Name)
+                    .FirstOrDefault(),
+                item.PaidAt
+            })
+            .ToListAsync();
+
+        var pettyCashRows = await _db.PettyCashReconciliations.AsNoTracking()
+            .Where(item => item.Status == PettyCashReconciliationStatuses.Approved
+                && projectIds.Contains(item.PettyCashRequest.ProjectId))
+            .Select(item => new
+            {
+                ProjectId = item.PettyCashRequest.ProjectId,
+                Amount = item.AmountExpensed ?? item.AmountSpent,
+                item.PettyCashRequest.Purpose,
+                CostCodeName = item.PettyCashRequest.CostCode.Name,
+                OccurredAt = item.ReviewedAt ?? item.SubmittedAt
+            })
+            .ToListAsync();
+
+        var siteCashRows = await _db.PettyCashDisbursements.AsNoTracking()
+            .Where(item => !item.PettyCashRequest.Reconciliations.Any(reconciliation =>
+                    reconciliation.Status == PettyCashReconciliationStatuses.Approved)
+                && projectIds.Contains(item.PettyCashRequest.ProjectId))
+            .Select(item => new
+            {
+                ProjectId = item.PettyCashRequest.ProjectId,
+                item.Amount,
+                item.PettyCashRequest.Purpose,
+                item.RecipientName,
+                item.DisbursedAt
+            })
+            .ToListAsync();
+
+        var purchaseCommitmentRows = await _db.PurchaseOrderLines.AsNoTracking()
+            .Where(item => (item.PurchaseOrder.Status == PurchaseOrderWorkflowStates.Approved
+                    || item.PurchaseOrder.Status == PurchaseOrderWorkflowStates.Issued)
+                && projectIds.Contains(item.PurchaseOrder.ProjectId)
+                && !_db.Payments.Any(payment =>
+                    payment.PaymentAuthorization.SupplierInvoice.PurchaseOrderId == item.PurchaseOrderId))
+            .GroupBy(item => item.PurchaseOrder.ProjectId)
+            .Select(group => new
+            {
+                ProjectId = group.Key,
+                Amount = group.Sum(item => item.Quantity * item.UnitPrice)
+            })
+            .ToListAsync();
+
+        var pettyCashCommitmentRows = await _db.PettyCashRequests.AsNoTracking()
+            .Where(item => item.Status == PettyCashStatuses.Approved
+                && item.AmountCommitted.HasValue
+                && projectIds.Contains(item.ProjectId))
+            .GroupBy(item => item.ProjectId)
+            .Select(group => new
+            {
+                ProjectId = group.Key,
+                Amount = group.Sum(item => item.AmountCommitted ?? 0m)
+            })
+            .ToListAsync();
+
+        var result = projects.Select(project =>
+        {
+            var supplierPayments = supplierRows
+                .Where(item => item.ProjectId == project.Id)
+                .Sum(item => item.Amount);
+            var pettyCashSpent = pettyCashRows
+                .Where(item => item.ProjectId == project.Id)
+                .Sum(item => item.Amount);
+            var cashAwaitingAccountability = siteCashRows
+                .Where(item => item.ProjectId == project.Id)
+                .Sum(item => item.Amount);
+            var openCommitments = purchaseCommitmentRows
+                .Where(item => item.ProjectId == project.Id)
+                .Sum(item => item.Amount)
+                + pettyCashCommitmentRows
+                    .Where(item => item.ProjectId == project.Id)
+                    .Sum(item => item.Amount);
+            var allocatedBudget = budgets.GetValueOrDefault(project.Id, project.Budget);
+            var totalUsed = supplierPayments + pettyCashSpent;
+
+            var entries = supplierRows
+                .Where(item => item.ProjectId == project.Id)
+                .Select(item => new CashBookEntryResponseDto
+                {
+                    EntryType = "Supplier payment",
+                    Title = item.SupplierName,
+                    Detail = string.IsNullOrWhiteSpace(item.MaterialName)
+                        ? $"Invoice {item.InvoiceNumber}"
+                        : $"{item.MaterialName} · Invoice {item.InvoiceNumber}",
+                    Amount = item.Amount,
+                    State = "Used",
+                    OccurredAt = item.PaidAt
+                })
+                .Concat(pettyCashRows
+                    .Where(item => item.ProjectId == project.Id)
+                    .Select(item => new CashBookEntryResponseDto
+                    {
+                        EntryType = "Petty cash",
+                        Title = item.Purpose,
+                        Detail = item.CostCodeName,
+                        Amount = item.Amount,
+                        State = "Used",
+                        OccurredAt = item.OccurredAt
+                    }))
+                .Concat(siteCashRows
+                    .Where(item => item.ProjectId == project.Id)
+                    .Select(item => new CashBookEntryResponseDto
+                    {
+                        EntryType = "Petty cash",
+                        Title = item.Purpose,
+                        Detail = $"With {item.RecipientName}",
+                        Amount = item.Amount,
+                        State = "Awaiting accountability",
+                        OccurredAt = item.DisbursedAt
+                    }))
+                .OrderByDescending(item => item.OccurredAt)
+                .Take(8)
+                .ToList();
+
+            return new CashBookProjectResponseDto
+            {
+                ProjectId = project.Id,
+                ProjectName = project.Name,
+                AllocatedBudget = allocatedBudget,
+                SupplierPayments = supplierPayments,
+                PettyCashSpent = pettyCashSpent,
+                OpenCommitments = openCommitments,
+                CashAwaitingAccountability = cashAwaitingAccountability,
+                TotalUsed = totalUsed,
+                BudgetAvailable = allocatedBudget - totalUsed - openCommitments - cashAwaitingAccountability,
+                EntryCount = supplierRows.Count(item => item.ProjectId == project.Id)
+                    + pettyCashRows.Count(item => item.ProjectId == project.Id)
+                    + siteCashRows.Count(item => item.ProjectId == project.Id),
+                RecentEntries = entries
+            };
+        }).ToList();
+
+        return new CashBookResponseDto
+        {
+            GeneratedAt = DateTime.UtcNow,
+            Projects = result
+        };
+    }
+
     public async Task<PaginatedResult<ControlEventResponseDto>> GetControlEventsAsync(
         int page, int pageSize, int actorUserId, string actorRole, int? projectId = null,
         int? requisitionId = null, string? chainKey = null)

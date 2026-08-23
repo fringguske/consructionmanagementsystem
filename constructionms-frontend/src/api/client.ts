@@ -63,6 +63,7 @@ import type {
   SupplierInvoice,
   PaymentAuthorization,
   Payment,
+  CashBook,
   PettyCashRequest,
   ControlEvent,
   ChangePasswordRequest,
@@ -769,6 +770,7 @@ export const financeApi = {
   pay: (id: number, body: { method: string; externalReference: string; evidenceReference?: string | null }, signal?: AbortSignal) =>
     request<Payment>(`/finance/authorizations/${id}/pay`, { method: 'POST', body, signal }),
   payments: (signal?: AbortSignal) => request<PaginatedResult<Payment>>('/finance/payments', { signal }, { page: 1, pageSize: 100 }),
+  cashBook: (signal?: AbortSignal) => request<CashBook>('/finance/cash-book', { signal }),
   controlEvents: (
     query: { projectId?: number; requisitionId?: number; chainKey?: string } = {},
     signal?: AbortSignal,
@@ -785,7 +787,7 @@ export const pettyCashApi = {
     request<PettyCashRequest>(`/finance/petty-cash/${id}/disburse`, { method: 'POST', body, signal }),
   confirmReceipt: (id: number, body: { amountReceived: number; notes?: string | null }, signal?: AbortSignal) =>
     request<PettyCashRequest>(`/finance/petty-cash/${id}/receipt-confirmation`, { method: 'POST', body, signal }),
-  reconcile: (id: number, body: { amountSpent: number; amountReturned: number; evidenceReference: string; returnReference?: string | null; notes?: string | null }, signal?: AbortSignal) =>
+  reconcile: (id: number, body: { amountSpent: number; amountReturned: number; evidenceReference: string; returnReference?: string | null; notes: string }, signal?: AbortSignal) =>
     request<PettyCashRequest>(`/finance/petty-cash/${id}/reconciliation`, { method: 'POST', body, signal }),
   reviewReconciliation: (id: number, body: { approve: boolean; notes: string }, signal?: AbortSignal) =>
     request<PettyCashRequest>(`/finance/petty-cash/${id}/reconciliation-decision`, { method: 'POST', body, signal }),

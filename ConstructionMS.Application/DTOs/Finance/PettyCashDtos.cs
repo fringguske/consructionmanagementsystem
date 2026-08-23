@@ -45,7 +45,7 @@ public sealed class SubmitPettyCashReconciliationDto
     [DecimalPrecision(18, 2)] public decimal AmountReturned { get; set; }
     [Required, StringLength(500, MinimumLength = 3)] public string EvidenceReference { get; set; } = string.Empty;
     [StringLength(100)] public string? ReturnReference { get; set; }
-    [StringLength(1_000)] public string? Notes { get; set; }
+    [Required, StringLength(1_000, MinimumLength = 3)] public string Notes { get; set; } = string.Empty;
 }
 
 public sealed class ReviewPettyCashReconciliationDto

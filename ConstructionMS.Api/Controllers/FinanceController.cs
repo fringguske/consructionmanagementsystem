@@ -69,6 +69,12 @@ public sealed class FinanceController(IFinanceWorkflowService finance) : Control
         Ok(ApiResponse<PaginatedResult<PaymentResponseDto>>.Ok(
             await finance.GetPaymentsAsync(page, pageSize, ActorId(), Role())));
 
+    [HttpGet("cash-book")]
+    [Authorize(Roles = "CEO,Auditor")]
+    public async Task<IActionResult> GetCashBook() =>
+        Ok(ApiResponse<CashBookResponseDto>.Ok(
+            await finance.GetCashBookAsync(ActorId(), Role())));
+
     [HttpGet("control-events")]
     [Authorize(Roles = "CEO,Auditor")]
     public async Task<IActionResult> GetControlEvents(
