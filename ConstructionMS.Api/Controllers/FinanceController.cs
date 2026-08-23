@@ -74,10 +74,14 @@ public sealed class FinanceController(IFinanceWorkflowService finance) : Control
     public async Task<IActionResult> GetControlEvents(
         [FromQuery, Range(1, int.MaxValue)] int page = 1,
         [FromQuery, Range(1, Pagination.MaxPageSize)] int pageSize = Pagination.DefaultPageSize,
-        [FromQuery] int? projectId = null,
-        [FromQuery] int? requisitionId = null) =>
+        [FromQuery, Range(1, int.MaxValue)] int? projectId = null,
+        [FromQuery, Range(1, int.MaxValue)] int? requisitionId = null,
+        [FromQuery, StringLength(80, MinimumLength = 3), RegularExpression(
+            @"^[A-Z][A-Z0-9]*-[1-9][0-9]*$",
+            ErrorMessage = "Chain key must use the format PREFIX-ID, for example REQ-42 or TRF-7.")]
+        string? chainKey = null) =>
         Ok(ApiResponse<PaginatedResult<ControlEventResponseDto>>.Ok(
-            await finance.GetControlEventsAsync(page, pageSize, ActorId(), Role(), projectId, requisitionId)));
+            await finance.GetControlEventsAsync(page, pageSize, ActorId(), Role(), projectId, requisitionId, chainKey)));
 
     private int ActorId() => User.GetRequiredUserId();
     private string Role() => User.FindFirstValue(ClaimTypes.Role)

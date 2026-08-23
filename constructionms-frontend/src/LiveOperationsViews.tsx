@@ -81,8 +81,6 @@ export function LiveInventoryView({ currentUser }: { currentUser: CurrentUser })
     }
     if (role === 'CEO') {
       tasks.push(inventoryApi.receipts(controller.signal))
-      tasks.push(requisitionsApi.list({ page: 1, pageSize: 100 }, controller.signal))
-      tasks.push(purchaseOrdersApi.list({ page: 1, pageSize: 100 }, controller.signal))
     }
     if (role === 'Storekeeper') {
       tasks.push(purchaseOrdersApi.list({ page: 1, pageSize: 100, status: 'Issued' }, controller.signal))
@@ -106,8 +104,6 @@ export function LiveInventoryView({ currentUser }: { currentUser: CurrentUser })
       }
       if (role === 'CEO') {
         setReceipts((results[index++] as { items: GoodsReceipt[] }).items)
-        setRequisitions((results[index++] as { items: Requisition[] }).items)
-        setOrders((results[index++] as { items: PurchaseOrder[] }).items)
       }
       if (role === 'Storekeeper') {
         setOrders((results[index++] as { items: PurchaseOrder[] }).items)
@@ -134,7 +130,7 @@ export function LiveInventoryView({ currentUser }: { currentUser: CurrentUser })
     {role === 'Supervisor' && <SupervisorInventoryActions currentUser={currentUser} balances={balances} materials={materials} transfers={transfers} counts={counts} onChanged={changed}/>}
     {role === 'Foreman' && <ForemanIssueActions currentUser={currentUser} issues={issues} onChanged={changed}/>}
     {role === 'CEO'
-      ? <CeoMaterialsInventory currentUser={currentUser} balances={balances} ledger={ledger} issues={issues} transfers={transfers} counts={counts} receipts={receipts} requisitions={requisitions} orders={orders}/>
+      ? <CeoMaterialsInventory currentUser={currentUser} balances={balances} ledger={ledger} issues={issues} transfers={transfers} counts={counts} receipts={receipts}/>
       : <>
         <StockCards balances={balances}/>
         {role !== 'Foreman' && <section className="lav-panel ops-panel">
@@ -539,7 +535,7 @@ export function LiveAuditView() {
   const [error, setError] = useState<string | null>(null)
   useEffect(() => {
     const controller = new AbortController()
-    financeApi.controlEvents(controller.signal)
+    financeApi.controlEvents({}, controller.signal)
       .then(result => { setEvents(result.items); setError(null) })
       .catch(error => {
         if (!(error instanceof DOMException && error.name === 'AbortError')) setError(messageOf(error))

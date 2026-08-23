@@ -249,12 +249,38 @@ public sealed class FinanceWorkflowService : IFinanceWorkflowService
     }
 
     public async Task<PaginatedResult<ControlEventResponseDto>> GetControlEventsAsync(
-        int page, int pageSize, int actorUserId, string actorRole, int? projectId = null, int? requisitionId = null)
+        int page, int pageSize, int actorUserId, string actorRole, int? projectId = null,
+        int? requisitionId = null, string? chainKey = null)
     {
         await RequireAnyRoleAsync(actorUserId, actorRole, "CEO", "Auditor");
+        if (projectId is <= 0) throw new ArgumentException("Project ID must be positive.", nameof(projectId));
+        if (requisitionId is <= 0) throw new ArgumentException("Requisition ID must be positive.", nameof(requisitionId));
+
+        var normalizedChainKey = NormalizeChainKey(chainKey);
+        var effectiveRequisitionId = requisitionId;
+        var isStandaloneChain = false;
+        if (normalizedChainKey is not null)
+        {
+            if (normalizedChainKey.StartsWith("REQ-", StringComparison.Ordinal))
+            {
+                if (!int.TryParse(normalizedChainKey.AsSpan(4), out var chainRequisitionId))
+                    throw new ArgumentException("The requisition chain ID is outside the supported range.", nameof(chainKey));
+                if (requisitionId.HasValue && requisitionId.Value != chainRequisitionId)
+                    throw new ArgumentException("The requisition ID does not match the requested chain key.", nameof(requisitionId));
+                effectiveRequisitionId = chainRequisitionId;
+            }
+            else
+            {
+                if (requisitionId.HasValue)
+                    throw new ArgumentException("A requisition ID cannot be combined with a standalone chain key.", nameof(requisitionId));
+                isStandaloneChain = true;
+            }
+        }
+
         var controlQuery = _db.ControlEvents.AsNoTracking();
         if (projectId.HasValue) controlQuery = controlQuery.Where(item => item.ProjectId == projectId.Value);
-        if (requisitionId.HasValue) controlQuery = controlQuery.Where(item => item.RequisitionId == requisitionId.Value);
+        if (effectiveRequisitionId.HasValue) controlQuery = controlQuery.Where(item => item.RequisitionId == effectiveRequisitionId.Value);
+        if (normalizedChainKey is not null) controlQuery = controlQuery.Where(item => item.ChainKey == normalizedChainKey);
         var controls = await controlQuery.Include(item => item.Project).Include(item => item.ActorUser)
             .Select(item => new ControlEventResponseDto
             {
@@ -268,46 +294,52 @@ public sealed class FinanceWorkflowService : IFinanceWorkflowService
                 DetailsJson = item.DetailsJson, OccurredAt = item.OccurredAt, EventHash = item.EventHash
             }).ToListAsync();
 
-        var reqQuery = _db.RequisitionApprovalEvents.AsNoTracking().AsQueryable();
-        if (projectId.HasValue) reqQuery = reqQuery.Where(item => item.Requisition.ProjectId == projectId.Value);
-        if (requisitionId.HasValue) reqQuery = reqQuery.Where(item => item.RequisitionId == requisitionId.Value);
-        var requisitions = await reqQuery.Select(item => new ControlEventResponseDto
+        var requisitions = new List<ControlEventResponseDto>();
+        var sourcing = new List<ControlEventResponseDto>();
+        var orders = new List<ControlEventResponseDto>();
+        if (!isStandaloneChain)
         {
-            ChainKey = "REQ-" + item.RequisitionId, SequenceNumber = item.SequenceNumber, RequisitionId = item.RequisitionId,
-            ProjectId = item.Requisition.ProjectId, ProjectName = item.Requisition.Project.Name, EntityType = "Requisition", EntityId = item.RequisitionId,
-            ReferenceNumber = "MR-" + item.RequisitionId, EventType = item.EventType, ActorName = item.ActorUser.FullName,
-            ActorRole = item.ActorRole, MaterialName = item.Requisition.Material.Name,
-            MaterialUnit = item.Requisition.Material.Unit, RequestedQuantity = item.Requisition.Quantity,
-            DetailsJson = item.EventDataJson, OccurredAt = item.OccurredAt, EventHash = item.EventHash
-        }).ToListAsync();
+            var reqQuery = _db.RequisitionApprovalEvents.AsNoTracking().AsQueryable();
+            if (projectId.HasValue) reqQuery = reqQuery.Where(item => item.Requisition.ProjectId == projectId.Value);
+            if (effectiveRequisitionId.HasValue) reqQuery = reqQuery.Where(item => item.RequisitionId == effectiveRequisitionId.Value);
+            requisitions = await reqQuery.Select(item => new ControlEventResponseDto
+            {
+                ChainKey = "REQ-" + item.RequisitionId, SequenceNumber = item.SequenceNumber, RequisitionId = item.RequisitionId,
+                ProjectId = item.Requisition.ProjectId, ProjectName = item.Requisition.Project.Name, EntityType = "Requisition", EntityId = item.RequisitionId,
+                ReferenceNumber = "MR-" + item.RequisitionId, EventType = item.EventType, ActorName = item.ActorUser.FullName,
+                ActorRole = item.ActorRole, MaterialName = item.Requisition.Material.Name,
+                MaterialUnit = item.Requisition.Material.Unit, RequestedQuantity = item.Requisition.Quantity,
+                DetailsJson = item.EventDataJson, OccurredAt = item.OccurredAt, EventHash = item.EventHash
+            }).ToListAsync();
 
-        var sourcingQuery = _db.SourcingRoundEvents.AsNoTracking().AsQueryable();
-        if (projectId.HasValue) sourcingQuery = sourcingQuery.Where(item => item.SourcingRound.Requisition.ProjectId == projectId.Value);
-        if (requisitionId.HasValue) sourcingQuery = sourcingQuery.Where(item => item.SourcingRound.RequisitionId == requisitionId.Value);
-        var sourcing = await sourcingQuery.Select(item => new ControlEventResponseDto
-        {
-            ChainKey = "REQ-" + item.SourcingRound.RequisitionId, SequenceNumber = 1000 + (int)item.Id,
-            RequisitionId = item.SourcingRound.RequisitionId, ProjectId = item.SourcingRound.Requisition.ProjectId,
-            ProjectName = item.SourcingRound.Requisition.Project.Name, EntityType = "SourcingRound", EntityId = item.SourcingRoundId,
-            ReferenceNumber = "SRC-" + item.SourcingRoundId, EventType = item.EventType, ActorName = item.ActorUser.FullName,
-            ActorRole = item.ActorRole, MaterialName = item.SourcingRound.Requisition.Material.Name,
-            MaterialUnit = item.SourcingRound.Requisition.Material.Unit, RequestedQuantity = item.SourcingRound.Requisition.Quantity,
-            DetailsJson = item.Notes, OccurredAt = item.OccurredAt, EventHash = string.Empty
-        }).ToListAsync();
+            var sourcingQuery = _db.SourcingRoundEvents.AsNoTracking().AsQueryable();
+            if (projectId.HasValue) sourcingQuery = sourcingQuery.Where(item => item.SourcingRound.Requisition.ProjectId == projectId.Value);
+            if (effectiveRequisitionId.HasValue) sourcingQuery = sourcingQuery.Where(item => item.SourcingRound.RequisitionId == effectiveRequisitionId.Value);
+            sourcing = await sourcingQuery.Select(item => new ControlEventResponseDto
+            {
+                ChainKey = "REQ-" + item.SourcingRound.RequisitionId, SequenceNumber = 1000 + (int)item.Id,
+                RequisitionId = item.SourcingRound.RequisitionId, ProjectId = item.SourcingRound.Requisition.ProjectId,
+                ProjectName = item.SourcingRound.Requisition.Project.Name, EntityType = "SourcingRound", EntityId = item.SourcingRoundId,
+                ReferenceNumber = "SRC-" + item.SourcingRoundId, EventType = item.EventType, ActorName = item.ActorUser.FullName,
+                ActorRole = item.ActorRole, MaterialName = item.SourcingRound.Requisition.Material.Name,
+                MaterialUnit = item.SourcingRound.Requisition.Material.Unit, RequestedQuantity = item.SourcingRound.Requisition.Quantity,
+                DetailsJson = item.Notes, OccurredAt = item.OccurredAt, EventHash = string.Empty
+            }).ToListAsync();
 
-        var poQuery = _db.PurchaseOrderEvents.AsNoTracking().AsQueryable();
-        if (projectId.HasValue) poQuery = poQuery.Where(item => item.PurchaseOrder.ProjectId == projectId.Value);
-        if (requisitionId.HasValue) poQuery = poQuery.Where(item => item.PurchaseOrder.RequisitionId == requisitionId.Value);
-        var orders = await poQuery.Select(item => new ControlEventResponseDto
-        {
-            ChainKey = "REQ-" + item.PurchaseOrder.RequisitionId, SequenceNumber = 2000 + (int)item.Id,
-            RequisitionId = item.PurchaseOrder.RequisitionId, ProjectId = item.PurchaseOrder.ProjectId,
-            ProjectName = item.PurchaseOrder.Project.Name, EntityType = "PurchaseOrder", EntityId = item.PurchaseOrderId,
-            ReferenceNumber = item.PurchaseOrder.PurchaseOrderNumber, EventType = item.EventType, ActorName = item.ActorUser.FullName,
-            ActorRole = item.ActorRole, MaterialName = item.PurchaseOrder.Requisition.Material.Name,
-            MaterialUnit = item.PurchaseOrder.Requisition.Material.Unit, RequestedQuantity = item.PurchaseOrder.Requisition.Quantity,
-            DetailsJson = item.DetailsJson, OccurredAt = item.OccurredAt, EventHash = string.Empty
-        }).ToListAsync();
+            var poQuery = _db.PurchaseOrderEvents.AsNoTracking().AsQueryable();
+            if (projectId.HasValue) poQuery = poQuery.Where(item => item.PurchaseOrder.ProjectId == projectId.Value);
+            if (effectiveRequisitionId.HasValue) poQuery = poQuery.Where(item => item.PurchaseOrder.RequisitionId == effectiveRequisitionId.Value);
+            orders = await poQuery.Select(item => new ControlEventResponseDto
+            {
+                ChainKey = "REQ-" + item.PurchaseOrder.RequisitionId, SequenceNumber = 2000 + (int)item.Id,
+                RequisitionId = item.PurchaseOrder.RequisitionId, ProjectId = item.PurchaseOrder.ProjectId,
+                ProjectName = item.PurchaseOrder.Project.Name, EntityType = "PurchaseOrder", EntityId = item.PurchaseOrderId,
+                ReferenceNumber = item.PurchaseOrder.PurchaseOrderNumber, EventType = item.EventType, ActorName = item.ActorUser.FullName,
+                ActorRole = item.ActorRole, MaterialName = item.PurchaseOrder.Requisition.Material.Name,
+                MaterialUnit = item.PurchaseOrder.Requisition.Material.Unit, RequestedQuantity = item.PurchaseOrder.Requisition.Quantity,
+                DetailsJson = item.DetailsJson, OccurredAt = item.OccurredAt, EventHash = string.Empty
+            }).ToListAsync();
+        }
 
         var all = requisitions.Concat(sourcing).Concat(orders).Concat(controls)
             .OrderByDescending(item => item.OccurredAt).ThenByDescending(item => item.SequenceNumber).ToList();
@@ -407,6 +439,28 @@ public sealed class FinanceWorkflowService : IFinanceWorkflowService
         (await _roles.ResolveAsync(userId))?.CanSwitchRoles == true;
     private static string Reference(string prefix, DateTime now) => $"{prefix}-{now:yyMMdd}-{Guid.NewGuid():N}"[..30];
     private static string Chain(int requisitionId) => $"REQ-{requisitionId}";
+    private static string? NormalizeChainKey(string? chainKey)
+    {
+        if (chainKey is null) return null;
+        var normalized = chainKey.Trim();
+        if (normalized.Length is < 3 or > 80)
+            throw new ArgumentException("Chain key must be between 3 and 80 characters.", nameof(chainKey));
+
+        var separator = normalized.LastIndexOf('-');
+        var prefix = separator > 0 ? normalized[..separator] : string.Empty;
+        var idText = separator > 0 ? normalized[(separator + 1)..] : string.Empty;
+        if (prefix.Length == 0
+            || prefix.Any(character => character is not (>= 'A' and <= 'Z') and not (>= '0' and <= '9'))
+            || prefix[0] is not (>= 'A' and <= 'Z')
+            || idText.Length == 0
+            || idText[0] == '0'
+            || idText.Any(character => character is not (>= '0' and <= '9'))
+            || !long.TryParse(idText, out var id)
+            || id <= 0)
+            throw new ArgumentException("Chain key must use the format PREFIX-ID, for example REQ-42 or TRF-7.", nameof(chainKey));
+
+        return normalized;
+    }
     private static PaginatedResult<T> Page<T>(IReadOnlyList<T> items, int total, int page, int pageSize) => new()
     { Items = items, TotalCount = total, Page = page, PageSize = pageSize };
 }

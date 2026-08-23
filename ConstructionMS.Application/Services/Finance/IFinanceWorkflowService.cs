@@ -13,5 +13,12 @@ public interface IFinanceWorkflowService
     Task<PaginatedResult<PaymentAuthorizationResponseDto>> GetAuthorizationsAsync(int page, int pageSize, int actorUserId, string actorRole, bool unpaidOnly = false);
     Task<PaymentResponseDto> ExecutePaymentAsync(long authorizationId, ExecutePaymentRequestDto request, int actorUserId, string actorRole);
     Task<PaginatedResult<PaymentResponseDto>> GetPaymentsAsync(int page, int pageSize, int actorUserId, string actorRole);
-    Task<PaginatedResult<ControlEventResponseDto>> GetControlEventsAsync(int page, int pageSize, int actorUserId, string actorRole, int? projectId = null, int? requisitionId = null);
+    Task<PaginatedResult<ControlEventResponseDto>> GetControlEventsAsync(
+        int page,
+        int pageSize,
+        int actorUserId,
+        string actorRole,
+        int? projectId = null,
+        int? requisitionId = null,
+        string? chainKey = null);
 }

@@ -769,7 +769,10 @@ export const financeApi = {
   pay: (id: number, body: { method: string; externalReference: string; evidenceReference?: string | null }, signal?: AbortSignal) =>
     request<Payment>(`/finance/authorizations/${id}/pay`, { method: 'POST', body, signal }),
   payments: (signal?: AbortSignal) => request<PaginatedResult<Payment>>('/finance/payments', { signal }, { page: 1, pageSize: 100 }),
-  controlEvents: (signal?: AbortSignal) => request<PaginatedResult<ControlEvent>>('/finance/control-events', { signal }, { page: 1, pageSize: 100 }),
+  controlEvents: (
+    query: { projectId?: number; requisitionId?: number; chainKey?: string } = {},
+    signal?: AbortSignal,
+  ) => request<PaginatedResult<ControlEvent>>('/finance/control-events', { signal }, { page: 1, pageSize: 100, ...query }),
 }
 
 export const pettyCashApi = {

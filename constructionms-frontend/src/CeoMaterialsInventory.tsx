@@ -1,15 +1,15 @@
-import { useMemo, useState, type ReactNode } from 'react'
-import { Link } from 'react-router'
-import type {
-  CurrentUser,
-  GoodsReceipt,
-  MaterialIssue,
-  PurchaseOrder,
-  Requisition,
-  StockBalance,
-  StockCount,
-  StockLedgerEntry,
-  StockTransfer,
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import {
+  ApiError,
+  financeApi,
+  type ControlEvent,
+  type CurrentUser,
+  type GoodsReceipt,
+  type MaterialIssue,
+  type StockBalance,
+  type StockCount,
+  type StockLedgerEntry,
+  type StockTransfer,
 } from './api'
 import './ceo-materials-inventory.css'
 
@@ -31,11 +31,9 @@ type MaterialPosition = {
 
 type MovementContext = {
   entry: StockLedgerEntry
+  chainKey: string | null
   action: string
   route: string
-  recipient: string
-  approvedBy: string
-  activity: string
 }
 
 type Props = {
@@ -46,8 +44,6 @@ type Props = {
   transfers: StockTransfer[]
   counts: StockCount[]
   receipts: GoodsReceipt[]
-  requisitions: Requisition[]
-  orders: PurchaseOrder[]
 }
 
 function number(value: number) {
@@ -133,8 +129,6 @@ function movementContext(
   transfers: StockTransfer[],
   counts: StockCount[],
   receipts: GoodsReceipt[],
-  requisitions: Requisition[],
-  orders: PurchaseOrder[],
 ): MovementContext {
   const issue = entry.referenceType === 'MaterialIssue'
     ? issues.find(item => item.id === entry.referenceId)
@@ -148,59 +142,45 @@ function movementContext(
   const receipt = entry.referenceType === 'GoodsReceipt'
     ? receipts.find(item => item.id === entry.referenceId)
     : undefined
-  const requisitionId = issue?.requisitionId ?? receipt?.requisitionId
-  const requisition = requisitions.find(item => item.id === requisitionId)
-  const order = receipt ? orders.find(item => item.id === receipt.purchaseOrderId) : undefined
-
   if (issue) return {
     entry,
+    chainKey: `REQ-${issue.requisitionId}`,
     action: `Issued to ${issue.issuedToName}`,
     route: `${entry.projectName} Store → ${issue.issuedToName}`,
-    recipient: issue.issuedToName,
-    approvedBy: requisition?.decidedByUserName ?? 'Supervisor approval recorded',
-    activity: requisition ? `${requisition.costCodeName}: ${requisition.purpose}` : entry.projectName,
   }
   if (receipt) return {
     entry,
+    chainKey: `REQ-${receipt.requisitionId}`,
     action: `Received by ${receipt.receivedByName}`,
     route: `${receipt.supplierName} → ${entry.projectName} Store`,
-    recipient: `${entry.projectName} Store`,
-    approvedBy: order?.approvedByUserName ?? 'Purchase order approval recorded',
-    activity: requisition ? `${requisition.costCodeName}: ${requisition.purpose}` : entry.projectName,
   }
   if (transfer) return {
     entry,
+    chainKey: `TRF-${transfer.id}`,
     action: entry.movementType === 'TransferOut'
       ? 'Transfer dispatched'
       : `Transfer received by ${transfer.receivedByName ?? 'receiving Storekeeper'}`,
     route: `${transfer.fromProjectName} Store → ${transfer.toProjectName} Store`,
-    recipient: transfer.receivedByName ?? `${transfer.toProjectName} Store`,
-    approvedBy: transfer.requestedByName,
-    activity: transfer.reason,
   }
   if (count) return {
     entry,
+    chainKey: `CNT-${count.id}`,
     action: 'Count adjusted',
     route: `${entry.projectName} Store`,
-    recipient: `${entry.projectName} Store`,
-    approvedBy: count.reviewedByName ?? 'Awaiting Supervisor review',
-    activity: count.notes,
   }
   return {
     entry,
+    chainKey: null,
     action: entry.movementType.replaceAll(/([A-Z])/g, ' $1').trim(),
     route: `${entry.projectName} Store`,
-    recipient: `${entry.projectName} Store`,
-    approvedBy: 'Recorded workflow',
-    activity: entry.notes ?? entry.projectName,
   }
 }
 
 export function CeoMaterialsInventory(props: Props) {
-  const { currentUser, balances, ledger, issues, transfers, counts, receipts, requisitions, orders } = props
+  const { currentUser, balances, ledger, issues, transfers, counts, receipts } = props
   const [tab, setTab] = useState<InventoryTab>('overview')
   const [selectedMaterialId, setSelectedMaterialId] = useState<number | null>(null)
-  const [expandedMovementId, setExpandedMovementId] = useState<number | null>(null)
+  const [auditMovement, setAuditMovement] = useState<MovementContext | null>(null)
   const now = useMemo(() => new Date(), [])
   const [fromDate, setFromDate] = useState(inputDate(new Date(now.getFullYear(), now.getMonth(), 1)))
   const [toDate, setToDate] = useState(inputDate(now))
@@ -215,19 +195,26 @@ export function CeoMaterialsInventory(props: Props) {
   const contexts = useMemo(
     () => [...ledger]
       .sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime() || b.id - a.id)
-      .map(entry => movementContext(entry, issues, transfers, counts, receipts, requisitions, orders)),
-    [ledger, issues, transfers, counts, receipts, requisitions, orders],
+      .map(entry => movementContext(entry, issues, transfers, counts, receipts)),
+    [ledger, issues, transfers, counts, receipts],
   )
   const selected = positions.find(item => item.materialId === selectedMaterialId) ?? null
 
-  if (selected) return <MaterialStockCard
-    position={selected}
-    movements={contexts.filter(item => item.entry.materialId === selected.materialId)}
-    issues={issues.filter(item => item.materialId === selected.materialId)}
-    expandedMovementId={expandedMovementId}
-    setExpandedMovementId={setExpandedMovementId}
-    onBack={() => { setSelectedMaterialId(null); setExpandedMovementId(null) }}
-  />
+  useEffect(() => {
+    if (!selectedMaterialId && !auditMovement) return
+    const previousOverflow = document.body.style.overflow
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      if (auditMovement) setAuditMovement(null)
+      else setSelectedMaterialId(null)
+    }
+    document.body.style.overflow = 'hidden'
+    document.addEventListener('keydown', closeOnEscape)
+    return () => {
+      document.body.style.overflow = previousOverflow
+      document.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [auditMovement, selectedMaterialId])
 
   const pendingHandovers = issues.filter(item => item.status === 'AwaitingConfirmation')
   const countDifferences = counts.filter(item => item.status === 'AwaitingReview' && item.variance !== 0)
@@ -310,7 +297,7 @@ export function CeoMaterialsInventory(props: Props) {
 
       <section className="ceo-inventory-panel recent-movements">
         <header><h2>Recent movements</h2></header>
-        {contexts.length ? <div className="recent-movement-list">{contexts.slice(0, 5).map(item => <button type="button" key={item.entry.id} onClick={() => { setTab('movements'); setExpandedMovementId(item.entry.id) }}>
+        {contexts.length ? <div className="recent-movement-list">{contexts.slice(0, 5).map(item => <button type="button" key={item.entry.id} onClick={() => setAuditMovement(item)}>
           <strong>{quantity(Math.abs(item.entry.quantityDelta), item.entry.unit)} {item.action.toLowerCase()}</strong>
           <span>{item.entry.materialName} · {dateTime(item.entry.occurredAt)}</span>
         </button>)}</div> : <InventoryEmpty>No material movement has been recorded.</InventoryEmpty>}
@@ -348,8 +335,7 @@ export function CeoMaterialsInventory(props: Props) {
       <header><h2>Movement history</h2></header>
       <MovementHistory
         movements={contexts}
-        expandedMovementId={expandedMovementId}
-        setExpandedMovementId={setExpandedMovementId}
+        onMovementClick={setAuditMovement}
       />
     </section>}
 
@@ -366,21 +352,36 @@ export function CeoMaterialsInventory(props: Props) {
         {disputedTransfers.map(item => <article key={item.id}><div><strong>{item.materialName}</strong><span>{item.fromProjectName} to {item.toProjectName}</span></div><b>{quantity(item.quantity, item.materialUnit)}</b></article>)}
       </ExceptionList>
     </section>}
+
+    {selected && <div className="inventory-modal-backdrop" onMouseDown={event => {
+      if (event.target === event.currentTarget) setSelectedMaterialId(null)
+    }}>
+      <div className="inventory-modal-card" role="dialog" aria-modal="true" aria-labelledby="material-stock-title">
+        <MaterialStockCard
+          position={selected}
+          movements={contexts.filter(item => item.entry.materialId === selected.materialId)}
+          issues={issues.filter(item => item.materialId === selected.materialId)}
+          onMovementClick={setAuditMovement}
+          onBack={() => setSelectedMaterialId(null)}
+        />
+      </div>
+    </div>}
+
+    {auditMovement && <AuditHistoryModal key={`${auditMovement.entry.id}-${auditMovement.chainKey ?? 'unlinked'}`} movement={auditMovement} onClose={() => setAuditMovement(null)}/>}
   </section>
 }
 
-function MaterialStockCard({ position, movements, issues, expandedMovementId, setExpandedMovementId, onBack }: {
+function MaterialStockCard({ position, movements, issues, onMovementClick, onBack }: {
   position: MaterialPosition
   movements: MovementContext[]
   issues: MaterialIssue[]
-  expandedMovementId: number | null
-  setExpandedMovementId: (id: number | null) => void
+  onMovementClick: (movement: MovementContext) => void
   onBack: () => void
 }) {
   const custody = issues.filter(item => custodyAmount(item) > 0)
   return <section className="ceo-inventory material-stock-card">
     <button type="button" className="inventory-back" onClick={onBack}><span aria-hidden="true">←</span> Back to Materials Inventory</button>
-    <header className="material-stock-heading"><div><h1>{position.materialName}</h1><span>{position.category}</span></div><b className={`inventory-state ${position.status.toLowerCase().replaceAll(' ', '-')}`}>{position.status}</b></header>
+    <header className="material-stock-heading"><div><h1 id="material-stock-title">{position.materialName}</h1><span>{position.category}</span></div><b className={`inventory-state ${position.status.toLowerCase().replaceAll(' ', '-')}`}>{position.status}</b></header>
     <div className="material-stock-facts">
       <span>In store<strong>{quantity(position.inStore, position.unit)}</strong></span>
       <span>Site custody<strong>{quantity(position.siteCustody, position.unit)}</strong></span>
@@ -388,20 +389,19 @@ function MaterialStockCard({ position, movements, issues, expandedMovementId, se
       <span className="total">Total company-controlled quantity<strong>{quantity(position.totalControlled, position.unit)}</strong></span>
     </div>
     {custody.length > 0 && <section className="ceo-inventory-panel"><header><h2>Site custody</h2></header><div className="custody-list">{custody.map(item => <article key={item.id}><div><strong>{item.issuedToName}</strong><span>{item.projectName}</span></div><b>{quantity(custodyAmount(item), item.materialUnit)}</b><span>{item.status === 'AwaitingConfirmation' ? 'Awaiting confirmation' : 'Confirmed'}</span></article>)}</div></section>}
-    <section className="ceo-inventory-panel"><header><h2>Material history</h2></header><MovementHistory movements={movements} expandedMovementId={expandedMovementId} setExpandedMovementId={setExpandedMovementId}/></section>
+    <section className="ceo-inventory-panel"><header><h2>Material history</h2></header><MovementHistory movements={movements} onMovementClick={onMovementClick}/></section>
   </section>
 }
 
-function MovementHistory({ movements, expandedMovementId, setExpandedMovementId }: {
+function MovementHistory({ movements, onMovementClick }: {
   movements: MovementContext[]
-  expandedMovementId: number | null
-  setExpandedMovementId: (id: number | null) => void
+  onMovementClick: (movement: MovementContext) => void
 }) {
   if (!movements.length) return <InventoryEmpty>No movement has been recorded.</InventoryEmpty>
   return <div className="movement-history">
     <div className="movement-history-row table-head"><span>Date</span><span>Reference</span><span>Material</span><span>Movement</span><span>From → To</span><span>Quantity</span><span>Balance</span></div>
-    {movements.map(item => <div className={`movement-history-item ${expandedMovementId === item.entry.id ? 'expanded' : ''}`} key={item.entry.id}>
-      <button type="button" className="movement-history-row" onClick={() => setExpandedMovementId(expandedMovementId === item.entry.id ? null : item.entry.id)}>
+    {movements.map(item => <div className="movement-history-item" key={item.entry.id}>
+      <button type="button" className="movement-history-row" aria-label={`Open full audit history for ${item.entry.materialName}`} onClick={() => onMovementClick(item)}>
         <span data-label="Date">{dateTime(item.entry.occurredAt)}</span>
         <span data-label="Reference"><strong>{documentReference(item.entry)}</strong></span>
         <span data-label="Material"><strong>{item.entry.materialName}</strong><small>{item.entry.projectName}</small></span>
@@ -410,14 +410,117 @@ function MovementHistory({ movements, expandedMovementId, setExpandedMovementId 
         <span data-label="Quantity" className={item.entry.quantityDelta < 0 ? 'negative' : 'positive'}>{item.entry.quantityDelta > 0 ? '+' : ''}{quantity(item.entry.quantityDelta, item.entry.unit)}</span>
         <span data-label="Balance">{quantity(item.entry.balanceAfter, item.entry.unit)}</span>
       </button>
-      {expandedMovementId === item.entry.id && <div className="movement-evidence">
-        <span>Project and activity<strong>{item.activity}</strong></span>
-        <span>Recipient<strong>{item.recipient}</strong></span>
-        <span>Recorded by<strong>{item.entry.actorName}</strong></span>
-        <span>Approved by<strong>{item.approvedBy}</strong></span>
-        <Link to="/audit">Open complete audit history</Link>
-      </div>}
     </div>)}
+  </div>
+}
+
+function auditEventLabel(item: ControlEvent) {
+  const labels: Record<string, string> = {
+    'Requisition:Requested': 'Material request created',
+    'Requisition:StockReplenishmentRequested': 'Store restock requested',
+    'Requisition:Revised': 'Material request revised',
+    'Requisition:TechnicalCheckVerified': 'Material request verified',
+    'Requisition:TechnicalRevisionRequired': 'Material request returned by Engineer',
+    'Requisition:SupervisorApproved': 'Material request approved',
+    'Requisition:SupervisorRejected': 'Material request rejected',
+    'Requisition:SupervisorReturnedForRevision': 'Material request returned by Supervisor',
+    'SourcingRound:Created': 'Supplier sourcing opened',
+    'SourcingRound:Awarded': 'Supplier quotation awarded',
+    'SourcingRound:AwardCancelled': 'Supplier quotation award cancelled',
+    'SourcingRound:Closed': 'Supplier sourcing closed',
+    'SourcingRound:Cancelled': 'Supplier sourcing cancelled',
+    'SourcingRound:Reopened': 'Supplier sourcing reopened',
+    'PurchaseOrder:Created': 'Purchase order created',
+    'PurchaseOrder:Submitted': 'Purchase order submitted',
+    'PurchaseOrder:Approved': 'Purchase order approved',
+    'PurchaseOrder:ReturnedToDraft': 'Purchase order returned for correction',
+    'PurchaseOrder:Corrected': 'Purchase order corrected',
+    'PurchaseOrder:Rejected': 'Purchase order rejected',
+    'PurchaseOrder:Cancelled': 'Purchase order cancelled',
+    'PurchaseOrder:Issued': 'Purchase order sent to supplier',
+    'GoodsReceipt:GoodsReceived': 'Delivery received into store',
+    'MaterialIssue:MaterialIssued': 'Material issued to Foreman',
+    'MaterialIssue:MaterialReceiptConfirmed': 'Foreman confirmed material received',
+    'MaterialIssue:MaterialReceiptDisputed': 'Foreman disputed material received',
+    'MaterialUsage:MaterialUsed': 'Material use recorded',
+    'MaterialUsage:MaterialWastageRecorded': 'Material wastage recorded',
+    'SupplierInvoice:InvoiceCaptured': 'Supplier invoice recorded',
+    'SupplierInvoice:InvoiceMatched': 'Supplier invoice matched',
+    'SupplierInvoice:InvoiceMatchedCeoException': 'Supplier invoice sent for CEO decision',
+    'SupplierInvoice:InvoiceMismatch': 'Supplier invoice mismatch recorded',
+    'SupplierInvoice:CeoExceptionApproved': 'Supplier invoice approved by CEO',
+    'SupplierInvoice:CeoExceptionRejected': 'Supplier invoice rejected by CEO',
+    'PaymentAuthorization:PaymentAuthorized': 'Supplier payment authorized',
+    'Payment:PaymentExecuted': 'Supplier payment completed',
+    'StockTransfer:TransferRequested': 'Store transfer requested',
+    'StockTransfer:TransferDispatched': 'Store transfer dispatched',
+    'StockTransfer:TransferReceived': 'Store transfer received',
+    'StockTransfer:TransferDisputed': 'Store transfer disputed',
+    'StockCount:StockCountSubmitted': 'Physical stock count submitted',
+    'StockCount:StockCountApproved': 'Physical stock count approved',
+    'StockCount:StockCountRejected': 'Physical stock count rejected',
+  }
+  return labels[`${item.entityType}:${item.eventType}`]
+    ?? `${item.entityType.replaceAll(/([A-Z])/g, ' $1').trim()} ${item.eventType.replaceAll(/([A-Z])/g, ' $1').trim().toLowerCase()}`
+}
+
+function auditEventMaterial(item: ControlEvent) {
+  if (!item.materialName || !item.materialUnit || item.requestedQuantity === null) return null
+  return `${quantity(item.requestedQuantity, item.materialUnit)} of ${item.materialName}`
+}
+
+function auditDate(value: string) {
+  return new Intl.DateTimeFormat('en-KE', {
+    day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+  }).format(new Date(value))
+}
+
+function AuditHistoryModal({ movement, onClose }: { movement: MovementContext; onClose: () => void }) {
+  const [events, setEvents] = useState<ControlEvent[]>([])
+  const [loading, setLoading] = useState(Boolean(movement.chainKey))
+  const [error, setError] = useState<string | null>(movement.chainKey ? null : 'No audit chain is linked to this movement.')
+
+  useEffect(() => {
+    if (!movement.chainKey) return
+    const controller = new AbortController()
+    financeApi.controlEvents({ chainKey: movement.chainKey }, controller.signal)
+      .then(result => {
+        setEvents([...result.items].sort((left, right) =>
+          new Date(left.occurredAt).getTime() - new Date(right.occurredAt).getTime()
+            || left.sequenceNumber - right.sequenceNumber))
+        setError(null)
+      })
+      .catch(cause => {
+        if (!(cause instanceof DOMException && cause.name === 'AbortError')) {
+          setError(cause instanceof ApiError || cause instanceof Error ? cause.message : 'The audit history could not be loaded.')
+        }
+      })
+      .finally(() => { if (!controller.signal.aborted) setLoading(false) })
+    return () => controller.abort()
+  }, [movement.chainKey])
+
+  return <div className="inventory-audit-backdrop" onMouseDown={event => {
+    if (event.target === event.currentTarget) onClose()
+  }}>
+    <section className="inventory-audit-card" role="dialog" aria-modal="true" aria-labelledby="inventory-audit-title">
+      <header>
+        <div><span>{documentReference(movement.entry)}</span><h2 id="inventory-audit-title">Full audit history</h2><p>{movement.entry.materialName} · {movement.entry.projectName}</p></div>
+        <div className="inventory-audit-heading-actions"><strong>{loading ? '…' : events.length}<small> events</small></strong><button type="button" onClick={onClose} aria-label="Close audit history">×</button></div>
+      </header>
+      {loading && <div className="inventory-audit-loading" role="status"><i/><span>Loading audit history…</span></div>}
+      {!loading && error && <p className="inventory-audit-error">{error}</p>}
+      {!loading && !error && events.length > 0 && <div className="inventory-audit-timeline">
+        {events.map((item, index) => {
+          const material = auditEventMaterial(item)
+          return <article key={`${item.entityType}-${item.entityId}-${item.sequenceNumber}`}>
+            <i>{index + 1}</i>
+            <div><span>{item.actorRole} · {item.actorName}</span><strong>{auditEventLabel(item)}{material ? `: ${material}` : ''}</strong></div>
+            <time>{auditDate(item.occurredAt)}</time>
+          </article>
+        })}
+      </div>}
+      {!loading && !error && events.length === 0 && <p className="inventory-audit-error">No audit event has been recorded for this movement.</p>}
+    </section>
   </div>
 }
 
