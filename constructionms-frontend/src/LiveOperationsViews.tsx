@@ -393,6 +393,8 @@ function MovementSummary({ issues, transfers, counts }: { issues: MaterialIssue[
   return <section className="ops-summary-grid"><article><span>Foreman handovers</span><strong>{issues.length}</strong><small>{issues.filter(item => item.status === 'Disputed').length} disputed</small></article><article><span>Transfers moving</span><strong>{transfers.filter(item => item.status === 'InTransit').length}</strong><small>Require destination confirmation</small></article><article><span>Count differences</span><strong>{counts.filter(item => item.variance !== 0).length}</strong><small>Nothing is silently overwritten</small></article></section>
 }
 
+type FinanceDeskSection = 'invoices' | 'authorized' | 'executed'
+
 export function LiveFinanceView({ currentUser }: { currentUser: CurrentUser }) {
   const [invoices, setInvoices] = useState<SupplierInvoice[]>([])
   const [authorizations, setAuthorizations] = useState<PaymentAuthorization[]>([])
@@ -404,6 +406,7 @@ export function LiveFinanceView({ currentUser }: { currentUser: CurrentUser }) {
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [refresh, setRefresh] = useState(0)
+  const [financeSection, setFinanceSection] = useState<FinanceDeskSection>('invoices')
   const role = currentUser.role
   const loading = loadedRequest?.role !== role || loadedRequest.refresh !== refresh
   const cashBookRequestIsCurrent = cashBookRequest?.role === role && cashBookRequest.refresh === refresh
@@ -424,13 +427,18 @@ export function LiveFinanceView({ currentUser }: { currentUser: CurrentUser }) {
   const run = async (action: () => Promise<unknown>, text: string) => { try { await action(); setNotice(text); setError(null); setRefresh(v => v + 1); return true } catch (error) { setError(messageOf(error)); return false } }
   return <div className="lav-view ops-view"><header className="lav-page-head"><div><h1>{role === 'Procurement Officer' ? 'Supplier invoices' : 'Invoices and payments'}</h1></div></header>{error && <Notice tone="error">{error}</Notice>}{notice && <Notice tone="success">{notice}</Notice>}
     {loading ? <Loading>Loading finance records…</Loading> : <>
+    {role === 'Finance Officer' && <nav className="ops-action-nav finance-section-nav" aria-label="Invoices and payments sections">
+      <button type="button" className={financeSection === 'invoices' ? 'active' : ''} aria-current={financeSection === 'invoices' ? 'page' : undefined} onClick={() => setFinanceSection('invoices')}>Supplier invoices</button>
+      <button type="button" className={financeSection === 'authorized' ? 'active' : ''} aria-current={financeSection === 'authorized' ? 'page' : undefined} onClick={() => setFinanceSection('authorized')}>Authorized payments</button>
+      <button type="button" className={financeSection === 'executed' ? 'active' : ''} aria-current={financeSection === 'executed' ? 'page' : undefined} onClick={() => setFinanceSection('executed')}>Executed payments</button>
+    </nav>}
     {role === 'Procurement Officer' && <InvoiceCapture orders={orders} receipts={receipts} invoices={invoices} onRun={run}/>}
-    <section className="lav-panel ops-panel"><header className="lav-panel-head"><div><span className="lav-kicker">THREE-WAY MATCH</span><h2>Supplier invoices</h2></div><strong>{invoices.length} records</strong></header>{invoices.length ? <div className="ops-invoice-grid">{invoices.map(invoice => <InvoiceCard key={invoice.id} invoice={invoice} currentUser={currentUser} run={run}/>)}</div> : <Empty>Invoices appear only after an issued PO has an accepted GRN.</Empty>}</section>
+    {(role !== 'Finance Officer' || financeSection === 'invoices') && <section className="lav-panel ops-panel"><header className="lav-panel-head"><div><span className="lav-kicker">THREE-WAY MATCH</span><h2>Supplier invoices</h2></div><strong>{invoices.length} records</strong></header>{invoices.length ? <div className="ops-invoice-grid">{invoices.map(invoice => <InvoiceCard key={invoice.id} invoice={invoice} currentUser={currentUser} run={run}/>)}</div> : <Empty>Invoices appear only after an issued PO has an accepted GRN.</Empty>}</section>}
     {role === 'CEO' && cashBookLoading && <section className="lav-panel ops-panel"><Loading>Loading cash book…</Loading></section>}
     {role === 'CEO' && cashBookError && <section className="lav-panel ops-panel"><Notice tone="error">{cashBookError}</Notice></section>}
     {role === 'CEO' && cashBook && <CeoCashBook cashBook={cashBook}/>}
-    {role === 'Finance Officer' && <FinancePaymentActions currentUser={currentUser} authorizations={authorizations} run={run}/>}
-    {role !== 'Procurement Officer' && <section className="lav-panel ops-panel"><header className="lav-panel-head"><div><span className="lav-kicker">PAYMENT PROOF</span><h2>Executed payments</h2></div></header>{payments.length ? <div className="ops-table"><div className="ops-row payment head"><span>Payment</span><span>Amount</span><span>Method</span><span>External proof</span></div>{payments.map(payment => <div className="ops-row payment" key={payment.id}><span><b>{payment.displayNumber}</b><small>{when(payment.paidAt)}</small></span><span>{money(payment.amount)}</span><span>{payment.method}</span><span><b>{payment.externalReference}</b><small>Recorded by {payment.paidByName}</small></span></div>)}</div> : <Empty>No payment has been executed.</Empty>}</section>}
+    {role === 'Finance Officer' && financeSection === 'authorized' && <FinancePaymentActions currentUser={currentUser} authorizations={authorizations} run={run}/>}
+    {role !== 'Procurement Officer' && (role !== 'Finance Officer' || financeSection === 'executed') && <section className="lav-panel ops-panel"><header className="lav-panel-head"><div><span className="lav-kicker">PAYMENT PROOF</span><h2>Executed payments</h2></div></header>{payments.length ? <div className="ops-table"><div className="ops-row payment head"><span>Payment</span><span>Amount</span><span>Method</span><span>External proof</span></div>{payments.map(payment => <div className="ops-row payment" key={payment.id}><span data-label="Payment"><b>{payment.displayNumber}</b><small>{when(payment.paidAt)}</small></span><span data-label="Amount">{money(payment.amount)}</span><span data-label="Method">{payment.method}</span><span data-label="External proof"><b>{payment.externalReference}</b><small>Recorded by {payment.paidByName}</small></span></div>)}</div> : <Empty>No payment has been executed.</Empty>}</section>}
     </>}
   </div>
 }

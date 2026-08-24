@@ -48,5 +48,15 @@
 .technical-review-result{display:grid;gap:.25rem}.technical-review-result span,.technical-review-result p{margin:0;color:#64726c;font-size:.78rem}.technical-review-result p{color:#334b44}
 .technical-load-more{display:flex;align-items:center;justify-content:center;gap:.7rem;padding:0 1rem 1rem;background:#f3f6f4}.technical-load-more span{color:#64726c;font-size:.84rem;font-weight:700}
 
+.ops-action-nav.finance-section-nav{grid-template-columns:repeat(3,minmax(0,1fr))}
+
+@media(max-width:680px){
+  .ops-action-nav.finance-section-nav{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .ops-action-nav.finance-section-nav button{min-height:56px;border-bottom:0;padding:.55rem .35rem;line-height:1.25}
+  .ops-action-nav.finance-section-nav button:nth-child(2){border-right:1px solid #cbd4db}
+  .ops-row.payment:not(.head)>span{min-width:0;align-content:start;gap:.2rem}
+  .ops-row.payment:not(.head)>span::before{content:attr(data-label);color:#71808c;font-size:.72rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase}
+}
+
 /* Match the readable operational type scale used in the CEO inventory workspace. */
 .technical-acceptance-toolbar>div>span,.technical-acceptance-toolbar nav button{font-size:.86rem}.technical-acceptance-toolbar nav b,.technical-decision{font-size:.8rem}.technical-delivery-list>article>header span,.technical-delivery-facts small,.technical-delivery-facts em{font-size:.82rem}.technical-delivery-facts strong,.technical-outcome-options label{font-size:.9rem}.technical-delivery-list>article>footer>span,.technical-delivery-list>article>footer>p,.technical-receipt-summary,.technical-outcome-options legend,.technical-review-result span,.technical-review-result p,.invoice-technical-state,.invoice-technical-state b{font-size:.84rem}
