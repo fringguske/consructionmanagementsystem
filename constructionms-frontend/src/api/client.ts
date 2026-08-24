@@ -46,6 +46,9 @@ import type {
   SupervisorDecisionRequest,
   SwitchRoleRequest,
   TechnicalCheckRequest,
+  TechnicalAcceptanceOutcome,
+  TechnicalAcceptanceStatus,
+  TechnicalAcceptanceWorkItem,
   UpdateProjectAssignmentsRequest,
   UpdateProjectRequest,
   UpdateRequisitionRequest,
@@ -730,8 +733,12 @@ export const purchaseOrdersApi = {
 
 export const inventoryApi = {
   receipts: (signal?: AbortSignal) => request<PaginatedResult<GoodsReceipt>>('/inventory/receipts', { signal }, { page: 1, pageSize: 100 }),
+  technicalAcceptances: (query: { page?: number; pageSize?: number; projectId?: number; status?: Exclude<TechnicalAcceptanceStatus, 'NotRequired'> } = {}, signal?: AbortSignal) =>
+    request<PaginatedResult<TechnicalAcceptanceWorkItem>>('/inventory/technical-acceptances', { signal }, { page: 1, pageSize: 100, ...query }),
   receive: (body: { purchaseOrderId: number; deliveredQuantity: number; acceptedQuantity: number; condition: string; deliveryNoteReference: string; evidenceReference?: string | null; discrepancyNotes?: string | null }, signal?: AbortSignal) =>
     request<GoodsReceipt>('/inventory/receipts', { method: 'POST', body, signal }),
+  recordTechnicalAcceptance: (receiptId: number, body: { outcome: TechnicalAcceptanceOutcome; notes: string; evidenceReference?: string | null }, signal?: AbortSignal) =>
+    request<TechnicalAcceptanceWorkItem>(`/inventory/receipts/${receiptId}/technical-acceptance`, { method: 'POST', body, signal }),
   balances: (signal?: AbortSignal) => request<PaginatedResult<StockBalance>>('/inventory/balances', { signal }, { page: 1, pageSize: 100 }),
   ledger: (signal?: AbortSignal) => request<PaginatedResult<StockLedgerEntry>>('/inventory/ledger', { signal }, { page: 1, pageSize: 100 }),
   issues: (signal?: AbortSignal) => request<PaginatedResult<MaterialIssue>>('/inventory/issues', { signal }, { page: 1, pageSize: 100 }),

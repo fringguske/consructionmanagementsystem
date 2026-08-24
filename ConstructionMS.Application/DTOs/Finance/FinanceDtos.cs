@@ -63,6 +63,13 @@ public sealed class SupplierInvoiceResponseDto
     public bool QuantityMatches { get; set; }
     public bool PriceMatches { get; set; }
     public bool AmountMatches { get; set; }
+    public bool RequiresTechnicalAcceptance { get; set; }
+    public string TechnicalAcceptanceStatus { get; set; } = "NotRequired";
+    public int TechnicalAcceptanceRequiredCount { get; set; }
+    public int TechnicalAcceptanceAcceptedCount { get; set; }
+    public int TechnicalAcceptanceRejectedCount { get; set; }
+    public string? LatestTechnicalReviewerName { get; set; }
+    public DateTime? LatestTechnicalReviewAt { get; set; }
     public bool RequiresCeoApproval { get; set; }
     public string? MatchNotes { get; set; }
     public string CapturedByName { get; set; } = string.Empty;
@@ -154,6 +161,7 @@ public sealed class ControlEventResponseDto
     public string? MaterialName { get; set; }
     public string? MaterialUnit { get; set; }
     public decimal? RequestedQuantity { get; set; }
+    public decimal? EventQuantity { get; set; }
     public string? DetailsJson { get; set; }
     public DateTime OccurredAt { get; set; }
     public string EventHash { get; set; } = string.Empty;

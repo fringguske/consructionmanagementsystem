@@ -31,6 +31,11 @@ API starts; never rely on a superuser's default privileges.
 Review the pending migration source and generated SQL. Run any migration-specific
 business-data gates before continuing.
 
+The technical-acceptance migration deliberately leaves every PO line that already
+has a positive-quantity GRN outside the new gate, because those receipts are already
+reflected in production balances. Confirm that only legacy lines without received
+stock are marked as requiring technical acceptance after the migration.
+
 ## 2. Backup and maintenance window
 
 Stop the API and every other process that writes to the database. Create and
@@ -96,6 +101,8 @@ WITH required_table("Name") AS (
     VALUES
         ('ControlEvents'),
         ('GoodsReceipts'),
+        ('GoodsReceiptTechnicalAcceptances'),
+        ('MaterialTechnicalAcceptancePolicyEvents'),
         ('MaterialIssues'),
         ('MaterialUsageRecords'),
         ('PaymentAuthorizations'),

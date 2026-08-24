@@ -23,8 +23,8 @@ The existing React demonstration remains the default. Set the frontend to `live`
 - Procurement sourcing rounds, immutable supplier quotes and snapshotted reference prices.
 - Procurement supplier applications with independent Finance/CEO approval before a company becomes available for quotations.
 - Draft → submit → independent approval → issue purchase-order workflow, including return, rejection, correction and cancellation paths.
-- Storekeeper GRNs, store balances, immutable movement ledger, Foreman issue confirmation/use/wastage, dual-confirmed transfers and independently reviewed stock counts.
-- Supplier invoice capture after full receipt, Finance three-way matching, Supervisor payment authorization, CEO high-value exceptions, Finance execution and system receipts.
+- Storekeeper GRNs, delivery-level Engineer technical acceptance where required before stock becomes usable, traceable replacement after rejection, store balances, immutable movement ledger, Foreman issue confirmation/use/wastage, dual-confirmed transfers and independently reviewed stock counts.
+- Supplier invoice capture after full receipt, Finance three-way matching only after required delivery checks, Supervisor payment authorization, CEO high-value exceptions, Finance execution and system receipts.
 - Supervisor-requested petty cash with Finance approval and handover, immutable Supervisor receipt confirmation, full accountability and Finance reconciliation.
 - One CEO/Auditor material-and-money trace backed by hash-linked control events.
 - PostgreSQL triggers that reject updates or deletes to approval/evidence records.
@@ -61,6 +61,8 @@ dotnet ef database update \
 ```
 
 The workflow migration preserves legacy requisitions as imported evidence. Legacy `Pending` and `Approved` rows are routed through a fresh Engineer/Supervisor review so an old approval cannot bypass the new controls. Existing `Projects.Budget` values become explicitly labelled legacy baseline budget revisions.
+
+The delivery-acceptance migration preserves PO lines that already have a positive-quantity GRN as legacy stock so deployed balances are not changed retrospectively. Existing PO lines without received stock and all new PO lines take the material's snapshotted technical-acceptance policy.
 
 Production rollout requires a maintenance window, a verified PostgreSQL backup and an atomic pending-migration apply using the established application database role. Follow [docs/production-database-rollout.md](docs/production-database-rollout.md); do not run an incompatible old API against the migrated schema or use destructive `Down` migrations as a rollback strategy.
 

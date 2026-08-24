@@ -25,6 +25,8 @@ import {
   type StockLedgerEntry,
   type StockTransfer,
   type SupplierInvoice,
+  type TechnicalAcceptanceOutcome,
+  type TechnicalAcceptanceWorkItem,
 } from './api'
 import './live-api.css'
 import './live-operations.css'
@@ -40,6 +42,22 @@ function money(value: number) {
 
 function when(value: string | null) {
   return value ? new Intl.DateTimeFormat('en-KE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(value)) : '—'
+}
+
+function committedReceiptQuantity(order: PurchaseOrder, receipts: GoodsReceipt[]) {
+  const requiresEngineer = order.lines[0]?.requiresTechnicalAcceptance ?? false
+  return receipts
+    .filter(receipt => receipt.purchaseOrderId === order.id)
+    .filter(receipt => !requiresEngineer || receipt.technicalAcceptanceStatus !== 'Rejected')
+    .reduce((total, receipt) => total + receipt.acceptedQuantity, 0)
+}
+
+function invoiceEligibleQuantity(order: PurchaseOrder, receipts: GoodsReceipt[]) {
+  const requiresEngineer = order.lines[0]?.requiresTechnicalAcceptance ?? false
+  return receipts
+    .filter(receipt => receipt.purchaseOrderId === order.id)
+    .filter(receipt => !requiresEngineer || receipt.technicalAcceptanceStatus === 'Accepted')
+    .reduce((total, receipt) => total + receipt.acceptedQuantity, 0)
 }
 
 function Notice({ children, tone = 'neutral' }: { children: ReactNode; tone?: 'neutral' | 'error' | 'success' }) {
@@ -135,10 +153,136 @@ export function LiveInventoryView({ currentUser }: { currentUser: CurrentUser })
       : <>
         <StockCards balances={balances}/>
         {role !== 'Foreman' && <section className="lav-panel ops-panel">
-          {ledger.length ? <div className="ops-table"><div className="ops-row head"><span>Material</span><span>Movement</span><span>Quantity</span><span>Balance</span><span>Recorded by</span></div>{ledger.slice(0, 12).map(item => <div className="ops-row movement" key={item.id}><span data-label="Material"><b>{item.materialName}</b><small>{item.projectName}</small></span><span data-label="Movement">{item.movementType}</span><span data-label="Quantity" className={item.quantityDelta < 0 ? 'negative' : 'positive'}>{item.quantityDelta > 0 ? '+' : ''}{item.quantityDelta} {item.unit}</span><span data-label="Balance">{item.balanceAfter} {item.unit}</span><span data-label="Recorded by"><b>{item.actorName}</b><small>{when(item.occurredAt)}</small></span></div>)}</div> : <Empty>No receipts, issues, transfers or count adjustments yet.</Empty>}
+          {ledger.length ? <div className="ops-table"><div className="ops-row head"><span>Material</span><span>Movement</span><span>Quantity</span><span>Balance</span><span>Recorded by</span></div>{ledger.slice(0, 12).map(item => <div className="ops-row movement" key={item.id}><span data-label="Material"><b>{item.materialName}</b><small>{item.projectName}</small></span><span data-label="Movement">{item.movementType === 'TechnicalAcceptance' ? 'Engineer accepted' : item.movementType}</span><span data-label="Quantity" className={item.quantityDelta < 0 ? 'negative' : 'positive'}>{item.quantityDelta > 0 ? '+' : ''}{item.quantityDelta} {item.unit}</span><span data-label="Balance">{item.balanceAfter} {item.unit}</span><span data-label="Recorded by"><b>{item.actorName}</b><small>{when(item.occurredAt)}</small></span></div>)}</div> : <Empty>No receipts, issues, transfers or count adjustments yet.</Empty>}
         </section>}
         {['Auditor', 'Storekeeper', 'Supervisor'].includes(role) && <MovementSummary issues={issues} transfers={transfers} counts={counts}/>}
       </>}
+  </div>
+}
+
+export function LiveTechnicalAcceptanceView({ currentUser }: { currentUser: CurrentUser }) {
+  const [items, setItems] = useState<TechnicalAcceptanceWorkItem[]>([])
+  const [page, setPage] = useState(1)
+  const [totalCount, setTotalCount] = useState(0)
+  const [activeList, setActiveList] = useState<'pending' | 'reviewed'>('pending')
+  const [selectedReceiptId, setSelectedReceiptId] = useState<number | null>(null)
+  const [form, setForm] = useState<{ outcome: '' | TechnicalAcceptanceOutcome; notes: string; evidenceReference: string }>({ outcome: '', notes: '', evidenceReference: '' })
+  const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [reviewError, setReviewError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
+  const [refresh, setRefresh] = useState(0)
+
+  useEffect(() => {
+    const controller = new AbortController()
+    inventoryApi.technicalAcceptances({ page }, controller.signal)
+      .then(result => {
+        setItems(current => page === 1
+          ? result.items
+          : [...new Map([...current, ...result.items].map(item => [item.goodsReceiptId, item])).values()])
+        setTotalCount(result.totalCount)
+        setError(null)
+      })
+      .catch(error => { if (!(error instanceof DOMException && error.name === 'AbortError')) setError(messageOf(error)) })
+      .finally(() => { if (!controller.signal.aborted) { setLoading(false); setLoadingMore(false) } })
+    return () => controller.abort()
+  }, [page, refresh])
+
+  useEffect(() => {
+    if (selectedReceiptId === null) return
+    const previousOverflow = document.body.style.overflow
+    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === 'Escape' && !busy) setSelectedReceiptId(null) }
+    document.body.style.overflow = 'hidden'
+    document.addEventListener('keydown', closeOnEscape)
+    return () => {
+      document.body.style.overflow = previousOverflow
+      document.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [busy, selectedReceiptId])
+
+  const pending = items.filter(item => item.requiresTechnicalAcceptance && !item.outcome)
+  const reviewed = items.filter(item => item.requiresTechnicalAcceptance && item.outcome)
+  const visible = activeList === 'pending' ? pending : reviewed
+  const selected = items.find(item => item.goodsReceiptId === selectedReceiptId)
+  const openReview = (item: TechnicalAcceptanceWorkItem) => {
+    setSelectedReceiptId(item.goodsReceiptId)
+    setForm({ outcome: '', notes: '', evidenceReference: '' })
+    setReviewError(null)
+  }
+  const closeReview = () => { if (!busy) setSelectedReceiptId(null) }
+  const submitReview = async () => {
+    const outcome = form.outcome
+    if (!selected || !outcome || form.notes.trim().length < 3) return
+    setBusy(true)
+    setReviewError(null)
+    try {
+      await inventoryApi.recordTechnicalAcceptance(selected.goodsReceiptId, {
+        outcome,
+        notes: form.notes.trim(),
+        evidenceReference: form.evidenceReference.trim() || null,
+      })
+      setNotice(`${selected.materialName} marked ${outcome.toLowerCase()}.`)
+      setSelectedReceiptId(null)
+      setPage(1)
+      setRefresh(value => value + 1)
+    } catch (error) {
+      setReviewError(messageOf(error))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (currentUser.role !== 'Engineer') return <Notice tone="error">Only an Engineer can record technical acceptance.</Notice>
+  if (loading) return <Loading>Loading delivery checks…</Loading>
+  return <div className="lav-view ops-view technical-acceptance-view">
+    {error && <Notice tone="error">{error}</Notice>}
+    {notice && <Notice tone="success">{notice}</Notice>}
+    <section className="lav-panel technical-acceptance-panel">
+      <header className="technical-acceptance-toolbar">
+        <div>
+          <h2>Received materials</h2>
+          <span>{pending.length} waiting</span>
+        </div>
+        <nav aria-label="Delivery check status">
+          <button type="button" className={activeList === 'pending' ? 'active' : ''} aria-current={activeList === 'pending' ? 'page' : undefined} onClick={() => setActiveList('pending')}>Waiting <b>{pending.length}</b></button>
+          <button type="button" className={activeList === 'reviewed' ? 'active' : ''} aria-current={activeList === 'reviewed' ? 'page' : undefined} onClick={() => setActiveList('reviewed')}>Reviewed <b>{reviewed.length}</b></button>
+        </nav>
+      </header>
+      {visible.length ? <div className="technical-delivery-list">{visible.map(item => <article key={item.goodsReceiptId}>
+        <header>
+          <div><span>{item.projectName}</span><h2>{item.materialName}</h2></div>
+          <b className={`technical-decision ${item.outcome ? item.outcome.toLowerCase() : 'pending'}`}>{item.outcome ?? 'Waiting'}</b>
+        </header>
+        <div className="technical-delivery-facts">
+          <span><small>Received for inspection</small><strong>{item.acceptedQuantity.toLocaleString()} {item.materialUnit}</strong></span>
+          <span><small>Supplier</small><strong>{item.supplierName}</strong></span>
+          <span><small>Received by</small><strong>{item.receivedByName}</strong><em>{when(item.receivedAt)}</em></span>
+          <span><small>Condition</small><strong>{item.condition}</strong><em>Delivery note {item.deliveryNoteReference}</em></span>
+        </div>
+        {item.outcome
+          ? <footer><div className="technical-review-result"><span>Reviewed by <b>{item.reviewedByName}</b>{item.reviewedAt ? ` · ${when(item.reviewedAt)}` : ''}</span>{item.notes && <p>{item.notes}</p>}</div>{item.outcome === 'Rejected' && <button type="button" className="lav-button secondary" onClick={() => openReview(item)}>Review again</button>}</footer>
+          : <footer><span>Confirm the material and specification.</span><button type="button" className="lav-button primary" onClick={() => openReview(item)}>Review delivery</button></footer>}
+      </article>)}</div> : <Empty>{activeList === 'pending' ? 'No delivery needs an Engineer decision.' : 'No delivery has been reviewed.'}</Empty>}
+      {items.length < totalCount && <footer className="technical-load-more"><button type="button" className="lav-button secondary" disabled={loadingMore} onClick={() => { setLoadingMore(true); setPage(current => current + 1) }}>{loadingMore ? 'Loading…' : 'Load more deliveries'}</button><span>{items.length} of {totalCount}</span></footer>}
+    </section>
+    {selected && <div className="ops-modal-wrap" role="presentation">
+      <button type="button" className="ops-modal-backdrop" aria-label="Close technical acceptance" onClick={closeReview}/>
+      <form className="lav-panel ops-form ops-modal technical-acceptance-modal" role="dialog" aria-modal="true" aria-labelledby="technical-acceptance-title" onSubmit={event => { event.preventDefault(); void submitReview() }}>
+        <header><div><span className="lav-kicker">{selected.projectName}</span><h2 id="technical-acceptance-title">{selected.materialName}</h2><p>{selected.acceptedQuantity.toLocaleString()} {selected.materialUnit} from {selected.supplierName}</p></div><button type="button" className="ops-modal-close" aria-label="Close" disabled={busy} onClick={closeReview}>×</button></header>
+        {reviewError && <Notice tone="error">{reviewError}</Notice>}
+        <div className="technical-receipt-summary"><span>Received by <b>{selected.receivedByName}</b></span><span>{selected.acceptedQuantity.toLocaleString()} of {selected.deliveredQuantity.toLocaleString()} {selected.materialUnit} awaiting decision · {selected.condition}</span><span>{when(selected.receivedAt)}</span></div>
+        <fieldset className="technical-outcome-options">
+          <legend>Decision</legend>
+          <label className={form.outcome === 'Accepted' ? 'selected accepted' : ''}><input type="radio" name="technical-outcome" value="Accepted" checked={form.outcome === 'Accepted'} onChange={() => setForm({ ...form, outcome: 'Accepted' })}/><span>Accept</span></label>
+          <label className={form.outcome === 'Rejected' ? 'selected rejected' : ''}><input type="radio" name="technical-outcome" value="Rejected" checked={form.outcome === 'Rejected'} onChange={() => setForm({ ...form, outcome: 'Rejected' })}/><span>Reject</span></label>
+        </fieldset>
+        <label><span>Engineer finding</span><textarea autoFocus required minLength={3} maxLength={1000} rows={4} value={form.notes} onChange={event => setForm({ ...form, notes: event.target.value })}/></label>
+        <label><span>Evidence reference (optional)</span><input maxLength={500} value={form.evidenceReference} onChange={event => setForm({ ...form, evidenceReference: event.target.value })}/></label>
+        <div className="ops-buttons"><button type="button" className="lav-button secondary" disabled={busy} onClick={closeReview}>Cancel</button><button type="submit" className="lav-button primary" disabled={busy || !form.outcome || form.notes.trim().length < 3}>{busy ? 'Saving…' : 'Submit decision'}</button></div>
+      </form>
+    </div>}
   </div>
 }
 
@@ -169,8 +313,7 @@ function StorekeeperActions({ currentUser, projectSummaries, orders, receipts, r
   const replenishmentMaterial = materials.find(item => item.id === Number(replenishment.materialId))
   const expectedOrders = orders.filter(order => {
     const ordered = order.lines[0]?.quantity ?? 0
-    const accepted = receipts.filter(receipt => receipt.purchaseOrderId === order.id).reduce((total, receipt) => total + receipt.acceptedQuantity, 0)
-    return accepted < ordered
+    return committedReceiptQuantity(order, receipts) < ordered
   })
   const assignedProjectIds = new Set(currentUser.projects.map(project => project.id))
   const actionableTransfers = transfers.filter(transfer =>
@@ -196,9 +339,9 @@ function StorekeeperActions({ currentUser, projectSummaries, orders, receipts, r
       <div className="ops-fields"><label><span>Quantity</span><input type="number" min="0.001" step="0.001" required value={replenishment.quantity} onChange={event => setReplenishment({ ...replenishment, quantity: event.target.value })}/></label><label><span>Unit</span><select disabled value={replenishmentMaterial?.unit ?? ''}><option>{replenishmentMaterial?.unit || 'Choose material'}</option></select></label></div>
       <label><span>Needed in store by</span><input type="date" required value={replenishment.neededByDate} onChange={event => setReplenishment({ ...replenishment, neededByDate: event.target.value })}/></label><label><span>Why the store needs this stock</span><textarea minLength={3} maxLength={500} rows={3} required value={replenishment.reason} onChange={event => setReplenishment({ ...replenishment, reason: event.target.value })} placeholder="For example: maintain a 1,000-bag cement reserve for the next work stages"/></label><label><span>Notes (optional)</span><input maxLength={1000} value={replenishment.notes} onChange={event => setReplenishment({ ...replenishment, notes: event.target.value })}/></label><button className="lav-button primary" disabled={busy}>Request store stock</button>
     </form>}
-    {activeAction === 'receive' && <form className="lav-panel ops-form" onSubmit={event => { event.preventDefault(); void submit(() => inventoryApi.receive({ purchaseOrderId: Number(receiving.purchaseOrderId), deliveredQuantity: Number(receiving.delivered), acceptedQuantity: Number(receiving.accepted), condition: receiving.condition, deliveryNoteReference: receiving.deliveryNote, evidenceReference: receiving.evidence || null, discrepancyNotes: receiving.notes || null }), 'GRN saved and accepted stock added to the store.').then(saved => { if (saved) setReceiving({ purchaseOrderId: '', delivered: '', accepted: '', condition: 'Good', deliveryNote: '', evidence: '', notes: '' }) }) }}>
+    {activeAction === 'receive' && <form className="lav-panel ops-form" onSubmit={event => { event.preventDefault(); void submit(() => inventoryApi.receive({ purchaseOrderId: Number(receiving.purchaseOrderId), deliveredQuantity: Number(receiving.delivered), acceptedQuantity: Number(receiving.accepted), condition: receiving.condition, deliveryNoteReference: receiving.deliveryNote, evidenceReference: receiving.evidence || null, discrepancyNotes: receiving.notes || null }), selectedOrderLine?.requiresTechnicalAcceptance && Number(receiving.accepted) > 0 ? 'GRN saved. Engineer acceptance is now waiting.' : Number(receiving.accepted) > 0 ? 'GRN saved and accepted stock added to the store.' : 'GRN saved with no quantity added to stock.').then(saved => { if (saved) setReceiving({ purchaseOrderId: '', delivered: '', accepted: '', condition: 'Good', deliveryNote: '', evidence: '', notes: '' }) }) }}>
       <h2>Receive delivery</h2>
-      <label><span>Issued purchase order</span><select required value={receiving.purchaseOrderId} onChange={e => setReceiving({ ...receiving, purchaseOrderId: e.target.value })}><option value="">Choose order</option>{expectedOrders.map(order => { const accepted = receipts.filter(receipt => receipt.purchaseOrderId === order.id).reduce((total, receipt) => total + receipt.acceptedQuantity, 0); const line = order.lines[0]; return <option value={order.id} key={order.id}>{line?.materialName} · {order.supplierName} · {line ? line.quantity - accepted : 0} {line?.materialUnit} outstanding</option> })}</select></label>
+      <label><span>Issued purchase order</span><select required value={receiving.purchaseOrderId} onChange={e => setReceiving({ ...receiving, purchaseOrderId: e.target.value })}><option value="">Choose order</option>{expectedOrders.map(order => { const committed = committedReceiptQuantity(order, receipts); const line = order.lines[0]; return <option value={order.id} key={order.id}>{line?.materialName} · {order.supplierName} · {line ? line.quantity - committed : 0} {line?.materialUnit} outstanding</option> })}</select></label>
       <div className="ops-fields three"><label><span>Delivered</span><input type="number" min="0.001" step="0.001" required value={receiving.delivered} onChange={e => setReceiving({ ...receiving, delivered: e.target.value })}/></label><label><span>Accepted</span><input type="number" min="0" step="0.001" required value={receiving.accepted} onChange={e => setReceiving({ ...receiving, accepted: e.target.value })}/></label><label><span>Unit</span><select disabled value={selectedOrderLine?.materialUnit ?? ''}><option>{selectedOrderLine?.materialUnit || 'Choose order'}</option></select></label></div>
       <div className="ops-fields"><label><span>Condition</span><select value={receiving.condition} onChange={e => setReceiving({ ...receiving, condition: e.target.value })}><option>Good</option><option>Mixed</option><option>Damaged</option></select></label><label><span>Delivery note</span><input required value={receiving.deliveryNote} onChange={e => setReceiving({ ...receiving, deliveryNote: e.target.value })}/></label></div>
       <label><span>Evidence reference</span><input placeholder="Photo/file reference" value={receiving.evidence} onChange={e => setReceiving({ ...receiving, evidence: e.target.value })}/></label><label><span>Discrepancy notes</span><input placeholder="Required for rejected quantity" value={receiving.notes} onChange={e => setReceiving({ ...receiving, notes: e.target.value })}/></label><button className="lav-button primary" disabled={busy}>Save GRN</button>
@@ -344,22 +487,37 @@ function InvoiceCapture({ orders, receipts, invoices, onRun }: { orders: Purchas
   const [form, setForm] = useState({ order: '', number: '', quantity: '', price: '', amount: '', document: '' })
   const available = orders.filter(order => {
     const ordered = order.lines[0]?.quantity ?? 0
-    const accepted = receipts.filter(receipt => receipt.purchaseOrderId === order.id).reduce((total, receipt) => total + receipt.acceptedQuantity, 0)
+    const accepted = invoiceEligibleQuantity(order, receipts)
     return accepted === ordered && !invoices.some(invoice => invoice.purchaseOrderId === order.id && !['Mismatch', 'Returned', 'Rejected'].includes(invoice.status))
   })
   const selected = orders.find(order => order.id === Number(form.order)); const line = selected?.lines[0]
-  return <form className="lav-panel ops-form ops-invoice-form" onSubmit={event => { event.preventDefault(); void onRun(() => financeApi.createInvoice({ purchaseOrderId: Number(form.order), invoiceNumber: form.number, quantity: Number(form.quantity), unitPrice: Number(form.price), amount: Number(form.amount), documentReference: form.document || null }), 'Invoice captured for independent Finance review.').then(saved => { if (saved) setForm({ order: '', number: '', quantity: '', price: '', amount: '', document: '' }) }) }}><h2>Capture supplier invoice</h2><p>The source is immutable. A mismatch must be replaced, never edited over.</p><div className="ops-fields four"><label><span>Issued PO fully received</span><select required value={form.order} onChange={e => { const order = orders.find(item => item.id === Number(e.target.value)); const nextLine = order?.lines[0]; const accepted = receipts.filter(receipt => receipt.purchaseOrderId === order?.id).reduce((total, receipt) => total + receipt.acceptedQuantity, 0); const unitPrice = nextLine?.unitPrice ?? 0; setForm({ ...form, order: e.target.value, quantity: accepted ? String(accepted) : '', price: unitPrice ? String(unitPrice) : '', amount: accepted && unitPrice ? (accepted * unitPrice).toFixed(2) : '' }) }}><option value="">Choose order</option>{available.map(order => { const accepted = receipts.filter(receipt => receipt.purchaseOrderId === order.id).reduce((total, receipt) => total + receipt.acceptedQuantity, 0); return <option value={order.id} key={order.id}>{order.supplierName} · {accepted} {order.lines[0]?.materialUnit} accepted</option> })}</select></label><label><span>Invoice number</span><input required value={form.number} onChange={e => setForm({ ...form, number: e.target.value })}/></label><label><span>Quantity {line ? `(${line.materialUnit})` : ''}</span><input type="number" min="0.001" step="0.001" required value={form.quantity} onChange={e => setForm({ ...form, quantity: e.target.value })}/></label><label><span>Unit price</span><input type="number" min="0.01" step="0.01" required value={form.price} onChange={e => setForm({ ...form, price: e.target.value })}/></label><label><span>Invoice amount</span><input type="number" min="0.01" step="0.01" required value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })}/></label><label><span>Document reference</span><input value={form.document} onChange={e => setForm({ ...form, document: e.target.value })}/></label></div><button className="lav-button primary">Send to Finance</button></form>
+  return <form className="lav-panel ops-form ops-invoice-form" onSubmit={event => { event.preventDefault(); void onRun(() => financeApi.createInvoice({ purchaseOrderId: Number(form.order), invoiceNumber: form.number, quantity: Number(form.quantity), unitPrice: Number(form.price), amount: Number(form.amount), documentReference: form.document || null }), 'Invoice captured for independent Finance review.').then(saved => { if (saved) setForm({ order: '', number: '', quantity: '', price: '', amount: '', document: '' }) }) }}><h2>Capture supplier invoice</h2><p>The source is immutable. A mismatch must be replaced, never edited over.</p><div className="ops-fields four"><label><span>Issued PO ready for invoice</span><select required value={form.order} onChange={e => { const order = orders.find(item => item.id === Number(e.target.value)); const nextLine = order?.lines[0]; const accepted = order ? invoiceEligibleQuantity(order, receipts) : 0; const unitPrice = nextLine?.unitPrice ?? 0; setForm({ ...form, order: e.target.value, quantity: accepted ? String(accepted) : '', price: unitPrice ? String(unitPrice) : '', amount: accepted && unitPrice ? (accepted * unitPrice).toFixed(2) : '' }) }}><option value="">Choose order</option>{available.map(order => { const accepted = invoiceEligibleQuantity(order, receipts); return <option value={order.id} key={order.id}>{order.supplierName} · {accepted} {order.lines[0]?.materialUnit} accepted</option> })}</select></label><label><span>Invoice number</span><input required value={form.number} onChange={e => setForm({ ...form, number: e.target.value })}/></label><label><span>Quantity {line ? `(${line.materialUnit})` : ''}</span><input type="number" min="0.001" step="0.001" required value={form.quantity} onChange={e => setForm({ ...form, quantity: e.target.value })}/></label><label><span>Unit price</span><input type="number" min="0.01" step="0.01" required value={form.price} onChange={e => setForm({ ...form, price: e.target.value })}/></label><label><span>Invoice amount</span><input type="number" min="0.01" step="0.01" required value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })}/></label><label><span>Document reference</span><input value={form.document} onChange={e => setForm({ ...form, document: e.target.value })}/></label></div><button className="lav-button primary">Send to Finance</button></form>
 }
 
 function InvoiceCard({ invoice, currentUser, run }: { invoice: SupplierInvoice; currentUser: CurrentUser; run: (action: () => Promise<unknown>, text: string) => Promise<boolean> }) {
   const role = currentUser.role
+  const technicalStatus = invoice.requiresTechnicalAcceptance ? invoice.technicalAcceptanceStatus ?? 'Pending' : 'NotRequired'
   const action = () => {
+    if (role === 'Finance Officer' && invoice.status === 'PendingReview' && technicalStatus === 'Pending') return <span className="ops-status technical-wait">Waiting for Engineer</span>
+    if (role === 'Finance Officer' && invoice.status === 'PendingReview' && technicalStatus === 'Rejected') return <span className="ops-status rejected">Delivery rejected</span>
     if (role === 'Finance Officer' && invoice.status === 'PendingReview') return <button className="lav-button primary" onClick={() => void run(() => financeApi.reviewInvoice(invoice.id, 'PO, accepted GRN and invoice compared by Finance'), 'Three-way match completed.')}>Run match</button>
     if (role === 'Supervisor' && invoice.status === 'ReadyForAuthorization' && invoice.reviewedByUserId !== currentUser.id) return <button className="lav-button primary" onClick={() => void run(() => financeApi.authorize(invoice.id, 'Approved for payment'), 'Payment authorized.')}>Authorize payment</button>
     if (role === 'CEO' && invoice.status === 'AwaitingCeoApproval') return <div className="ops-buttons"><button className="lav-button primary" onClick={() => void run(() => financeApi.ceoDecision(invoice.id, true, 'High-value exception approved after reviewing the complete evidence chain'), 'Exception approved.')}>Approve exception</button><button className="lav-button secondary" onClick={() => void run(() => financeApi.ceoDecision(invoice.id, false, 'High-value exception rejected by CEO'), 'Exception rejected.')}>Reject</button></div>
     return null
   }
-  return <article><header><div><span>{invoice.projectName}</span><h3>{invoice.supplierName}</h3><small>Invoice {invoice.invoiceNumber}</small></div><b className={`ops-status ${invoice.status.toLowerCase()}`}>{invoice.status.replaceAll(/([A-Z])/g, ' $1').trim()}</b></header><strong>{money(invoice.amount)}</strong><p>{invoice.quantity} {invoice.materialUnit} of {invoice.materialName}</p>{invoice.reviewedAt && <div className="ops-match"><span className={invoice.quantityMatches ? 'pass' : 'fail'}>Quantity {invoice.quantityMatches ? 'matches' : 'differs'}</span><span className={invoice.priceMatches ? 'pass' : 'fail'}>Price {invoice.priceMatches ? 'matches' : 'differs'}</span><span className={invoice.amountMatches ? 'pass' : 'fail'}>Total {invoice.amountMatches ? 'matches' : 'differs'}</span></div>}<footer><small>Captured by {invoice.capturedByName} · {when(invoice.capturedAt)}</small>{action()}</footer></article>
+  const technicalState = technicalStatus !== 'NotRequired' && <div className={`invoice-technical-state ${technicalStatus.toLowerCase()}`}>
+    <b>Engineer check</b>
+    <span>{technicalStatus === 'Accepted'
+      ? invoice.technicalAcceptanceRejectedCount > 0
+        ? `Accepted · ${invoice.technicalAcceptanceRejectedCount} earlier ${invoice.technicalAcceptanceRejectedCount === 1 ? 'delivery' : 'deliveries'} rejected`
+        : invoice.technicalAcceptanceRequiredCount > 1
+        ? `${invoice.technicalAcceptanceAcceptedCount} of ${invoice.technicalAcceptanceRequiredCount} deliveries accepted`
+        : `Accepted${invoice.latestTechnicalReviewerName ? ` by ${invoice.latestTechnicalReviewerName}` : ''}`
+      : technicalStatus === 'Rejected'
+        ? `${invoice.technicalAcceptanceRejectedCount} ${invoice.technicalAcceptanceRejectedCount === 1 ? 'delivery' : 'deliveries'} rejected`
+        : `${invoice.technicalAcceptanceAcceptedCount} of ${invoice.technicalAcceptanceRequiredCount} deliveries accepted`}</span>
+  </div>
+  return <article><header><div><span>{invoice.projectName}</span><h3>{invoice.supplierName}</h3><small>Invoice {invoice.invoiceNumber}</small></div><b className={`ops-status ${invoice.status.toLowerCase()}`}>{invoice.status.replaceAll(/([A-Z])/g, ' $1').trim()}</b></header><strong>{money(invoice.amount)}</strong><p>{invoice.quantity} {invoice.materialUnit} of {invoice.materialName}</p>{technicalState}{invoice.reviewedAt && <div className="ops-match"><span className={invoice.quantityMatches ? 'pass' : 'fail'}>Quantity {invoice.quantityMatches ? 'matches' : 'differs'}</span><span className={invoice.priceMatches ? 'pass' : 'fail'}>Price {invoice.priceMatches ? 'matches' : 'differs'}</span><span className={invoice.amountMatches ? 'pass' : 'fail'}>Total {invoice.amountMatches ? 'matches' : 'differs'}</span></div>}<footer><small>Captured by {invoice.capturedByName} · {when(invoice.capturedAt)}</small>{action()}</footer></article>
 }
 
 function FinancePaymentActions({ currentUser, authorizations, run }: { currentUser: CurrentUser; authorizations: PaymentAuthorization[]; run: (action: () => Promise<unknown>, text: string) => Promise<boolean> }) {
@@ -529,6 +687,8 @@ function controlEventLabel(item: ControlEvent) {
     'PurchaseOrder:Cancelled': 'Purchase order cancelled',
     'PurchaseOrder:Issued': 'Purchase order sent to supplier',
     'GoodsReceipt:GoodsReceived': 'Delivery received into store',
+    'GoodsReceiptTechnicalAcceptance:DeliveryTechnicallyAccepted': 'Engineer accepted delivered material',
+    'GoodsReceiptTechnicalAcceptance:DeliveryTechnicallyRejected': 'Engineer rejected delivered material',
     'MaterialIssue:MaterialIssued': 'Material issued to Foreman',
     'MaterialIssue:MaterialReceiptConfirmed': 'Foreman confirmed material received',
     'MaterialIssue:MaterialReceiptDisputed': 'Foreman disputed material received',
@@ -563,8 +723,9 @@ function controlEventLabel(item: ControlEvent) {
 }
 
 function controlEventMaterial(item: ControlEvent) {
-  if (!item.materialName || !item.materialUnit || item.requestedQuantity === null) return null
-  const quantity = new Intl.NumberFormat('en-KE', { maximumFractionDigits: 3 }).format(item.requestedQuantity)
+  const eventQuantity = item.eventQuantity ?? item.requestedQuantity
+  if (!item.materialName || !item.materialUnit || eventQuantity === null) return null
+  const quantity = new Intl.NumberFormat('en-KE', { maximumFractionDigits: 3 }).format(eventQuantity)
   return `${quantity} ${item.materialUnit} of ${item.materialName}`
 }
 
@@ -585,6 +746,7 @@ function keyControlMilestones(items: ControlEvent[]) {
     findLast(item => item.entityType === 'Requisition' && item.eventType === 'SupervisorApproved'),
     findLast(item => (item.entityType === 'PurchaseOrder' && ['Approved', 'Issued'].includes(item.eventType)) || (item.entityType === 'SourcingRound' && item.eventType === 'Awarded')),
     findLast(item => (item.entityType === 'GoodsReceipt' && item.eventType === 'GoodsReceived') || (item.entityType === 'MaterialIssue' && item.eventType === 'MaterialIssued')),
+    findLast(item => item.entityType === 'GoodsReceiptTechnicalAcceptance' && ['DeliveryTechnicallyAccepted', 'DeliveryTechnicallyRejected'].includes(item.eventType)),
     findLast(item => item.entityType === 'MaterialUsage' && ['MaterialUsed', 'MaterialWastageRecorded'].includes(item.eventType)),
     findLast(item => (item.entityType === 'Payment' && item.eventType === 'PaymentExecuted') || (item.entityType === 'PaymentAuthorization' && item.eventType === 'PaymentAuthorized')),
   ].filter((item): item is ControlEvent => Boolean(item))

@@ -7,6 +7,7 @@ using ConstructionMS.Domain.Entities;
 using ConstructionMS.Infrastructure.Common;
 using ConstructionMS.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
+using System.Data;
 
 /// <summary>EF Core implementation of IMaterialService.</summary>
 public class MaterialService : IMaterialService
@@ -52,6 +53,7 @@ public class MaterialService : IMaterialService
             Unit = InputNormalizer.RequiredText(dto.Unit, nameof(dto.Unit), maximumLength: 30),
             StandardPrice = InputNormalizer.NonNegative(dto.StandardPrice, nameof(dto.StandardPrice), 18, 2),
             ReorderLevel = InputNormalizer.NonNegative(dto.ReorderLevel, nameof(dto.ReorderLevel), 18, 3),
+            RequiresTechnicalAcceptance = true,
             CreatedAt = DateTime.UtcNow
         };
 
@@ -70,8 +72,38 @@ public class MaterialService : IMaterialService
         material.Unit = InputNormalizer.RequiredText(dto.Unit, nameof(dto.Unit), maximumLength: 30);
         material.StandardPrice = InputNormalizer.NonNegative(dto.StandardPrice, nameof(dto.StandardPrice), 18, 2);
         material.ReorderLevel = InputNormalizer.NonNegative(dto.ReorderLevel, nameof(dto.ReorderLevel), 18, 3);
-
         await _db.SaveChangesAsync();
+        return ToDto(material);
+    }
+
+    public async Task<MaterialResponseDto?> SetTechnicalAcceptancePolicyAsync(
+        int id,
+        bool required,
+        int actorUserId)
+    {
+        await using var transaction = await _db.Database.BeginTransactionAsync(IsolationLevel.Serializable);
+        await _db.Database.ExecuteSqlInterpolatedAsync(
+            $"SELECT 1 FROM \"Materials\" WHERE \"Id\" = {id} FOR UPDATE");
+        var material = await _db.Materials.SingleOrDefaultAsync(item => item.Id == id);
+        if (material is null) return null;
+
+        if (material.RequiresTechnicalAcceptance == required)
+        {
+            await transaction.CommitAsync();
+            return ToDto(material);
+        }
+        var previous = material.RequiresTechnicalAcceptance;
+        material.RequiresTechnicalAcceptance = required;
+        _db.MaterialTechnicalAcceptancePolicyEvents.Add(new MaterialTechnicalAcceptancePolicyEvent
+        {
+            MaterialId = material.Id,
+            PreviousRequired = previous,
+            Required = required,
+            ChangedByUserId = actorUserId,
+            ChangedAt = DateTime.UtcNow
+        });
+        await _db.SaveChangesAsync();
+        await transaction.CommitAsync();
         return ToDto(material);
     }
 
@@ -83,6 +115,7 @@ public class MaterialService : IMaterialService
         Unit = m.Unit,
         StandardPrice = m.StandardPrice,
         ReorderLevel = m.ReorderLevel,
+        RequiresTechnicalAcceptance = m.RequiresTechnicalAcceptance,
         CreatedAt = m.CreatedAt
     };
 }

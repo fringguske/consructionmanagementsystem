@@ -30,6 +30,7 @@ const LivePurchaseOrdersView = lazy(() => import('./LivePurchaseViews').then(mod
 const LiveAccessView = lazy(() => import('./LiveAccessView').then(module => ({ default: module.LiveAccessView })))
 const LiveSuppliersView = lazy(() => import('./LiveSuppliersView').then(module => ({ default: module.LiveSuppliersView })))
 const LiveInventoryView = lazy(() => import('./LiveOperationsViews').then(module => ({ default: module.LiveInventoryView })))
+const LiveTechnicalAcceptanceView = lazy(() => import('./LiveOperationsViews').then(module => ({ default: module.LiveTechnicalAcceptanceView })))
 const LiveFinanceView = lazy(() => import('./LiveOperationsViews').then(module => ({ default: module.LiveFinanceView })))
 const LivePettyCashView = lazy(() => import('./LiveOperationsViews').then(module => ({ default: module.LivePettyCashView })))
 const LiveAuditView = lazy(() => import('./LiveOperationsViews').then(module => ({ default: module.LiveAuditView })))
@@ -405,6 +406,7 @@ const liveRoleNavigation: Record<ConstructionRole, readonly { to: string; label:
     { to: '/', label: 'Overview', icon: 'grid' },
     { to: '/projects', label: 'Project progress', icon: 'building' },
     { to: '/requisitions', label: 'Technical checks', icon: 'check' },
+    { to: '/delivery-checks', label: 'Delivery checks', icon: 'truck' },
   ],
   Foreman: [
     { to: '/', label: 'Overview', icon: 'grid' },
@@ -605,6 +607,7 @@ function Shell({ authenticatedUser, onLogout, onSwitchRole, onUsernameChanged, o
     '/projects': role === 'CEO' ? ['Projects', ''] : role === 'Engineer' ? ['Progress & milestones', 'Verified construction progress across active sites'] : ['Projects', 'Portfolio health and site delivery'],
     '/procurement': role === 'Foreman' ? ['My material requests', 'Request what the site needs and follow its approval'] : role === 'Supervisor' ? ['Material approvals', 'Approve or return requests raised by your foremen'] : role === 'Procurement Officer' ? ['Approved sourcing queue', 'Source approved demand without changing it'] : ['Procurement', 'Requisitions, approvals and purchase orders'],
     '/requisitions': role === 'Foreman' ? ['My material requests', 'Request what the site needs and follow its approval'] : role === 'Engineer' ? ['Technical checks', 'Verify the site need before a supervisor decides'] : role === 'Supervisor' ? ['Material approvals', 'Decide only after an engineer has checked the request'] : ['Material requests', ''],
+    '/delivery-checks': ['Delivery checks', 'Confirm delivered materials meet the required specification'],
     '/sourcing': ['Supplier sourcing', 'Quotes and supplier selection for approved material needs'],
     '/access': ['Requests & access', 'Approve people, select roles and assign projects'],
     '/inventory': role === 'CEO' ? ['Materials Inventory', ''] : role === 'Foreman' ? ['Materials on site', 'Confirm receipt, record use and report wastage'] : role === 'Storekeeper' ? ['Stock ledger', ''] : ['Inventory', 'Stock levels and material movement'],
@@ -751,6 +754,7 @@ function Shell({ authenticatedUser, onLogout, onSwitchRole, onUsernameChanged, o
             <Route path="/access" element={canAccess('/access') ? <LiveAccessView currentUser={authenticatedUser!}/> : <AccessRestricted role={role}/>}/>
             <Route path="/suppliers" element={canAccess('/suppliers') ? <LiveSuppliersView currentUser={authenticatedUser!}/> : <AccessRestricted role={role}/>}/>
             <Route path="/inventory" element={canAccess('/inventory') ? <LiveInventoryView currentUser={authenticatedUser!}/> : <AccessRestricted role={role}/>}/>
+            <Route path="/delivery-checks" element={canAccess('/delivery-checks') ? <LiveTechnicalAcceptanceView currentUser={authenticatedUser!}/> : <AccessRestricted role={role}/>}/>
             <Route path="/finance" element={canAccess('/finance') ? <LiveFinanceView currentUser={authenticatedUser!}/> : <AccessRestricted role={role}/>}/>
             <Route path="/petty-cash" element={canAccess('/petty-cash') ? <LivePettyCashView currentUser={authenticatedUser!}/> : <AccessRestricted role={role}/>}/>
             <Route path="/audit" element={canAccess('/audit') ? <LiveAuditView/> : <AccessRestricted role={role}/>}/>

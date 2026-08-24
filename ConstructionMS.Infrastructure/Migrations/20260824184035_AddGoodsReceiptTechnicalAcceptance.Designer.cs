@@ -3,6 +3,7 @@ using System;
 using ConstructionMS.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace ConstructionMS.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260824184035_AddGoodsReceiptTechnicalAcceptance")]
+    partial class AddGoodsReceiptTechnicalAcceptance
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -513,41 +516,6 @@ namespace ConstructionMS.Infrastructure.Migrations
                             t.HasCheckConstraint("CK_MaterialIssues_Quantity", "\"QuantityIssued\" > 0");
 
                             t.HasCheckConstraint("CK_MaterialIssues_Status", "\"Status\" IN ('AwaitingConfirmation', 'Confirmed', 'Disputed')");
-                        });
-                });
-
-            modelBuilder.Entity("ConstructionMS.Domain.Entities.MaterialTechnicalAcceptancePolicyEvent", b =>
-                {
-                    b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
-
-                    b.Property<DateTime>("ChangedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("ChangedByUserId")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("MaterialId")
-                        .HasColumnType("integer");
-
-                    b.Property<bool>("PreviousRequired")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("Required")
-                        .HasColumnType("boolean");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ChangedByUserId");
-
-                    b.HasIndex("MaterialId", "ChangedAt");
-
-                    b.ToTable("MaterialTechnicalAcceptancePolicyEvents", t =>
-                        {
-                            t.HasCheckConstraint("CK_MaterialTechnicalAcceptancePolicyEvents_Changed", "\"PreviousRequired\" <> \"Required\"");
                         });
                 });
 
@@ -2796,25 +2764,6 @@ namespace ConstructionMS.Infrastructure.Migrations
                     b.Navigation("Project");
 
                     b.Navigation("Requisition");
-                });
-
-            modelBuilder.Entity("ConstructionMS.Domain.Entities.MaterialTechnicalAcceptancePolicyEvent", b =>
-                {
-                    b.HasOne("ConstructionMS.Domain.Entities.User", "ChangedByUser")
-                        .WithMany()
-                        .HasForeignKey("ChangedByUserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("ConstructionMS.Domain.Entities.Material", "Material")
-                        .WithMany()
-                        .HasForeignKey("MaterialId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("ChangedByUser");
-
-                    b.Navigation("Material");
                 });
 
             modelBuilder.Entity("ConstructionMS.Domain.Entities.MaterialUsageRecord", b =>

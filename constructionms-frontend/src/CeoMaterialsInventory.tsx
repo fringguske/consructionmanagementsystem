@@ -151,7 +151,9 @@ function movementContext(
   if (receipt) return {
     entry,
     chainKey: `REQ-${receipt.requisitionId}`,
-    action: `Received by ${receipt.receivedByName}`,
+    action: entry.movementType === 'TechnicalAcceptance'
+      ? `Accepted by Engineer ${entry.actorName}`
+      : `Received by ${receipt.receivedByName}`,
     route: `${receipt.supplierName} → ${entry.projectName} Store`,
   }
   if (transfer) return {
@@ -238,10 +240,10 @@ export function CeoMaterialsInventory(props: Props) {
       const occurred = new Date(item.occurredAt)
       return occurred >= from && occurred < toExclusive
     })
-    const received = periodEntries.filter(item => item.movementType === 'Receipt' || item.movementType === 'TransferIn').reduce((sum, item) => sum + Math.max(0, item.quantityDelta), 0)
+    const received = periodEntries.filter(item => ['Receipt', 'TechnicalAcceptance', 'TransferIn'].includes(item.movementType)).reduce((sum, item) => sum + Math.max(0, item.quantityDelta), 0)
     const issued = Math.abs(periodEntries.filter(item => item.movementType === 'Issue' || item.movementType === 'TransferOut').reduce((sum, item) => sum + Math.min(0, item.quantityDelta), 0))
     const returned = periodEntries.filter(item => item.movementType === 'Return').reduce((sum, item) => sum + Math.max(0, item.quantityDelta), 0)
-    const other = periodEntries.filter(item => !['Receipt', 'TransferIn', 'Issue', 'TransferOut', 'Return'].includes(item.movementType)).reduce((sum, item) => sum + item.quantityDelta, 0)
+    const other = periodEntries.filter(item => !['Receipt', 'TechnicalAcceptance', 'TransferIn', 'Issue', 'TransferOut', 'Return'].includes(item.movementType)).reduce((sum, item) => sum + item.quantityDelta, 0)
     const closing = opening + periodEntries.reduce((sum, item) => sum + item.quantityDelta, 0)
     const usage = scopedIssues.flatMap(item => item.materialId === position.materialId ? item.usage : []).filter(item => {
       const occurred = new Date(item.recordedAt)
@@ -439,6 +441,8 @@ function auditEventLabel(item: ControlEvent) {
     'PurchaseOrder:Cancelled': 'Purchase order cancelled',
     'PurchaseOrder:Issued': 'Purchase order sent to supplier',
     'GoodsReceipt:GoodsReceived': 'Delivery received into store',
+    'GoodsReceiptTechnicalAcceptance:DeliveryTechnicallyAccepted': 'Engineer accepted delivered material',
+    'GoodsReceiptTechnicalAcceptance:DeliveryTechnicallyRejected': 'Engineer rejected delivered material',
     'MaterialIssue:MaterialIssued': 'Material issued to Foreman',
     'MaterialIssue:MaterialReceiptConfirmed': 'Foreman confirmed material received',
     'MaterialIssue:MaterialReceiptDisputed': 'Foreman disputed material received',
@@ -465,8 +469,9 @@ function auditEventLabel(item: ControlEvent) {
 }
 
 function auditEventMaterial(item: ControlEvent) {
-  if (!item.materialName || !item.materialUnit || item.requestedQuantity === null) return null
-  return `${quantity(item.requestedQuantity, item.materialUnit)} of ${item.materialName}`
+  const eventQuantity = item.eventQuantity ?? item.requestedQuantity
+  if (!item.materialName || !item.materialUnit || eventQuantity === null) return null
+  return `${quantity(eventQuantity, item.materialUnit)} of ${item.materialName}`
 }
 
 function auditDate(value: string) {

@@ -64,6 +64,7 @@ public sealed class PurchaseOrderLineResponseDto
     public string MaterialName { get; set; } = string.Empty;
     public string MaterialUnit { get; set; } = string.Empty;
     public decimal Quantity { get; set; }
+    public bool RequiresTechnicalAcceptance { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public decimal? UnitPrice { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]

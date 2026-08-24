@@ -7,6 +7,10 @@ public interface IInventoryWorkflowService
 {
     Task<PaginatedResult<GoodsReceiptResponseDto>> GetReceiptsAsync(int page, int pageSize, int actorUserId, string actorRole, int? projectId = null);
     Task<GoodsReceiptResponseDto> ReceiveGoodsAsync(ReceiveGoodsRequestDto request, int actorUserId, string actorRole);
+    Task<PaginatedResult<TechnicalAcceptanceResponseDto>> GetTechnicalAcceptancesAsync(
+        int page, int pageSize, int actorUserId, string actorRole, int? projectId = null, string? status = null);
+    Task<TechnicalAcceptanceResponseDto> RecordTechnicalAcceptanceAsync(
+        long receiptId, RecordTechnicalAcceptanceRequestDto request, int actorUserId, string actorRole);
     Task<PaginatedResult<StockBalanceResponseDto>> GetBalancesAsync(int page, int pageSize, int actorUserId, string actorRole, int? projectId = null);
     Task<PaginatedResult<StockLedgerEntryResponseDto>> GetLedgerAsync(int page, int pageSize, int actorUserId, string actorRole, int? projectId = null, int? materialId = null);
     Task<PaginatedResult<MaterialIssueResponseDto>> GetIssuesAsync(int page, int pageSize, int actorUserId, string actorRole, int? projectId = null);

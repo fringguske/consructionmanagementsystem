@@ -159,7 +159,8 @@ public sealed class PurchaseOrderService : IPurchaseOrderService
                     RequisitionId = requisition.Id,
                     MaterialId = requisition.MaterialId,
                     Quantity = requisition.Quantity,
-                    UnitPrice = quote.UnitPrice
+                    UnitPrice = quote.UnitPrice,
+                    RequiresTechnicalAcceptance = requisition.Material.RequiresTechnicalAcceptance
                 }
             ],
             Events =
@@ -862,6 +863,7 @@ public sealed class PurchaseOrderService : IPurchaseOrderService
                 MaterialName = line.Material?.Name ?? string.Empty,
                 MaterialUnit = line.Material?.Unit ?? string.Empty,
                 Quantity = line.Quantity,
+                RequiresTechnicalAcceptance = line.RequiresTechnicalAcceptance,
                 UnitPrice = showCommercials ? line.UnitPrice : null,
                 LineTotal = showCommercials ? line.Quantity * line.UnitPrice : null
             })

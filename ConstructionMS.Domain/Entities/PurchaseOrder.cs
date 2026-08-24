@@ -49,4 +49,5 @@ public class PurchaseOrder
 
     public ICollection<PurchaseOrderLine> Lines { get; set; } = [];
     public ICollection<PurchaseOrderEvent> Events { get; set; } = [];
+    public ICollection<GoodsReceipt> GoodsReceipts { get; set; } = [];
 }

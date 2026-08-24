@@ -16,4 +16,9 @@ public class PurchaseOrderLine
 
     public decimal Quantity { get; set; }
     public decimal UnitPrice { get; set; }
+
+    /// <summary>
+    /// Immutable snapshot of the material catalogue rule when this order was raised.
+    /// </summary>
+    public bool RequiresTechnicalAcceptance { get; set; } = true;
 }

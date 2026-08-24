@@ -84,4 +84,26 @@ public sealed class MaterialsController : ControllerBase
 
         return Ok(ApiResponse<MaterialResponseDto>.Ok(material));
     }
+
+    /// <summary>Changes the engineering acceptance rule for future purchase orders.</summary>
+    [HttpPatch("{id:int}/technical-acceptance-policy")]
+    [Authorize(Roles = "CEO")]
+    [ProducesResponseType(typeof(ApiResponse<MaterialResponseDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<MaterialResponseDto>), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ApiResponse<MaterialResponseDto>>> SetTechnicalAcceptancePolicy(
+        int id,
+        [FromBody] SetMaterialTechnicalAcceptancePolicyRequestDto request)
+    {
+        var material = await _materialService.SetTechnicalAcceptancePolicyAsync(
+            id,
+            request.Required!.Value,
+            User.GetRequiredUserId());
+        if (material is null)
+        {
+            return NotFound(ApiResponse<MaterialResponseDto>.Fail(
+                $"Material with ID {id} was not found."));
+        }
+
+        return Ok(ApiResponse<MaterialResponseDto>.Ok(material));
+    }
 }

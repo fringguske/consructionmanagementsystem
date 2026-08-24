@@ -10,4 +10,5 @@ public interface IMaterialService
     Task<MaterialResponseDto?> GetByIdAsync(int id);
     Task<MaterialResponseDto> CreateAsync(CreateMaterialRequestDto dto);
     Task<MaterialResponseDto?> UpdateAsync(int id, UpdateMaterialRequestDto dto);
+    Task<MaterialResponseDto?> SetTechnicalAcceptancePolicyAsync(int id, bool required, int actorUserId);
 }

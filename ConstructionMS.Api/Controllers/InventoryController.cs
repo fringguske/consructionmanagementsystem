@@ -32,6 +32,26 @@ public sealed class InventoryController(IInventoryWorkflowService inventory) : C
         return Created($"/api/v1/inventory/receipts/{result.Id}", ApiResponse<GoodsReceiptResponseDto>.Ok(result));
     }
 
+    [HttpGet("technical-acceptances")]
+    [Authorize(Roles = "Engineer,Finance Officer,CEO,Auditor")]
+    public async Task<IActionResult> GetTechnicalAcceptances(
+        [FromQuery, Range(1, int.MaxValue)] int page = 1,
+        [FromQuery, Range(1, Pagination.MaxPageSize)] int pageSize = Pagination.DefaultPageSize,
+        [FromQuery] int? projectId = null,
+        [FromQuery] string? status = null) =>
+        Ok(ApiResponse<PaginatedResult<TechnicalAcceptanceResponseDto>>.Ok(
+            await inventory.GetTechnicalAcceptancesAsync(
+                page, pageSize, ActorId(), Role(), projectId, status)));
+
+    [HttpPost("receipts/{receiptId:long}/technical-acceptance")]
+    [Authorize(Roles = "Engineer")]
+    public async Task<IActionResult> RecordTechnicalAcceptance(
+        long receiptId,
+        [FromBody] RecordTechnicalAcceptanceRequestDto request) =>
+        Ok(ApiResponse<TechnicalAcceptanceResponseDto>.Ok(
+            await inventory.RecordTechnicalAcceptanceAsync(
+                receiptId, request, ActorId(), Role())));
+
     [HttpGet("balances")]
     [Authorize(Roles = "Storekeeper,Foreman,Supervisor,Engineer,Finance Officer,CEO,Auditor")]
     public async Task<IActionResult> GetBalances(

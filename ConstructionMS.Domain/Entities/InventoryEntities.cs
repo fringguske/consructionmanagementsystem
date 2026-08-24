@@ -22,6 +22,12 @@ public static class StockCountStatuses
     public const string Rejected = "Rejected";
 }
 
+public static class TechnicalAcceptanceOutcomes
+{
+    public const string Accepted = "Accepted";
+    public const string Rejected = "Rejected";
+}
+
 /// <summary>Independent evidence that a Storekeeper physically received an issued PO line.</summary>
 public sealed class GoodsReceipt
 {
@@ -45,6 +51,25 @@ public sealed class GoodsReceipt
     public int ReceivedByUserId { get; set; }
     public User ReceivedByUser { get; set; } = null!;
     public DateTime ReceivedAt { get; set; }
+    public ICollection<GoodsReceiptTechnicalAcceptance> TechnicalAcceptances { get; set; } = [];
+}
+
+/// <summary>
+/// Append-only engineering decision on the specification and quality of one goods receipt.
+/// A rejected receipt may be reinspected through a later row; prior decisions remain intact.
+/// </summary>
+public sealed class GoodsReceiptTechnicalAcceptance
+{
+    public long Id { get; set; }
+    public long GoodsReceiptId { get; set; }
+    public GoodsReceipt GoodsReceipt { get; set; } = null!;
+    public int ReviewSequence { get; set; }
+    public int EngineerUserId { get; set; }
+    public User EngineerUser { get; set; } = null!;
+    public string Outcome { get; set; } = string.Empty;
+    public string Notes { get; set; } = string.Empty;
+    public string? EvidenceReference { get; set; }
+    public DateTime ReviewedAt { get; set; }
 }
 
 /// <summary>Current store balance. Every change is backed by an immutable ledger entry.</summary>

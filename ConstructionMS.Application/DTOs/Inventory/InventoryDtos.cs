@@ -16,6 +16,13 @@ public sealed class ReceiveGoodsRequestDto
     [StringLength(1_000)] public string? DiscrepancyNotes { get; set; }
 }
 
+public sealed class RecordTechnicalAcceptanceRequestDto
+{
+    [Required, StringLength(20)] public string Outcome { get; set; } = string.Empty;
+    [Required, StringLength(1_000, MinimumLength = 3)] public string Notes { get; set; } = string.Empty;
+    [StringLength(500)] public string? EvidenceReference { get; set; }
+}
+
 public sealed class IssueMaterialRequestDto
 {
     [Range(1, int.MaxValue)] public int RequisitionId { get; set; }
@@ -95,6 +102,42 @@ public sealed class GoodsReceiptResponseDto
     public string? DiscrepancyNotes { get; set; }
     public string ReceivedByName { get; set; } = string.Empty;
     public DateTime ReceivedAt { get; set; }
+    public bool RequiresTechnicalAcceptance { get; set; }
+    public string TechnicalAcceptanceStatus { get; set; } = "NotRequired";
+    public string? TechnicalAcceptanceReviewedByName { get; set; }
+    public DateTime? TechnicalAcceptanceReviewedAt { get; set; }
+}
+
+public sealed class TechnicalAcceptanceResponseDto
+{
+    public long GoodsReceiptId { get; set; }
+    public string ReceiptNumber { get; set; } = string.Empty;
+    public int PurchaseOrderId { get; set; }
+    public string PurchaseOrderNumber { get; set; } = string.Empty;
+    public int RequisitionId { get; set; }
+    public int ProjectId { get; set; }
+    public string ProjectName { get; set; } = string.Empty;
+    public string SupplierName { get; set; } = string.Empty;
+    public int MaterialId { get; set; }
+    public string MaterialName { get; set; } = string.Empty;
+    public string MaterialUnit { get; set; } = string.Empty;
+    public decimal OrderedQuantity { get; set; }
+    public decimal DeliveredQuantity { get; set; }
+    public decimal AcceptedQuantity { get; set; }
+    public string Condition { get; set; } = string.Empty;
+    public string DeliveryNoteReference { get; set; } = string.Empty;
+    public string? ReceiptEvidenceReference { get; set; }
+    public string ReceivedByName { get; set; } = string.Empty;
+    public DateTime ReceivedAt { get; set; }
+    public bool RequiresTechnicalAcceptance { get; set; }
+    public string Status { get; set; } = string.Empty;
+    public string? Outcome { get; set; }
+    public int? ReviewSequence { get; set; }
+    public int? ReviewedByUserId { get; set; }
+    public string? ReviewedByName { get; set; }
+    public string? Notes { get; set; }
+    public string? ReviewEvidenceReference { get; set; }
+    public DateTime? ReviewedAt { get; set; }
 }
 
 public sealed class StockBalanceResponseDto

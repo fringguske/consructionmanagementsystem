@@ -145,6 +145,7 @@ export interface Material {
   unit: string
   standardPrice: number
   reorderLevel: number
+  requiresTechnicalAcceptance: boolean
   createdAt: IsoDateTime
 }
 
@@ -530,6 +531,7 @@ export interface PurchaseOrderLine {
   materialName: string
   materialUnit: string
   quantity: number
+  requiresTechnicalAcceptance: boolean
   unitPrice?: number | null
   lineTotal?: number | null
 }
@@ -612,6 +614,44 @@ export interface GoodsReceipt {
   acceptedQuantity: number; rejectedQuantity: number; condition: 'Good' | 'Damaged' | 'Mixed'
   deliveryNoteReference: string; evidenceReference: string | null; discrepancyNotes: string | null
   receivedByName: string; receivedAt: IsoDateTime
+  requiresTechnicalAcceptance: boolean
+  technicalAcceptanceStatus: TechnicalAcceptanceStatus
+  technicalAcceptanceReviewedByName: string | null
+  technicalAcceptanceReviewedAt: IsoDateTime | null
+}
+
+export type TechnicalAcceptanceOutcome = 'Accepted' | 'Rejected'
+export type TechnicalAcceptanceStatus = 'NotRequired' | 'Pending' | TechnicalAcceptanceOutcome
+
+export interface TechnicalAcceptanceWorkItem {
+  goodsReceiptId: number
+  receiptNumber: string
+  purchaseOrderId: number
+  purchaseOrderNumber: string
+  supplierName: string
+  requisitionId: number
+  projectId: number
+  projectName: string
+  materialId: number
+  materialName: string
+  materialUnit: string
+  orderedQuantity: number
+  deliveredQuantity: number
+  acceptedQuantity: number
+  condition: 'Good' | 'Damaged' | 'Mixed'
+  deliveryNoteReference: string
+  receiptEvidenceReference: string | null
+  receivedByName: string
+  receivedAt: IsoDateTime
+  requiresTechnicalAcceptance: boolean
+  status: Exclude<TechnicalAcceptanceStatus, 'NotRequired'>
+  outcome: TechnicalAcceptanceOutcome | null
+  reviewSequence: number | null
+  reviewedByUserId: number | null
+  reviewedByName: string | null
+  reviewedAt: IsoDateTime | null
+  notes: string | null
+  reviewEvidenceReference: string | null
 }
 
 export interface StockBalance {
@@ -669,6 +709,13 @@ export interface SupplierInvoice {
   capturedByName: string; capturedAt: IsoDateTime; reviewedByUserId: number | null; reviewedByName: string | null
   reviewedAt: IsoDateTime | null; ceoDecision: string | null; ceoDecisionNotes: string | null
   ceoDecisionAt: IsoDateTime | null; authorization: PaymentAuthorization | null; payment: Payment | null
+  requiresTechnicalAcceptance: boolean
+  technicalAcceptanceStatus: TechnicalAcceptanceStatus
+  technicalAcceptanceRequiredCount: number
+  technicalAcceptanceAcceptedCount: number
+  technicalAcceptanceRejectedCount: number
+  latestTechnicalReviewerName: string | null
+  latestTechnicalReviewAt: IsoDateTime | null
 }
 
 export interface PaymentAuthorization {
@@ -754,6 +801,6 @@ export interface ControlEvent {
   chainKey: string; sequenceNumber: number; requisitionId: number | null; projectId: number
   projectName: string; entityType: string; entityId: number; referenceNumber: string
   eventType: string; actorName: string; actorRole: ConstructionRole; detailsJson: string | null
-  materialName: string | null; materialUnit: string | null; requestedQuantity: number | null
+  materialName: string | null; materialUnit: string | null; requestedQuantity: number | null; eventQuantity: number | null
   occurredAt: IsoDateTime; eventHash: string
 }

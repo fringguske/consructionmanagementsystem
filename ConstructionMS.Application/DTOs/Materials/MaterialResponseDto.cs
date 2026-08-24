@@ -18,5 +18,8 @@ public class MaterialResponseDto
     /// <summary>Minimum stock quantity used to identify low stock.</summary>
     public decimal ReorderLevel { get; set; }
 
+    /// <summary>Whether new PO deliveries require an Engineer's technical decision.</summary>
+    public bool RequiresTechnicalAcceptance { get; set; }
+
     public DateTime CreatedAt { get; set; }
 }

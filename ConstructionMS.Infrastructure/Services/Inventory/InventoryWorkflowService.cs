@@ -39,6 +39,7 @@ public sealed class InventoryWorkflowService : IInventoryWorkflowService
             .Include(item => item.PurchaseOrder).ThenInclude(order => order.Supplier)
             .Include(item => item.PurchaseOrderLine)
             .Include(item => item.Project).Include(item => item.Material).Include(item => item.ReceivedByUser)
+            .Include(item => item.TechnicalAcceptances).ThenInclude(item => item.EngineerUser)
             .OrderByDescending(item => item.ReceivedAt).ThenByDescending(item => item.Id)
             .Skip(pagination.Offset).Take(pagination.PageSize).ToListAsync();
         return Page(items.Select(ToDto).ToList(), total, pagination.Page, pagination.PageSize);
@@ -69,13 +70,18 @@ public sealed class InventoryWorkflowService : IInventoryWorkflowService
         if (order.IssuedByUserId == actorUserId) throw new UnauthorizedAccessException("The person who issued the purchase order cannot independently receive its delivery.");
         await RequireProjectAccessAsync(actorUserId, order.ProjectId);
         var line = order.Lines.Single();
-        // Rejected goods never enter stock and the supplier may replace them later. Only
-        // accepted quantities consume the PO quantity; otherwise a rejected delivery would
-        // permanently prevent the Storekeeper from recording its replacement.
-        var acceptedBefore = await _db.GoodsReceipts
-            .Where(item => item.PurchaseOrderLineId == line.Id)
-            .SumAsync(item => (decimal?)item.AcceptedQuantity) ?? 0;
-        if (acceptedBefore + accepted > line.Quantity)
+        // A pending engineering check still reserves the outstanding PO quantity, while a
+        // technically rejected receipt releases it so the supplier can deliver a replacement.
+        var earlierReceipts = await _db.GoodsReceipts
+            .Where(item => item.PurchaseOrderLineId == line.Id && item.AcceptedQuantity > 0)
+            .Include(item => item.TechnicalAcceptances)
+            .ToListAsync();
+        var committedBefore = line.RequiresTechnicalAcceptance
+            ? earlierReceipts
+                .Where(item => LatestTechnicalAcceptance(item)?.Outcome != TechnicalAcceptanceOutcomes.Rejected)
+                .Sum(item => item.AcceptedQuantity)
+            : earlierReceipts.Sum(item => item.AcceptedQuantity);
+        if (committedBefore + accepted > line.Quantity)
             throw new InvalidOperationException("The accepted quantity would exceed the outstanding purchase-order quantity.");
 
         var now = DateTime.UtcNow;
@@ -89,7 +95,7 @@ public sealed class InventoryWorkflowService : IInventoryWorkflowService
         };
         _db.GoodsReceipts.Add(receipt);
         await _db.SaveChangesAsync();
-        if (accepted > 0)
+        if (accepted > 0 && !line.RequiresTechnicalAcceptance)
         {
             await ChangeBalanceAsync(order.ProjectId, line.MaterialId, accepted, "Receipt", "GoodsReceipt", receipt.Id, receipt.ReceiptNumber, actorUserId, discrepancy, now);
         }
@@ -105,6 +111,153 @@ public sealed class InventoryWorkflowService : IInventoryWorkflowService
         receipt.Material = line.Material;
         receipt.ReceivedByUser = await _db.Users.AsNoTracking().SingleAsync(item => item.Id == actorUserId);
         return ToDto(receipt);
+    }
+
+    public async Task<PaginatedResult<TechnicalAcceptanceResponseDto>> GetTechnicalAcceptancesAsync(
+        int page,
+        int pageSize,
+        int actorUserId,
+        string actorRole,
+        int? projectId = null,
+        string? status = null)
+    {
+        await RequireAnyRoleAsync(actorUserId, actorRole, "Engineer", "Finance Officer", "CEO", "Auditor");
+        if (projectId is <= 0) throw new ArgumentException("Project ID must be positive.", nameof(projectId));
+
+        var normalizedStatus = NormalizeTechnicalAcceptanceStatus(status);
+        var query = _db.GoodsReceipts.AsNoTracking()
+            .Where(item => item.PurchaseOrderLine.RequiresTechnicalAcceptance && item.AcceptedQuantity > 0);
+        if (actorRole is not ("CEO" or "Auditor") && !await CanVerifyAllProjectsAsync(actorUserId))
+        {
+            query = query.Where(item => _db.UserProjectAssignments.Any(assignment =>
+                assignment.UserId == actorUserId
+                && assignment.ProjectId == item.ProjectId
+                && assignment.IsActive));
+        }
+        if (projectId.HasValue) query = query.Where(item => item.ProjectId == projectId.Value);
+        query = normalizedStatus switch
+        {
+            "Pending" => query.Where(item => !item.TechnicalAcceptances.Any()),
+            "Accepted" => query.Where(item => item.TechnicalAcceptances
+                .OrderByDescending(review => review.ReviewSequence)
+                .Select(review => review.Outcome)
+                .FirstOrDefault() == TechnicalAcceptanceOutcomes.Accepted),
+            "Rejected" => query.Where(item => item.TechnicalAcceptances
+                .OrderByDescending(review => review.ReviewSequence)
+                .Select(review => review.Outcome)
+                .FirstOrDefault() == TechnicalAcceptanceOutcomes.Rejected),
+            _ => query
+        };
+
+        var pagination = Pagination.Normalize(page, pageSize);
+        var total = await query.CountAsync();
+        var items = await TechnicalAcceptanceQuery(query)
+            .OrderBy(item => item.TechnicalAcceptances.Any() ? 1 : 0)
+            .ThenByDescending(item => item.ReceivedAt)
+            .ThenByDescending(item => item.Id)
+            .Skip(pagination.Offset)
+            .Take(pagination.PageSize)
+            .ToListAsync();
+        return Page(items.Select(ToTechnicalAcceptanceDto).ToList(), total, pagination.Page, pagination.PageSize);
+    }
+
+    public async Task<TechnicalAcceptanceResponseDto> RecordTechnicalAcceptanceAsync(
+        long receiptId,
+        RecordTechnicalAcceptanceRequestDto request,
+        int actorUserId,
+        string actorRole)
+    {
+        await RequireRoleAsync(actorUserId, actorRole, "Engineer");
+        if (receiptId <= 0) throw new ArgumentException("Goods receipt ID must be positive.", nameof(receiptId));
+        var outcome = NormalizeTechnicalAcceptanceOutcome(request.Outcome);
+        var notes = InputNormalizer.RequiredText(request.Notes, nameof(request.Notes), 3, 1_000);
+        var evidence = InputNormalizer.OptionalText(request.EvidenceReference, nameof(request.EvidenceReference), 500);
+
+        await using var transaction = await _db.Database.BeginTransactionAsync(IsolationLevel.Serializable);
+        await LockGoodsReceiptAsync(receiptId);
+        var receipt = await TechnicalAcceptanceQuery(_db.GoodsReceipts)
+            .SingleOrDefaultAsync(item => item.Id == receiptId)
+            ?? throw new KeyNotFoundException("The goods receipt was not found.");
+        if (!receipt.PurchaseOrderLine.RequiresTechnicalAcceptance)
+            throw new InvalidOperationException("This purchase-order line does not require engineering technical acceptance.");
+        if (receipt.AcceptedQuantity <= 0)
+            throw new InvalidOperationException("A receipt with no quantity accepted into Stores does not require engineering technical acceptance.");
+        var latestReview = LatestTechnicalAcceptance(receipt);
+        if (latestReview?.Outcome == TechnicalAcceptanceOutcomes.Accepted)
+            throw new InvalidOperationException("This goods receipt already has final engineering technical acceptance.");
+        if (receipt.ReceivedByUserId == actorUserId)
+            throw new UnauthorizedAccessException("The Storekeeper who received the delivery cannot perform its engineering technical acceptance.");
+        await RequireProjectAccessAsync(actorUserId, receipt.ProjectId);
+
+        if (outcome == TechnicalAcceptanceOutcomes.Accepted)
+        {
+            var otherReceipts = await _db.GoodsReceipts
+                .Where(item => item.PurchaseOrderLineId == receipt.PurchaseOrderLineId
+                    && item.Id != receipt.Id
+                    && item.AcceptedQuantity > 0)
+                .Include(item => item.TechnicalAcceptances)
+                .ToListAsync();
+            var otherCommitted = otherReceipts
+                .Where(item => LatestTechnicalAcceptance(item)?.Outcome != TechnicalAcceptanceOutcomes.Rejected)
+                .Sum(item => item.AcceptedQuantity);
+            if (otherCommitted + receipt.AcceptedQuantity > receipt.PurchaseOrderLine.Quantity)
+                throw new InvalidOperationException(
+                    "A replacement delivery already reserves this purchase-order quantity, so this rejected receipt cannot now be accepted.");
+        }
+
+        var now = DateTime.UtcNow;
+        var acceptance = new GoodsReceiptTechnicalAcceptance
+        {
+            GoodsReceiptId = receipt.Id,
+            ReviewSequence = (latestReview?.ReviewSequence ?? 0) + 1,
+            EngineerUserId = actorUserId,
+            Outcome = outcome,
+            Notes = notes,
+            EvidenceReference = evidence,
+            ReviewedAt = now
+        };
+        _db.GoodsReceiptTechnicalAcceptances.Add(acceptance);
+        await _db.SaveChangesAsync();
+        if (outcome == TechnicalAcceptanceOutcomes.Accepted)
+        {
+            await ChangeBalanceAsync(
+                receipt.ProjectId,
+                receipt.MaterialId,
+                receipt.AcceptedQuantity,
+                "TechnicalAcceptance",
+                "GoodsReceipt",
+                receipt.Id,
+                receipt.ReceiptNumber,
+                actorUserId,
+                notes,
+                now);
+        }
+        await _events.AppendAsync(
+            Chain(receipt.PurchaseOrder.RequisitionId),
+            receipt.PurchaseOrder.RequisitionId,
+            receipt.ProjectId,
+            "GoodsReceiptTechnicalAcceptance",
+            acceptance.Id,
+            receipt.ReceiptNumber,
+            outcome == TechnicalAcceptanceOutcomes.Accepted
+                ? "DeliveryTechnicallyAccepted"
+                : "DeliveryTechnicallyRejected",
+            actorUserId,
+            actorRole,
+            new
+            {
+                receiptNumber = receipt.ReceiptNumber,
+                materialName = receipt.Material.Name,
+                quantity = receipt.AcceptedQuantity,
+                reviewSequence = acceptance.ReviewSequence,
+                outcome,
+                notes,
+                evidenceReference = evidence
+            },
+            now);
+        await _db.SaveChangesAsync();
+        await transaction.CommitAsync();
+        return await LoadTechnicalAcceptanceAsync(receipt.Id);
     }
 
     public async Task<PaginatedResult<StockBalanceResponseDto>> GetBalancesAsync(
@@ -406,6 +559,11 @@ public sealed class InventoryWorkflowService : IInventoryWorkflowService
             ?? throw new InvalidOperationException("The stock balance no longer exists.");
         if (balance.QuantityOnHand != count.SystemQuantity) throw new InvalidOperationException("Stock moved after this count. Reject it and perform a fresh count.");
         var now = DateTime.UtcNow;
+        if (request.Approve
+            && count.Variance > 0
+            && await HasOpenTechnicalHoldAsync(count.ProjectId, count.MaterialId))
+            throw new InvalidOperationException(
+                "A delivery for this material is still waiting for technical acceptance or replacement. It cannot enter usable stock through a count adjustment.");
         count.Status = request.Approve ? StockCountStatuses.Approved : StockCountStatuses.Rejected;
         count.ReviewedByUserId = actorUserId; count.ReviewNotes = notes; count.ReviewedAt = now;
         if (request.Approve && count.Variance != 0)
@@ -440,6 +598,38 @@ public sealed class InventoryWorkflowService : IInventoryWorkflowService
 
     private Task<StockBalance?> GetBalanceAsync(int projectId, int materialId) =>
         _db.StockBalances.SingleOrDefaultAsync(item => item.ProjectId == projectId && item.MaterialId == materialId);
+
+    private async Task<bool> HasOpenTechnicalHoldAsync(int projectId, int materialId)
+    {
+        var lines = await _db.PurchaseOrderLines.AsNoTracking()
+            .Where(item => item.RequiresTechnicalAcceptance
+                && item.MaterialId == materialId
+                && item.PurchaseOrder.ProjectId == projectId)
+            .Select(item => new { item.Id, item.Quantity })
+            .ToListAsync();
+        if (lines.Count == 0) return false;
+
+        var lineIds = lines.Select(item => item.Id).ToList();
+        var receipts = await _db.GoodsReceipts.AsNoTracking()
+            .Where(item => lineIds.Contains(item.PurchaseOrderLineId) && item.AcceptedQuantity > 0)
+            .Include(item => item.TechnicalAcceptances)
+            .ToListAsync();
+
+        foreach (var line in lines)
+        {
+            var lineReceipts = receipts.Where(item => item.PurchaseOrderLineId == line.Id).ToList();
+            if (lineReceipts.Any(item => LatestTechnicalAcceptance(item) is null)) return true;
+
+            var acceptedQuantity = lineReceipts
+                .Where(item => LatestTechnicalAcceptance(item)?.Outcome == TechnicalAcceptanceOutcomes.Accepted)
+                .Sum(item => item.AcceptedQuantity);
+            if (acceptedQuantity < line.Quantity
+                && lineReceipts.Any(item => LatestTechnicalAcceptance(item)?.Outcome == TechnicalAcceptanceOutcomes.Rejected))
+                return true;
+        }
+
+        return false;
+    }
 
     private async Task RequireRoleAsync(int userId, string claimedRole, string requiredRole) =>
         await RequireAnyRoleAsync(userId, claimedRole, requiredRole);
@@ -500,17 +690,105 @@ public sealed class InventoryWorkflowService : IInventoryWorkflowService
         };
     }
 
-    private static GoodsReceiptResponseDto ToDto(GoodsReceipt item) => new()
+    private static GoodsReceiptResponseDto ToDto(GoodsReceipt item)
     {
-        Id = item.Id, ReceiptNumber = item.ReceiptNumber, PurchaseOrderId = item.PurchaseOrderId,
-        PurchaseOrderNumber = item.PurchaseOrder.PurchaseOrderNumber, SupplierName = item.PurchaseOrder.Supplier.Name,
-        RequisitionId = item.PurchaseOrder.RequisitionId,
-        ProjectId = item.ProjectId, ProjectName = item.Project.Name, MaterialId = item.MaterialId,
-        MaterialName = item.Material.Name, MaterialUnit = item.Material.Unit, OrderedQuantity = item.PurchaseOrderLine.Quantity,
-        DeliveredQuantity = item.DeliveredQuantity, AcceptedQuantity = item.AcceptedQuantity, RejectedQuantity = item.RejectedQuantity,
-        Condition = item.Condition, DeliveryNoteReference = item.DeliveryNoteReference, EvidenceReference = item.EvidenceReference,
-        DiscrepancyNotes = item.DiscrepancyNotes, ReceivedByName = item.ReceivedByUser.FullName, ReceivedAt = item.ReceivedAt
-    };
+        var latestReview = LatestTechnicalAcceptance(item);
+        return new GoodsReceiptResponseDto
+        {
+            Id = item.Id, ReceiptNumber = item.ReceiptNumber, PurchaseOrderId = item.PurchaseOrderId,
+            PurchaseOrderNumber = item.PurchaseOrder.PurchaseOrderNumber, SupplierName = item.PurchaseOrder.Supplier.Name,
+            RequisitionId = item.PurchaseOrder.RequisitionId,
+            ProjectId = item.ProjectId, ProjectName = item.Project.Name, MaterialId = item.MaterialId,
+            MaterialName = item.Material.Name, MaterialUnit = item.Material.Unit, OrderedQuantity = item.PurchaseOrderLine.Quantity,
+            DeliveredQuantity = item.DeliveredQuantity, AcceptedQuantity = item.AcceptedQuantity, RejectedQuantity = item.RejectedQuantity,
+            Condition = item.Condition, DeliveryNoteReference = item.DeliveryNoteReference, EvidenceReference = item.EvidenceReference,
+            DiscrepancyNotes = item.DiscrepancyNotes, ReceivedByName = item.ReceivedByUser.FullName, ReceivedAt = item.ReceivedAt,
+            RequiresTechnicalAcceptance = item.PurchaseOrderLine.RequiresTechnicalAcceptance,
+            TechnicalAcceptanceStatus = !item.PurchaseOrderLine.RequiresTechnicalAcceptance || item.AcceptedQuantity <= 0
+                ? "NotRequired"
+                : latestReview?.Outcome ?? "Pending",
+            TechnicalAcceptanceReviewedByName = latestReview?.EngineerUser.FullName,
+            TechnicalAcceptanceReviewedAt = latestReview?.ReviewedAt
+        };
+    }
+
+    private static IQueryable<GoodsReceipt> TechnicalAcceptanceQuery(IQueryable<GoodsReceipt> query) => query
+        .Include(item => item.PurchaseOrder).ThenInclude(order => order.Supplier)
+        .Include(item => item.PurchaseOrderLine)
+        .Include(item => item.Project)
+        .Include(item => item.Material)
+        .Include(item => item.ReceivedByUser)
+        .Include(item => item.TechnicalAcceptances).ThenInclude(item => item.EngineerUser)
+        .AsSplitQuery();
+
+    private async Task<TechnicalAcceptanceResponseDto> LoadTechnicalAcceptanceAsync(long receiptId) =>
+        ToTechnicalAcceptanceDto(await TechnicalAcceptanceQuery(_db.GoodsReceipts.AsNoTracking())
+            .SingleAsync(item => item.Id == receiptId));
+
+    private static TechnicalAcceptanceResponseDto ToTechnicalAcceptanceDto(GoodsReceipt item)
+    {
+        var latestReview = LatestTechnicalAcceptance(item);
+        return new TechnicalAcceptanceResponseDto
+        {
+            GoodsReceiptId = item.Id,
+            ReceiptNumber = item.ReceiptNumber,
+            PurchaseOrderId = item.PurchaseOrderId,
+            PurchaseOrderNumber = item.PurchaseOrder.PurchaseOrderNumber,
+            RequisitionId = item.PurchaseOrder.RequisitionId,
+            ProjectId = item.ProjectId,
+            ProjectName = item.Project.Name,
+            SupplierName = item.PurchaseOrder.Supplier.Name,
+            MaterialId = item.MaterialId,
+            MaterialName = item.Material.Name,
+            MaterialUnit = item.Material.Unit,
+            OrderedQuantity = item.PurchaseOrderLine.Quantity,
+            DeliveredQuantity = item.DeliveredQuantity,
+            AcceptedQuantity = item.AcceptedQuantity,
+            Condition = item.Condition,
+            DeliveryNoteReference = item.DeliveryNoteReference,
+            ReceiptEvidenceReference = item.EvidenceReference,
+            ReceivedByName = item.ReceivedByUser.FullName,
+            ReceivedAt = item.ReceivedAt,
+            RequiresTechnicalAcceptance = item.PurchaseOrderLine.RequiresTechnicalAcceptance,
+            Status = latestReview?.Outcome ?? "Pending",
+            Outcome = latestReview?.Outcome,
+            ReviewSequence = latestReview?.ReviewSequence,
+            ReviewedByUserId = latestReview?.EngineerUserId,
+            ReviewedByName = latestReview?.EngineerUser.FullName,
+            Notes = latestReview?.Notes,
+            ReviewEvidenceReference = latestReview?.EvidenceReference,
+            ReviewedAt = latestReview?.ReviewedAt
+        };
+    }
+
+    private static GoodsReceiptTechnicalAcceptance? LatestTechnicalAcceptance(GoodsReceipt receipt) =>
+        receipt.TechnicalAcceptances
+            .OrderByDescending(item => item.ReviewSequence)
+            .FirstOrDefault();
+
+    private Task<int> LockGoodsReceiptAsync(long receiptId) =>
+        _db.Database.ExecuteSqlInterpolatedAsync(
+            $"SELECT 1 FROM \"GoodsReceipts\" WHERE \"Id\" = {receiptId} FOR UPDATE");
+
+    private static string? NormalizeTechnicalAcceptanceStatus(string? status)
+    {
+        if (string.IsNullOrWhiteSpace(status)) return null;
+        return status.Trim().ToLowerInvariant() switch
+        {
+            "pending" => "Pending",
+            "accepted" => TechnicalAcceptanceOutcomes.Accepted,
+            "rejected" => TechnicalAcceptanceOutcomes.Rejected,
+            _ => throw new ArgumentException("Technical acceptance status must be Pending, Accepted, or Rejected.", nameof(status))
+        };
+    }
+
+    private static string NormalizeTechnicalAcceptanceOutcome(string outcome) =>
+        InputNormalizer.RequiredText(outcome, nameof(outcome), maximumLength: 20).ToLowerInvariant() switch
+        {
+            "accepted" => TechnicalAcceptanceOutcomes.Accepted,
+            "rejected" => TechnicalAcceptanceOutcomes.Rejected,
+            _ => throw new ArgumentException("Technical acceptance outcome must be Accepted or Rejected.", nameof(outcome))
+        };
 
     private static IQueryable<StockTransfer> TransferQuery(IQueryable<StockTransfer> query) => query
         .Include(item => item.FromProject).Include(item => item.ToProject).Include(item => item.Material)

@@ -34,6 +34,7 @@ public class AppDbContext : DbContext
     public DbSet<AccessRequest> AccessRequests => Set<AccessRequest>();
     public DbSet<Project> Projects => Set<Project>();
     public DbSet<Material> Materials => Set<Material>();
+    public DbSet<MaterialTechnicalAcceptancePolicyEvent> MaterialTechnicalAcceptancePolicyEvents => Set<MaterialTechnicalAcceptancePolicyEvent>();
     public DbSet<Supplier> Suppliers => Set<Supplier>();
     public DbSet<SupplierOnboardingRequest> SupplierOnboardingRequests => Set<SupplierOnboardingRequest>();
     public DbSet<Requisition> Requisitions => Set<Requisition>();
@@ -51,6 +52,7 @@ public class AppDbContext : DbContext
     public DbSet<PurchaseOrderLine> PurchaseOrderLines => Set<PurchaseOrderLine>();
     public DbSet<PurchaseOrderEvent> PurchaseOrderEvents => Set<PurchaseOrderEvent>();
     public DbSet<GoodsReceipt> GoodsReceipts => Set<GoodsReceipt>();
+    public DbSet<GoodsReceiptTechnicalAcceptance> GoodsReceiptTechnicalAcceptances => Set<GoodsReceiptTechnicalAcceptance>();
     public DbSet<StockBalance> StockBalances => Set<StockBalance>();
     public DbSet<StockLedgerEntry> StockLedgerEntries => Set<StockLedgerEntry>();
     public DbSet<MaterialIssue> MaterialIssues => Set<MaterialIssue>();
@@ -80,6 +82,7 @@ public class AppDbContext : DbContext
             .FirstOrDefault(entry =>
                 entry.State is EntityState.Modified or EntityState.Deleted
                 && entry.Entity is EngineerTechnicalCheck
+                    or MaterialTechnicalAcceptancePolicyEvent
                     or RequisitionApprovalEvent
                     or ProjectBudget
                     or ProjectBudgetAllocation
@@ -89,6 +92,7 @@ public class AppDbContext : DbContext
                     or PurchaseOrderLine
                     or PurchaseOrderEvent
                     or GoodsReceipt
+                    or GoodsReceiptTechnicalAcceptance
                     or StockLedgerEntry
                     or MaterialUsageRecord
                     or PaymentAuthorization
@@ -286,6 +290,7 @@ public class AppDbContext : DbContext
         ConfigureAccessRequests(modelBuilder);
         ConfigureProjects(modelBuilder, seedDate, seedProjectDate);
         ConfigureMaterials(modelBuilder);
+        ConfigureMaterialTechnicalAcceptancePolicyEvents(modelBuilder);
         ConfigureSuppliers(modelBuilder);
         ConfigureSupplierOnboardingRequests(modelBuilder);
         ConfigureRequisitions(modelBuilder);
@@ -303,6 +308,7 @@ public class AppDbContext : DbContext
         ConfigurePurchaseOrderLines(modelBuilder);
         ConfigurePurchaseOrderEvents(modelBuilder);
         ConfigureGoodsReceipts(modelBuilder);
+        ConfigureGoodsReceiptTechnicalAcceptances(modelBuilder);
         ConfigureStockBalances(modelBuilder);
         ConfigureStockLedgerEntries(modelBuilder);
         ConfigureMaterialIssues(modelBuilder);
@@ -497,6 +503,7 @@ public class AppDbContext : DbContext
         materials.Property(material => material.Unit).HasMaxLength(30);
         materials.Property(material => material.StandardPrice).HasPrecision(18, 2);
         materials.Property(material => material.ReorderLevel).HasPrecision(18, 3);
+        materials.Property(material => material.RequiresTechnicalAcceptance).HasDefaultValue(true);
         materials.ToTable(table =>
         {
             table.HasCheckConstraint(
@@ -523,6 +530,23 @@ public class AppDbContext : DbContext
             .HasComputedColumnSql(NormalizedKraPinSql, stored: true)
             .IsRequired(false);
         suppliers.HasIndex("NormalizedKraPin").IsUnique();
+    }
+
+    private static void ConfigureMaterialTechnicalAcceptancePolicyEvents(ModelBuilder modelBuilder)
+    {
+        var events = modelBuilder.Entity<MaterialTechnicalAcceptancePolicyEvent>();
+        events.HasIndex(item => new { item.MaterialId, item.ChangedAt });
+        events.ToTable(table => table.HasCheckConstraint(
+            "CK_MaterialTechnicalAcceptancePolicyEvents_Changed",
+            "\"PreviousRequired\" <> \"Required\""));
+        events.HasOne(item => item.Material)
+            .WithMany()
+            .HasForeignKey(item => item.MaterialId)
+            .OnDelete(DeleteBehavior.Restrict);
+        events.HasOne(item => item.ChangedByUser)
+            .WithMany()
+            .HasForeignKey(item => item.ChangedByUserId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 
     private static void ConfigureSupplierOnboardingRequests(ModelBuilder modelBuilder)
@@ -998,6 +1022,7 @@ public class AppDbContext : DbContext
 
         lines.Property(line => line.Quantity).HasPrecision(18, 3);
         lines.Property(line => line.UnitPrice).HasPrecision(18, 2);
+        lines.Property(line => line.RequiresTechnicalAcceptance).HasDefaultValue(true);
         lines.HasIndex(line => line.RequisitionId);
         lines.ToTable(table =>
         {
@@ -1095,11 +1120,41 @@ public class AppDbContext : DbContext
             table.HasCheckConstraint("CK_GoodsReceipts_Condition",
                 "\"Condition\" IN ('Good', 'Damaged', 'Mixed')");
         });
-        receipts.HasOne(item => item.PurchaseOrder).WithMany().HasForeignKey(item => item.PurchaseOrderId).OnDelete(DeleteBehavior.Restrict);
+        receipts.HasOne(item => item.PurchaseOrder).WithMany(item => item.GoodsReceipts).HasForeignKey(item => item.PurchaseOrderId).OnDelete(DeleteBehavior.Restrict);
         receipts.HasOne(item => item.PurchaseOrderLine).WithMany().HasForeignKey(item => item.PurchaseOrderLineId).OnDelete(DeleteBehavior.Restrict);
         receipts.HasOne(item => item.Project).WithMany().HasForeignKey(item => item.ProjectId).OnDelete(DeleteBehavior.Restrict);
         receipts.HasOne(item => item.Material).WithMany().HasForeignKey(item => item.MaterialId).OnDelete(DeleteBehavior.Restrict);
         receipts.HasOne(item => item.ReceivedByUser).WithMany().HasForeignKey(item => item.ReceivedByUserId).OnDelete(DeleteBehavior.Restrict);
+    }
+
+    private static void ConfigureGoodsReceiptTechnicalAcceptances(ModelBuilder modelBuilder)
+    {
+        var acceptances = modelBuilder.Entity<GoodsReceiptTechnicalAcceptance>();
+        acceptances.Property(item => item.Outcome).HasMaxLength(20);
+        acceptances.Property(item => item.Notes).HasMaxLength(1_000);
+        acceptances.Property(item => item.EvidenceReference).HasMaxLength(500);
+        acceptances.HasIndex(item => new { item.GoodsReceiptId, item.ReviewSequence }).IsUnique();
+        acceptances.HasIndex(item => new { item.EngineerUserId, item.ReviewedAt });
+        acceptances.ToTable(table =>
+        {
+            table.HasCheckConstraint(
+                "CK_GoodsReceiptTechnicalAcceptances_Outcome",
+                "\"Outcome\" IN ('Accepted', 'Rejected')");
+            table.HasCheckConstraint(
+                "CK_GoodsReceiptTechnicalAcceptances_ReviewSequence",
+                "\"ReviewSequence\" > 0");
+            table.HasCheckConstraint(
+                "CK_GoodsReceiptTechnicalAcceptances_Notes",
+                "length(btrim(\"Notes\")) >= 3");
+        });
+        acceptances.HasOne(item => item.GoodsReceipt)
+            .WithMany(item => item.TechnicalAcceptances)
+            .HasForeignKey(item => item.GoodsReceiptId)
+            .OnDelete(DeleteBehavior.Restrict);
+        acceptances.HasOne(item => item.EngineerUser)
+            .WithMany()
+            .HasForeignKey(item => item.EngineerUserId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 
     private static void ConfigureStockBalances(ModelBuilder modelBuilder)
@@ -1126,7 +1181,7 @@ public class AppDbContext : DbContext
         ledger.ToTable(table =>
         {
             table.HasCheckConstraint("CK_StockLedgerEntries_Movement",
-                "\"MovementType\" IN ('Receipt', 'Issue', 'TransferOut', 'TransferIn', 'CountAdjustment')");
+                "\"MovementType\" IN ('Receipt', 'TechnicalAcceptance', 'Issue', 'TransferOut', 'TransferIn', 'CountAdjustment')");
             table.HasCheckConstraint("CK_StockLedgerEntries_Balance", "\"BalanceAfter\" >= 0");
             table.HasCheckConstraint("CK_StockLedgerEntries_Delta", "\"QuantityDelta\" <> 0");
         });

@@ -13,7 +13,7 @@ All paths use the `/api/v1` prefix. Except for login, liveness and readiness, th
 | Submit and independently approve supplier companies | `supplierOnboardingApi`, `suppliersApi` | `SupplierOnboardingController`, `SuppliersController` | `SupplierOnboardingService`, `SupplierService` | `SupplierOnboardingRequests`, `Suppliers` |
 | Collect comparable supplier offers | `sourcingRoundsApi`, `suppliersApi` | `SourcingRoundsController`, `SuppliersController` | `SourcingService`, `SupplierService` | `SourcingRounds`, `SourcingRoundEvents`, `SupplierQuotes`, `Suppliers` |
 | Prepare, approve and issue an order | `purchaseOrdersApi` | `PurchaseOrdersController` | `PurchaseOrderService` | `PurchaseOrders`, `PurchaseOrderLines`, `PurchaseOrderEvents` |
-| Receive, store, issue, transfer and account for material | `inventoryApi` | `InventoryController` | `InventoryWorkflowService` | `GoodsReceipts`, `StockBalances`, `StockLedgerEntries`, `MaterialIssues`, `MaterialUsageRecords`, `StockTransfers`, `StockCounts` |
+| Receive, technically accept, store, issue, transfer and account for material | `inventoryApi` | `InventoryController` | `InventoryWorkflowService` | `GoodsReceipts`, `GoodsReceiptTechnicalAcceptances`, `StockBalances`, `StockLedgerEntries`, `MaterialIssues`, `MaterialUsageRecords`, `StockTransfers`, `StockCounts` |
 | Match, authorize and execute supplier payments | `financeApi` | `FinanceController` | `FinanceWorkflowService` | `SupplierInvoices`, `PaymentAuthorizations`, `Payments`, `PaymentReceipts` |
 | Request, hand over, confirm and reconcile petty cash | `pettyCashApi` | `PettyCashController` | `PettyCashService` | `PettyCashRequests`, `PettyCashDisbursements`, `PettyCashReceiptConfirmations`, `PettyCashReconciliations` |
 | Trace the complete material-and-money chain | `financeApi.controlEvents` | `FinanceController` | `FinanceWorkflowService`, `ControlEventWriter` | Existing workflow event tables plus hash-linked `ControlEvents` |
@@ -29,6 +29,7 @@ All paths use the `/api/v1` prefix. Except for login, liveness and readiness, th
 | `/suppliers` | Supplier application, independent approval and approved register | CEO, Procurement Officer, Finance Officer, Auditor |
 | `/purchase-orders` | Submit, approve/return/reject, correct, cancel and issue | CEO, Supervisor, Procurement Officer, Storekeeper, Finance Officer, Auditor |
 | `/inventory` | GRNs, store balances, issues, Foreman custody, transfers and stock counts | CEO, Supervisor, Engineer, Foreman, Storekeeper, Finance Officer, Auditor |
+| `/delivery-checks` | Pending and completed Engineer technical checks for received deliveries | Engineer |
 | `/finance` | Supplier invoices, Finance matching, Supervisor authorization, payment execution and receipts | CEO, Supervisor, Procurement Officer, Finance Officer, Auditor |
 | `/petty-cash` | Requests, approval, handover, receipt confirmation and reconciliation | CEO, Supervisor, Finance Officer, Auditor |
 | `/audit` | One chronological evidence chain across materials and cash | CEO, Auditor |
@@ -143,7 +144,9 @@ For site-use requests, the requester, technical checker, supervisor decision-mak
 ## 5. Inventory and material custody
 
 ```text
-Issued PO → Storekeeper GRN → project store balance
+Issued PO → Storekeeper GRN → no technical check required → project store balance
+                           ↘ check required → assigned Engineer accepts → project store balance
+                                                            ↘ rejects → replacement quantity reopens
 Approved site-use requisition → Storekeeper issue voucher → Foreman confirmation → use/wastage
 Approved store-replenishment request → Procurement sourcing → PO → Storekeeper GRN → reserve stock
 Supervisor transfer request → sending Storekeeper dispatch → different receiving Storekeeper receipt
@@ -153,7 +156,9 @@ Storekeeper physical count → Supervisor review → ledger adjustment when appr
 | Method and path | Role | Purpose |
 |---|---|---|
 | `GET /inventory/receipts` | Storekeeper, Procurement, Finance, CEO, Auditor | Read independent delivery evidence inside scope. Procurement uses it only to identify orders eligible for invoice capture. |
-| `POST /inventory/receipts` | Assigned Storekeeper | Record delivered, accepted and rejected quantity against an issued PO. Only accepted quantity enters stock; rejected goods may be replaced later. |
+| `POST /inventory/receipts` | Assigned Storekeeper | Record delivered, received and rejected quantity against an issued PO. Quantity on a line requiring technical acceptance is held outside usable stock until the Engineer accepts it. |
+| `GET /inventory/technical-acceptances` | Engineer, Finance, CEO, Auditor | Read delivery-level technical-check status inside project scope. Engineers use this as their pending and reviewed queue. |
+| `POST /inventory/receipts/{id}/technical-acceptance` | Different assigned Engineer | Append an `Accepted` or `Rejected` technical decision for a positive-quantity GRN whose snapshotted PO line requires it. Acceptance releases that receipt into usable stock. Rejection reopens its PO quantity for a replacement; reinspection remains possible only until a replacement reserves that quantity. |
 | `GET /inventory/balances` | Storekeeper, Foreman, Supervisor, Engineer, Finance, CEO, Auditor | Read each catalog material currently inside each visible project store. |
 | `GET /inventory/ledger` | Storekeeper, Supervisor, Finance, CEO, Auditor | Read the append-only movement ledger and balance after every movement. |
 | `GET /inventory/issues` | Storekeeper, Foreman, Supervisor, Engineer, CEO, Auditor | Read role-shaped issue vouchers. A Foreman sees only material handed to that account. |
@@ -164,23 +169,25 @@ Storekeeper physical count → Supervisor review → ledger adjustment when appr
 | `POST /inventory/transfers/{id}/dispatch` | Sending-site Storekeeper | Remove dispatched quantity from the source store. |
 | `POST /inventory/transfers/{id}/receive` | Different destination-site Storekeeper | Confirm destination quantity and add it to destination stock; differences are disputed. |
 | `GET`, `POST /inventory/counts` | Storekeeper, Supervisor, CEO, Auditor as appropriate | Read physical counts or let Stores submit a stock snapshot. |
-| `POST /inventory/counts/{id}/review` | Different assigned Supervisor | Approve/reject a count. Approval fails safely if stock moved after counting. |
+| `POST /inventory/counts/{id}/review` | Different assigned Supervisor | Approve/reject a count. Approval fails safely if stock moved after counting, and a positive adjustment cannot bypass an unresolved Engineer hold or replacement. |
 
 Materials come from one categorized catalog. The Foreman selects the material and types only the numeric amount; its unit (`bags`, `tonnes`, `pieces`, `lengths`, `litres`, and so on) is locked from the selected catalog record so approval, PO, GRN, store balance and usage cannot silently change units.
 
 ## 6. Invoice-to-payment control and owner trace
 
 ```text
-Accepted GRN → Procurement invoice capture → Finance three-way match
-             → CEO only for high-value exception → assigned Supervisor authorization
-             → Finance executes → system receipt
+Storekeeper GRN → Engineer technical acceptance when required → usable stock
+Full usable PO quantity + Procurement supplier invoice → Finance three-way match
+                                                       → CEO only for high-value exception
+                                                       → assigned Supervisor authorization
+                                                       → Finance executes → system receipt
 ```
 
 | Method and path | Role | Purpose |
 |---|---|---|
 | `GET /finance/invoices` | Procurement, Supervisor, Finance, CEO, Auditor | Read the scoped invoice queue without granting action rights. |
-| `POST /finance/invoices` | Assigned Procurement officer | Capture an immutable supplier invoice only after Stores has accepted the full PO quantity. This starter release does not silently treat one invoice as a partial-invoice schedule. |
-| `POST /finance/invoices/{id}/review` | Different Finance officer | Compare invoice quantity, unit price and amount exactly with accepted GRNs and the issued PO. |
+| `POST /finance/invoices` | Assigned Procurement officer | Capture an immutable supplier invoice only after the full PO quantity is in usable stock, including every required Engineer decision. This starter release does not silently treat one invoice as a partial-invoice schedule. |
+| `POST /finance/invoices/{id}/review` | Different Finance officer | Compare invoice quantity, unit price and amount exactly with accepted GRNs and the issued PO. Matching is blocked while any required delivery check is missing or rejected. |
 | `POST /finance/invoices/{id}/ceo-decision` | CEO | Decide only invoices above the configured high-value threshold; routine payments never require CEO operation. |
 | `POST /finance/invoices/{id}/authorize` | Assigned Supervisor | Create one append-only authority for the locked amount after Finance matching and any required CEO exception decision. |
 | `GET /finance/authorizations` | Supervisor, Finance, CEO, Auditor | Read payment instructions; `unpaidOnly=true` is the Finance execution queue. |
@@ -219,6 +226,7 @@ New operational evidence is protected twice: application guards reject deletion/
 |---|---|---|
 | `GET /materials` / `GET /materials/{id}` | Signed-in | Select the shared material catalog. |
 | `POST /materials`, `PUT /materials/{id}` | CEO or Procurement | Maintain catalog metadata/reference price. |
+| `PATCH /materials/{id}/technical-acceptance-policy` | CEO | Change whether future PO lines for a material require Engineer delivery acceptance. The decision is append-only audited; existing PO lines retain their snapshotted policy. |
 | `GET /supplier-onboarding` | Procurement, Finance, CEO, Auditor | Read pending and completed supplier applications. |
 | `POST /supplier-onboarding` | Procurement | Submit locked company, contact, KRA and payment-contact details for review. |
 | `POST /supplier-onboarding/{id}/decision` | Finance or CEO | Independently approve/reject once. Approval atomically creates the usable supplier record. |
