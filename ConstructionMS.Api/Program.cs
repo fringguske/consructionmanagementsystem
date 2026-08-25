@@ -1,9 +1,12 @@
 using ConstructionMS.Infrastructure.Data;
 using ConstructionMS.Api.Common;
+using ConstructionMS.Api.Workers;
 using ConstructionMS.Application.Configuration;
 using ConstructionMS.Application.Security;
 using ConstructionMS.Application.Services.Auth;
 using ConstructionMS.Application.Services.Dashboard;
+using ConstructionMS.Application.Services.Controls;
+using ConstructionMS.Application.Services.Evidence;
 using ConstructionMS.Application.Services.Materials;
 using ConstructionMS.Application.Services.Inventory;
 using ConstructionMS.Application.Services.Finance;
@@ -12,10 +15,13 @@ using ConstructionMS.Application.Services.PurchaseOrders;
 using ConstructionMS.Application.Services.Requisitions;
 using ConstructionMS.Application.Services.Roles;
 using ConstructionMS.Application.Services.Suppliers;
+using ConstructionMS.Application.Services.Tasks;
 using ConstructionMS.Application.Services.Users;
 using ConstructionMS.Application.DTOs.Users;
 using ConstructionMS.Infrastructure.Services.Auth;
 using ConstructionMS.Infrastructure.Services.Dashboard;
+using ConstructionMS.Infrastructure.Services.Controls;
+using ConstructionMS.Infrastructure.Services.Evidence;
 using ConstructionMS.Infrastructure.Services.Materials;
 using ConstructionMS.Infrastructure.Services.Inventory;
 using ConstructionMS.Infrastructure.Services.Finance;
@@ -24,6 +30,7 @@ using ConstructionMS.Infrastructure.Services.PurchaseOrders;
 using ConstructionMS.Infrastructure.Services.Requisitions;
 using ConstructionMS.Infrastructure.Services.Roles;
 using ConstructionMS.Infrastructure.Services.Suppliers;
+using ConstructionMS.Infrastructure.Services.Tasks;
 using ConstructionMS.Infrastructure.Services.Users;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -53,6 +60,29 @@ builder.Services.AddOptions<ItVerificationOptions>()
         "ItVerification:TesterUsername is required when IT verification is enabled.")
     .ValidateOnStart();
 
+builder.Services.AddOptions<TaskInboxOptions>()
+    .Bind(builder.Configuration.GetSection(TaskInboxOptions.SectionName))
+    .Validate(options => options.DefaultDueHours is > 0 and <= 720,
+        "TaskInbox:DefaultDueHours must be between 1 and 720.")
+    .Validate(options => options.UrgentDueHours is > 0 and <= 720,
+        "TaskInbox:UrgentDueHours must be between 1 and 720.")
+    .Validate(options => options.HandoverDueHours is > 0 and <= 720,
+        "TaskInbox:HandoverDueHours must be between 1 and 720.")
+    .Validate(options => options.NotificationSweepMinutes is > 0 and <= 1_440,
+        "TaskInbox:NotificationSweepMinutes must be between 1 and 1440.")
+    .Validate(options => options.InitialNotificationDelaySeconds is > 0 and <= 3_600,
+        "TaskInbox:InitialNotificationDelaySeconds must be between 1 and 3600.")
+    .ValidateOnStart();
+
+builder.Services.AddOptions<EvidenceStorageOptions>()
+    .Bind(builder.Configuration.GetSection(EvidenceStorageOptions.SectionName))
+    .Validate(options => !string.IsNullOrWhiteSpace(options.RootPath),
+        "EvidenceStorage:RootPath is required.")
+    .Validate(
+        options => options.MaxFileBytes is > 0 and <= EvidenceStorageOptions.AbsoluteMaximumFileBytes,
+        $"EvidenceStorage:MaxFileBytes must be between 1 and {EvidenceStorageOptions.AbsoluteMaximumFileBytes}.")
+    .ValidateOnStart();
+
 builder.Services.AddControllers();
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<ApiExceptionHandler>();
@@ -74,6 +104,17 @@ builder.Services.AddRateLimiter(options =>
         {
             PermitLimit = 5,
             Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0,
+            AutoReplenishment = true
+        }));
+    options.AddPolicy("evidence-upload", context => RateLimitPartition.GetFixedWindowLimiter(
+        partitionKey: context.User.FindFirstValue(ClaimTypes.NameIdentifier)
+            ?? context.Connection.RemoteIpAddress?.ToString()
+            ?? "unknown",
+        factory: _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 10,
+            Window = TimeSpan.FromMinutes(10),
             QueueLimit = 0,
             AutoReplenishment = true
         }));
@@ -198,6 +239,12 @@ builder.Services.AddScoped<IPurchaseOrderService, PurchaseOrderService>();
 builder.Services.AddScoped<IInventoryWorkflowService, InventoryWorkflowService>();
 builder.Services.AddScoped<IFinanceWorkflowService, FinanceWorkflowService>();
 builder.Services.AddScoped<IPettyCashService, PettyCashService>();
+builder.Services.AddScoped<IControlWorkspaceService, ControlWorkspaceService>();
+builder.Services.AddScoped<IMyTasksService, MyTasksService>();
+builder.Services.AddScoped<IInAppNotificationService, InAppNotificationService>();
+builder.Services.AddSingleton<IEvidenceStorage, LocalPrivateEvidenceStorage>();
+builder.Services.AddScoped<IEvidenceService, EvidenceService>();
+builder.Services.AddHostedService<OverdueNotificationWorker>();
 
 var app = builder.Build();
 

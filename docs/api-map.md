@@ -16,6 +16,11 @@ All paths use the `/api/v1` prefix. Except for login, liveness and readiness, th
 | Receive, technically accept, store, issue, transfer and account for material | `inventoryApi` | `InventoryController` | `InventoryWorkflowService` | `GoodsReceipts`, `GoodsReceiptTechnicalAcceptances`, `StockBalances`, `StockLedgerEntries`, `MaterialIssues`, `MaterialUsageRecords`, `StockTransfers`, `StockCounts` |
 | Match, authorize and execute supplier payments | `financeApi` | `FinanceController` | `FinanceWorkflowService` | `SupplierInvoices`, `PaymentAuthorizations`, `Payments`, `PaymentReceipts` |
 | Request, hand over, confirm and reconcile petty cash | `pettyCashApi` | `PettyCashController` | `PettyCashService` | `PettyCashRequests`, `PettyCashDisbursements`, `PettyCashReceiptConfirmations`, `PettyCashReconciliations` |
+| View role-owned work and overdue notices | `tasksApi`, `notificationsApi` | `MyTasksController`, `NotificationsController` | `MyTasksService`, `InAppNotificationService` | Authoritative workflow tables, `InAppNotifications`, read/resolution receipts |
+| Establish opening inventory and cash | `openingPositionsApi` | `ControlWorkspaceController` | `ControlWorkspaceService` | Opening-position batches/lines, independent verification/decision/posting records, stock/cash ledgers |
+| Return and close material custody | `custodyControlsApi` | `ControlWorkspaceController` | `ControlWorkspaceService` | `MaterialReturns`, dispute resolutions, custody close-outs and decisions |
+| Close periods and post controlled corrections | `accountingPeriodsApi` | `ControlWorkspaceController` | `ControlWorkspaceService` | Operational periods/events, corrections/decisions, stock/cash ledgers |
+| Attach and open private evidence | `evidenceApi` | `EvidenceController` | `EvidenceService`, `LocalPrivateEvidenceStorage` | `EvidenceDocuments`, `EvidenceAttachments`; private file storage |
 | Trace the complete material-and-money chain | `financeApi.controlEvents` | `FinanceController` | `FinanceWorkflowService`, `ControlEventWriter` | Existing workflow event tables plus hash-linked `ControlEvents` |
 
 ## Live React routes
@@ -30,6 +35,10 @@ All paths use the `/api/v1` prefix. Except for login, liveness and readiness, th
 | `/purchase-orders` | Submit, approve/return/reject, correct, cancel and issue | CEO, Supervisor, Procurement Officer, Storekeeper, Finance Officer, Auditor |
 | `/inventory` | GRNs, store balances, issues, Foreman custody, transfers and stock counts | CEO, Supervisor, Engineer, Foreman, Storekeeper, Finance Officer, Auditor |
 | `/delivery-checks` | Pending and completed Engineer technical checks for received deliveries | Engineer |
+| `/tasks` | Current role's actionable records and overdue state | Every signed-in role |
+| `/opening-positions` | Opening inventory/cash submission and independent review | Storekeeper, Supervisor, Finance Officer, CEO, Auditor |
+| `/custody-close-out` | Material returns, handover disputes and custody close-out | Foreman, Storekeeper, Supervisor, CEO, Auditor |
+| `/period-close` | Inventory/finance period closing and controlled corrections | Storekeeper, Supervisor, Finance Officer, CEO, Auditor |
 | `/finance` | Supplier invoices, Finance matching, Supervisor authorization, payment execution and receipts | CEO, Supervisor, Procurement Officer, Finance Officer, Auditor |
 | `/petty-cash` | Requests, approval, handover, receipt confirmation and reconciliation | CEO, Supervisor, Finance Officer, Auditor |
 | `/audit` | One chronological evidence chain across materials and cash | CEO, Auditor |
@@ -237,6 +246,31 @@ New operational evidence is protected twice: application guards reject deletion/
 | `GET /health/live` | Anonymous | Process liveness. |
 | `GET /health` | Anonymous | Database/migration readiness. |
 
+## Tasks, notifications, opening positions and period controls
+
+| Method and path | Role | Purpose |
+|---|---|---|
+| `GET /my-tasks` | Signed-in | Derive the current role's actionable work from live workflow records, with project and overdue filters. |
+| `GET /notifications`, `GET /notifications/unread-count` | Signed-in | Read the account's persistent overdue notices. |
+| `POST /notifications/{id}/read`, `POST /notifications/read-all` | Signed-in | Append notification read receipts. |
+| `GET`, `POST /controls/opening-positions` | Role-dependent | List opening positions; Stores submits inventory and Finance submits cash. |
+| `POST /controls/opening-positions/{id}/verify` | Supervisor | Independently verify opening inventory before CEO review. |
+| `POST /controls/opening-positions/{id}/decision` | CEO | Approve/reject an opening position and post approved balances atomically. |
+| `GET /controls/cash-accounts` | Finance, CEO, Auditor | Read project cash accounts and current ledger-backed balances. |
+| `GET`, `POST /controls/custody/returns` | Role-dependent | List returns or let the recorded Foreman offer material back to Stores. |
+| `POST /controls/custody/returns/{id}/receive` | Storekeeper | Accept the exact offered return into stock or reject it. |
+| `POST /controls/custody/disputes/{issueId}/resolve` | Supervisor | Resolve a disputed Foreman handover and return the difference to Stores. |
+| `GET`, `POST /controls/custody/closeouts` | Role-dependent | List close-outs or let the Foreman submit fully accounted custody. |
+| `POST /controls/custody/closeouts/{id}/review` | Supervisor | Independently approve or return a custody close-out. |
+| `GET`, `POST /controls/periods` | Role-dependent | List or open inventory/finance periods. |
+| `POST /controls/periods/{id}/submit-close` | Supervisor or Finance | Submit a completed, blocker-free period for CEO decision. |
+| `POST /controls/periods/{id}/decision` | CEO | Close or return a submitted period. |
+| `GET`, `POST /controls/corrections` | Role-dependent | List or propose a correction against a closed period. |
+| `POST /controls/corrections/{id}/decision` | CEO | Approve/reject and atomically post an immutable correction. |
+| `POST /evidence` | Source-owning operational role | Upload an optional PDF/JPEG/PNG/WebP after its source record exists. |
+| `GET /evidence/source/{type}/{id}` | Authorized, scoped role | List evidence attached to one source record. |
+| `GET /evidence/{documentId}/content` | Authorized, scoped role | Open a private evidence file through the API. |
+
 Supplier proposals never enter the quote dropdown directly. Proposal fields are immutable,
 the submitter cannot review their own request, and a database trigger prevents deletion,
 source-field rewrites or changing a completed decision. A rejected company must be submitted
@@ -248,9 +282,9 @@ The EF migrations create the tables, foreign keys, filtered uniqueness constrain
 
 After applying migrations:
 
-1. bootstrap a CEO only if the database has no users;
+1. bootstrap an Administrator only if the database has no users;
 2. assign every operational user to the correct two-site scope;
 3. verify/add active cost codes and budget allocations;
-4. switch the frontend from `demo` to `live` mode;
+4. configure the live frontend API base URL;
 5. verify every role with a separate test identity before accepting real material or payment records;
 6. enable the live inventory and finance routes only after the migration, role assignments and smoke test all succeed.

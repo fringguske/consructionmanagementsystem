@@ -60,3 +60,6 @@
 
 /* Match the readable operational type scale used in the CEO inventory workspace. */
 .technical-acceptance-toolbar>div>span,.technical-acceptance-toolbar nav button{font-size:.86rem}.technical-acceptance-toolbar nav b,.technical-decision{font-size:.8rem}.technical-delivery-list>article>header span,.technical-delivery-facts small,.technical-delivery-facts em{font-size:.82rem}.technical-delivery-facts strong,.technical-outcome-options label{font-size:.9rem}.technical-delivery-list>article>footer>span,.technical-delivery-list>article>footer>p,.technical-receipt-summary,.technical-outcome-options legend,.technical-review-result span,.technical-review-result p,.invoice-technical-state,.invoice-technical-state b{font-size:.84rem}
+
+.ops-row.payment{grid-template-columns:1.2fr 1fr .8fr 1.4fr auto}
+@media(max-width:680px){.ops-row.payment>.record-evidence{align-self:end}.ops-row.payment>.record-evidence .lav-button{width:100%}}

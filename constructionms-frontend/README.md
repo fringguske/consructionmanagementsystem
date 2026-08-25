@@ -4,18 +4,15 @@ React and TypeScript frontend for the multi-project construction management syst
 
 ## Included screens
 
-- Portfolio control-room dashboard
+- Role-specific task inbox and overdue notifications
 - Project/site portfolio
-- Procurement: requisitions, POs, GRNs, and suppliers
-- Inventory balances and inter-site transfers
-- Budget, payments, and financial activity
-- Workforce and subcontractor oversight
-- Equipment register
-- Audit trail and control exceptions
+- Requisitions, supplier sourcing, purchase orders, GRNs and supplier invoices
+- Inventory, movement, custody return and close-out
+- Opening positions, period closing and controlled corrections
+- Payments, petty cash and cash-book reporting
+- Private evidence files and complete audit history
 
-The current screens use representative demo records so the complete workflow can
-be reviewed while the corresponding .NET endpoints are developed. Mutations and
-queries should be moved behind a typed API client during backend integration.
+The frontend is live-only. Screens, counters and task totals are loaded from the authenticated API; no demonstration records are bundled into the application.
 
 ## Run locally
 

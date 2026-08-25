@@ -174,16 +174,6 @@ function projectOptionsFrom(
     .sort((left, right) => left.name.localeCompare(right.name))
 }
 
-function procurementIntro(role: CurrentUser['role']): string {
-  if (role === 'Procurement Officer') {
-    return 'Collect comparable quotes, prepare a draft order, then send it for an independent decision.'
-  }
-  if (role === 'Supervisor' || role === 'CEO') {
-    return ''
-  }
-  return 'Read the supplier-selection record without changing it.'
-}
-
 export function LiveProcurementView({ currentUser }: LiveProcurementViewProps) {
   const allowed = ['Procurement Officer', 'Supervisor', 'CEO', 'Auditor'].includes(
     currentUser.role,
@@ -297,13 +287,12 @@ export function LiveProcurementView({ currentUser }: LiveProcurementViewProps) {
       <div className="lav-view">
         <header className="lav-page-head">
           <div>
-            <span className="lav-kicker">Controlled access</span>
             <h1>Supplier sourcing</h1>
           </div>
         </header>
         <EmptyState
           title="This workspace is not part of your role"
-          detail="Supplier quotes are handled by Procurement and reviewed by authorized oversight roles."
+          detail="Supplier sourcing is not available to this role."
         />
       </div>
     )
@@ -313,9 +302,7 @@ export function LiveProcurementView({ currentUser }: LiveProcurementViewProps) {
     <div className="lav-view lav-procurement-view ceo-readable">
       <header className="lav-page-head">
         <div>
-          <span className="lav-kicker">Controlled purchasing</span>
           <h1>Supplier sourcing</h1>
-          {procurementIntro(currentUser.role) && <p>{procurementIntro(currentUser.role)}</p>}
         </div>
         <span className="lav-count-chip">{rounds.length} rounds</span>
       </header>
@@ -1005,18 +992,6 @@ function RoundActionForm({
   )
 }
 
-function orderIntro(role: CurrentUser['role']): string {
-  const descriptions: Partial<Record<CurrentUser['role'], string>> = {
-    'Procurement Officer': 'Submit prepared orders after checking them, then issue only independently approved orders.',
-    Supervisor: 'Approve, return or reject submitted orders for your assigned projects.',
-    CEO: '',
-    Storekeeper: 'Use issued orders to prepare for delivery. Prices and private approval details stay hidden.',
-    'Finance Officer': 'Read commercial orders for budget and later invoice checks. No purchasing action is available here.',
-    Auditor: 'Read every order event and decision without changing the record.',
-  }
-  return descriptions[role] ?? 'Purchase orders are not part of this role.'
-}
-
 export function LivePurchaseOrdersView({ currentUser }: LivePurchaseOrdersViewProps) {
   const allowed = [
     'Procurement Officer',
@@ -1074,11 +1049,10 @@ export function LivePurchaseOrdersView({ currentUser }: LivePurchaseOrdersViewPr
       <div className="lav-view">
         <header className="lav-page-head">
           <div>
-            <span className="lav-kicker">Controlled access</span>
             <h1>Purchase orders</h1>
           </div>
         </header>
-        <EmptyState title="This workspace is not part of your role" detail={orderIntro(currentUser.role)} />
+        <EmptyState title="This workspace is not part of your role" detail="Purchase orders are not available to this role." />
       </div>
     )
   }
@@ -1088,7 +1062,6 @@ export function LivePurchaseOrdersView({ currentUser }: LivePurchaseOrdersViewPr
       <header className="lav-page-head">
         <div>
           <h1>Purchase orders</h1>
-          {orderIntro(currentUser.role) && <p>{orderIntro(currentUser.role)}</p>}
         </div>
         <span className="lav-count-chip">{orders.length} visible</span>
       </header>

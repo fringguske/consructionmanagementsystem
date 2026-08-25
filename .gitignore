@@ -20,6 +20,7 @@ coverage.*
 
 # Local logs and databases
 *.log
+**/App_Data/evidence/
 *.db
 *.db-shm
 *.db-wal

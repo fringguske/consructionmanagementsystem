@@ -129,6 +129,9 @@ public sealed class MaterialIssue
     public string? ConfirmationNotes { get; set; }
     public DateTime? ConfirmedAt { get; set; }
     public ICollection<MaterialUsageRecord> UsageRecords { get; set; } = [];
+    public ICollection<MaterialReturn> Returns { get; set; } = [];
+    public ICollection<MaterialCustodyCloseout> MaterialCustodyCloseouts { get; set; } = [];
+    public MaterialIssueDisputeResolution? DisputeResolution { get; set; }
 }
 
 /// <summary>Append-only Foreman record of material used or wasted after issue.</summary>

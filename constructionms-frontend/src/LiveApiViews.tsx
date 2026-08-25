@@ -23,6 +23,7 @@ import {
   type SupervisorDecision,
   type TechnicalCheckOutcome,
 } from './api'
+import { EvidenceFiles } from './EvidenceReferenceField'
 import './live-api.css'
 
 export type LiveDestination = 'access' | 'projects' | 'requisitions' | 'sourcing' | 'suppliers' | 'purchase-orders' | 'inventory' | 'finance' | 'audit'
@@ -373,11 +374,7 @@ export function LiveLoginView({ onAuthenticated }: LiveLoginViewProps) {
           <i />
         </div>
         <div>
-          <p className="lav-kicker">Construction Management System</p>
-          <h1>One clear record from request to approved order.</h1>
-          <p className="lav-login-intro">
-            Sign in to open the work assigned to your role and projects.
-          </p>
+          <h1>Construction Management System</h1>
         </div>
       </section>
 
@@ -388,7 +385,7 @@ export function LiveLoginView({ onAuthenticated }: LiveLoginViewProps) {
             <button type="button" className={mode === 'signup' ? 'active' : ''} onClick={() => { setMode('signup'); setError(null); setMessage(null); setPassword(''); setConfirmPassword('') }}>Request access</button>
           </div>
           <header>
-            <span className="lav-kicker">{mode === 'signin' ? 'Welcome back' : 'New account'}</span>
+            <span className="lav-kicker">{mode === 'signin' ? 'Account access' : 'New account'}</span>
             <h2>{mode === 'signin' ? 'Sign in' : 'Request to join'}</h2>
             <p>{mode === 'signin' ? 'Use the username and password for your approved account.' : 'Choose the login details you will use after approval.'}</p>
           </header>
@@ -930,9 +927,12 @@ function ProjectDetail({ entry, currentUser, onSummaryChanged }: ProjectDetailPr
                   Verified by {summary.latestProgress.verifiedByUserName} ·{' '}
                   {formatDateTime(summary.latestProgress.verifiedAt)}
                 </span>
-                {summary.latestProgress.evidenceReference && (
-                  <small>Evidence: {summary.latestProgress.evidenceReference}</small>
-                )}
+                <EvidenceFiles
+                  sourceType="ProjectProgressVerification"
+                  sourceId={summary.latestProgress.id}
+                  kind="Photo"
+                  canUpload={currentUser.role === 'Engineer' && summary.latestProgress.verifiedByUserId === currentUser.id}
+                />
               </div>
             ) : null}
           </div>

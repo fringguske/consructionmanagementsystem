@@ -12,6 +12,7 @@ import {
   type StockTransfer,
 } from './api'
 import './ceo-materials-inventory.css'
+import { EvidenceFiles } from './EvidenceReferenceField'
 
 type InventoryTab = 'overview' | 'ledger' | 'movements' | 'exceptions'
 type StockState = 'In stock' | 'Low stock' | 'Out of stock'
@@ -480,6 +481,17 @@ function auditDate(value: string) {
   }).format(new Date(value))
 }
 
+function auditEventEvidence(item: ControlEvent) {
+  const sources: Record<string, { sourceType: string; kind: string }> = {
+    GoodsReceipt: { sourceType: 'GoodsReceipt', kind: 'DeliveryNote' },
+    GoodsReceiptTechnicalAcceptance: { sourceType: 'GoodsReceiptTechnicalAcceptance', kind: 'Inspection' },
+    MaterialUsage: { sourceType: 'MaterialUsageRecord', kind: 'Photo' },
+    SupplierInvoice: { sourceType: 'SupplierInvoice', kind: 'Invoice' },
+    Payment: { sourceType: 'Payment', kind: 'PaymentProof' },
+  }
+  return sources[item.entityType] ?? null
+}
+
 function AuditHistoryModal({ movement, onClose }: { movement: MovementContext; onClose: () => void }) {
   const [events, setEvents] = useState<ControlEvent[]>([])
   const [loading, setLoading] = useState(Boolean(movement.chainKey))
@@ -517,9 +529,10 @@ function AuditHistoryModal({ movement, onClose }: { movement: MovementContext; o
       {!loading && !error && events.length > 0 && <div className="inventory-audit-timeline">
         {events.map((item, index) => {
           const material = auditEventMaterial(item)
+          const evidence = auditEventEvidence(item)
           return <article key={`${item.entityType}-${item.entityId}-${item.sequenceNumber}`}>
             <i>{index + 1}</i>
-            <div><span>{item.actorRole} · {item.actorName}</span><strong>{auditEventLabel(item)}{material ? `: ${material}` : ''}</strong></div>
+            <div><span>{item.actorRole} · {item.actorName}</span><strong>{auditEventLabel(item)}{material ? `: ${material}` : ''}</strong>{evidence && <EvidenceFiles sourceType={evidence.sourceType} sourceId={item.entityId} kind={evidence.kind} label="Files" canUpload={false}/>}</div>
             <time>{auditDate(item.occurredAt)}</time>
           </article>
         })}

@@ -111,6 +111,7 @@ public sealed class GoodsReceiptResponseDto
 public sealed class TechnicalAcceptanceResponseDto
 {
     public long GoodsReceiptId { get; set; }
+    public long? TechnicalAcceptanceId { get; set; }
     public string ReceiptNumber { get; set; } = string.Empty;
     public int PurchaseOrderId { get; set; }
     public string PurchaseOrderNumber { get; set; } = string.Empty;
@@ -207,7 +208,9 @@ public sealed class MaterialIssueResponseDto
     public DateTime? ConfirmedAt { get; set; }
     public decimal UsedQuantity { get; set; }
     public decimal WastedQuantity { get; set; }
+    public decimal ReturnedQuantity { get; set; }
     public decimal UnaccountedQuantity { get; set; }
+    public string CustodyStatus { get; set; } = string.Empty;
     public IReadOnlyList<MaterialUsageResponseDto> Usage { get; set; } = [];
 }
 

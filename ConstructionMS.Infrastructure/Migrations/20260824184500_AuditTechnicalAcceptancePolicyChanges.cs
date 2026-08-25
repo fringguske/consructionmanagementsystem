@@ -67,12 +67,13 @@ namespace ConstructionMS.Infrastructure.Migrations
                 """
                 DO $$
                 BEGIN
-                    IF EXISTS (
+                    IF EXISTS (SELECT 1 FROM "MaterialTechnicalAcceptancePolicyEvents")
+                       OR EXISTS (
                         SELECT 1
                         FROM "StockLedgerEntries"
                         WHERE "MovementType" = 'TechnicalAcceptance'
                     ) THEN
-                        RAISE EXCEPTION 'Cannot remove technical acceptance after accepted stock has entered the ledger; restore a pre-migration backup instead';
+                        RAISE EXCEPTION 'Cannot remove technical-acceptance policy audit data or accepted stock; restore a pre-migration backup instead';
                     END IF;
                 END;
                 $$;

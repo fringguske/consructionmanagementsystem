@@ -238,6 +238,10 @@ public sealed class FinanceWorkflowService : IFinanceWorkflowService
         if (authorization.SupplierInvoice.Status != InvoiceStatuses.Authorized) throw new InvalidOperationException("This authorization is not available for payment.");
         if (authorization.AuthorizedByUserId == actorUserId) throw new UnauthorizedAccessException("The payment authorizer cannot execute the payment.");
         await RequireProjectAccessAsync(actorUserId, authorization.SupplierInvoice.ProjectId);
+        var cashAccount = await ResolveCashAccountForPostingAsync(
+            authorization.SupplierInvoice.ProjectId,
+            request.CashAccountId,
+            authorization.Amount);
         if (await _db.Payments.AnyAsync(item => item.PaymentAuthorizationId == authorization.Id)) throw new InvalidOperationException("This authorization has already been paid.");
         if (await _db.Payments.AnyAsync(item => item.ExternalReference == externalReference)
             || await _db.PettyCashDisbursements.AnyAsync(item => item.ExternalReference == externalReference))
@@ -252,6 +256,26 @@ public sealed class FinanceWorkflowService : IFinanceWorkflowService
         _db.Payments.Add(payment);
         authorization.SupplierInvoice.Status = InvoiceStatuses.Paid;
         await _db.SaveChangesAsync();
+        if (cashAccount is not null)
+        {
+            cashAccount.Balance -= payment.Amount;
+            cashAccount.UpdatedAt = now;
+            _db.CashLedgerEntries.Add(new CashLedgerEntry
+            {
+                EntryNumber = Reference("CASH", now),
+                CashAccountId = cashAccount.Id,
+                ProjectId = authorization.SupplierInvoice.ProjectId,
+                AmountDelta = -payment.Amount,
+                BalanceAfter = cashAccount.Balance,
+                EntryType = "SupplierPayment",
+                ReferenceType = "Payment",
+                ReferenceId = payment.Id,
+                ReferenceNumber = payment.PaymentNumber,
+                PostedByUserId = actorUserId,
+                PostedAt = now,
+                Notes = $"Supplier invoice {authorization.SupplierInvoice.InvoiceNumber}"
+            });
+        }
         var receipt = new PaymentReceipt
         {
             ReceiptNumber = Reference("RCT", now), PaymentId = payment.Id, Amount = payment.Amount,
@@ -261,7 +285,16 @@ public sealed class FinanceWorkflowService : IFinanceWorkflowService
         await _events.AppendAsync(Chain(authorization.SupplierInvoice.PurchaseOrder.RequisitionId),
             authorization.SupplierInvoice.PurchaseOrder.RequisitionId, authorization.SupplierInvoice.ProjectId,
             "Payment", payment.Id, payment.PaymentNumber, "PaymentExecuted", actorUserId, actorRole,
-            new { payment.Amount, method, externalReference, receipt.ReceiptNumber, evidence }, now);
+            new
+            {
+                payment.Amount,
+                method,
+                externalReference,
+                receipt.ReceiptNumber,
+                evidence,
+                cashAccountId = cashAccount?.Id,
+                cashAccountName = cashAccount?.Name
+            }, now);
         await _db.SaveChangesAsync();
         await transaction.CommitAsync();
         return await LoadPaymentAsync(payment.Id);
@@ -642,6 +675,7 @@ public sealed class FinanceWorkflowService : IFinanceWorkflowService
     private static PaymentAuthorizationResponseDto ToDto(PaymentAuthorization item) => new()
     {
         Id = item.Id, AuthorizationNumber = item.AuthorizationNumber, SupplierInvoiceId = item.SupplierInvoiceId,
+        ProjectId = item.SupplierInvoice.ProjectId,
         Amount = item.Amount, SupplierName = item.SupplierInvoice.Supplier.Name, ProjectName = item.SupplierInvoice.Project.Name,
         AuthorizedByUserId = item.AuthorizedByUserId, AuthorizedByName = item.AuthorizedByUser.FullName,
         Notes = item.Notes, AuthorizedAt = item.AuthorizedAt,
@@ -729,6 +763,28 @@ public sealed class FinanceWorkflowService : IFinanceWorkflowService
     }
     private async Task<bool> CanVerifyAllProjectsAsync(int userId) =>
         (await _roles.ResolveAsync(userId))?.CanSwitchRoles == true;
+    private async Task<CashAccount?> ResolveCashAccountForPostingAsync(
+        int projectId,
+        long? cashAccountId,
+        decimal amount)
+    {
+        if (!cashAccountId.HasValue)
+        {
+            if (await _db.CashAccounts.AsNoTracking().AnyAsync(item => item.ProjectId == projectId))
+                throw new ArgumentException("Select the project cash account used for this payment.", nameof(cashAccountId));
+            return null;
+        }
+        if (cashAccountId <= 0)
+            throw new ArgumentException("Cash-account ID must be positive.", nameof(cashAccountId));
+
+        var account = await _db.CashAccounts
+            .FromSqlInterpolated($"SELECT * FROM \"CashAccounts\" WHERE \"Id\" = {cashAccountId.Value} AND \"ProjectId\" = {projectId} FOR UPDATE")
+            .SingleOrDefaultAsync()
+            ?? throw new KeyNotFoundException("The selected project cash account was not found.");
+        if (account.Balance < amount)
+            throw new InvalidOperationException($"The selected cash account has insufficient funds. Available balance: KES {account.Balance:N2}.");
+        return account;
+    }
     private static string Reference(string prefix, DateTime now) => $"{prefix}-{now:yyMMdd}-{Guid.NewGuid():N}"[..30];
     private static string Chain(int requisitionId) => $"REQ-{requisitionId}";
     private static string? NormalizeChainKey(string? chainKey)

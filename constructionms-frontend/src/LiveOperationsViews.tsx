@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useSearchParams } from 'react-router'
 import {
   ApiError,
+  type CashAccount,
   type CashBook,
+  cashAccountsApi,
   financeApi,
   inventoryApi,
   materialsApi,
@@ -31,6 +34,7 @@ import {
 import './live-api.css'
 import './live-operations.css'
 import { CeoMaterialsInventory } from './CeoMaterialsInventory'
+import { EvidenceFiles } from './EvidenceReferenceField'
 
 function messageOf(error: unknown) {
   return error instanceof ApiError || error instanceof Error ? error.message : 'The action could not be completed.'
@@ -98,14 +102,13 @@ export function LiveInventoryView({ currentUser }: { currentUser: CurrentUser })
     if (['Storekeeper', 'Supervisor', 'Finance Officer', 'CEO', 'Auditor'].includes(role)) {
       tasks.push(inventoryApi.ledger(controller.signal))
     }
-    if (role === 'CEO') {
+    if (['Storekeeper', 'Finance Officer', 'CEO', 'Auditor'].includes(role)) {
       tasks.push(inventoryApi.receipts(controller.signal))
     }
     if (role === 'Storekeeper') {
       tasks.push(purchaseOrdersApi.list({ page: 1, pageSize: 100, status: 'Issued' }, controller.signal))
       tasks.push(requisitionsApi.list({ page: 1, pageSize: 100, status: 'Approved' }, controller.signal))
       tasks.push(materialsApi.list({ page: 1, pageSize: 100 }, controller.signal))
-      tasks.push(inventoryApi.receipts(controller.signal))
       tasks.push(Promise.all(currentUser.projects.map(project => projectsApi.getSummary(project.id, controller.signal))))
     }
     if (role === 'Supervisor') tasks.push(materialsApi.list({ page: 1, pageSize: 100 }, controller.signal))
@@ -121,14 +124,13 @@ export function LiveInventoryView({ currentUser }: { currentUser: CurrentUser })
       if (['Storekeeper', 'Supervisor', 'Finance Officer', 'CEO', 'Auditor'].includes(role)) {
         setLedger((results[index++] as { items: StockLedgerEntry[] }).items)
       }
-      if (role === 'CEO') {
+      if (['Storekeeper', 'Finance Officer', 'CEO', 'Auditor'].includes(role)) {
         setReceipts((results[index++] as { items: GoodsReceipt[] }).items)
       }
       if (role === 'Storekeeper') {
         setOrders((results[index++] as { items: PurchaseOrder[] }).items)
         setRequisitions((results[index++] as { items: Requisition[] }).items)
         setMaterials((results[index++] as { items: Material[] }).items)
-        setReceipts((results[index++] as { items: GoodsReceipt[] }).items)
         setProjectSummaries(results[index++] as ProjectSummary[])
       }
       if (role === 'Supervisor') setMaterials((results[index] as { items: Material[] }).items)
@@ -148,6 +150,7 @@ export function LiveInventoryView({ currentUser }: { currentUser: CurrentUser })
     {role === 'Storekeeper' && <StorekeeperActions currentUser={currentUser} projectSummaries={projectSummaries} orders={orders} receipts={receipts} requisitions={requisitions} balances={balances} materials={materials} issues={issues} transfers={transfers} counts={counts} onChanged={changed}/>}
     {role === 'Supervisor' && <SupervisorInventoryActions currentUser={currentUser} balances={balances} materials={materials} transfers={transfers} counts={counts} onChanged={changed}/>}
     {role === 'Foreman' && <ForemanIssueActions currentUser={currentUser} issues={issues} onChanged={changed}/>}
+    {role !== 'CEO' && <InventoryEvidenceRegister currentUser={currentUser} receipts={receipts} issues={issues}/>}
     {role === 'CEO'
       ? <CeoMaterialsInventory currentUser={currentUser} balances={balances} ledger={ledger} issues={issues} transfers={transfers} counts={counts} receipts={receipts}/>
       : <>
@@ -158,6 +161,24 @@ export function LiveInventoryView({ currentUser }: { currentUser: CurrentUser })
         {['Auditor', 'Storekeeper', 'Supervisor'].includes(role) && <MovementSummary issues={issues} transfers={transfers} counts={counts}/>}
       </>}
   </div>
+}
+
+function InventoryEvidenceRegister({ currentUser, receipts, issues }: { currentUser: CurrentUser; receipts: GoodsReceipt[]; issues: MaterialIssue[] }) {
+  const usageRecords = issues.flatMap(issue => issue.usage.map(usage => ({ issue, usage })))
+  if (!receipts.length && !usageRecords.length) return null
+  return <details className="record-evidence-register lav-panel">
+    <summary>Evidence files <span>{receipts.length + usageRecords.length} records</span></summary>
+    <div className="record-evidence-list">
+      {receipts.map(receipt => <article key={`receipt-${receipt.id}`}>
+        <div><strong>{receipt.materialName}</strong><small>{receipt.projectName} · received {when(receipt.receivedAt)} by {receipt.receivedByName}</small></div>
+        <EvidenceFiles sourceType="GoodsReceipt" sourceId={receipt.id} kind="DeliveryNote" label="Delivery files" canUpload={currentUser.role === 'Storekeeper' && receipt.receivedByName === currentUser.fullName}/>
+      </article>)}
+      {usageRecords.map(({ issue, usage }) => <article key={`usage-${usage.id}`}>
+        <div><strong>{usage.usageType}: {usage.quantity} {issue.materialUnit} of {issue.materialName}</strong><small>{issue.projectName} · recorded {when(usage.recordedAt)} by {usage.recordedByName}</small></div>
+        <EvidenceFiles sourceType="MaterialUsageRecord" sourceId={usage.id} kind="Photo" label="Usage files" canUpload={currentUser.role === 'Foreman' && usage.recordedByName === currentUser.fullName}/>
+      </article>)}
+    </div>
+  </details>
 }
 
 export function LiveTechnicalAcceptanceView({ currentUser }: { currentUser: CurrentUser }) {
@@ -261,8 +282,9 @@ export function LiveTechnicalAcceptanceView({ currentUser }: { currentUser: Curr
           <span><small>Received by</small><strong>{item.receivedByName}</strong><em>{when(item.receivedAt)}</em></span>
           <span><small>Condition</small><strong>{item.condition}</strong><em>Delivery note {item.deliveryNoteReference}</em></span>
         </div>
+        <EvidenceFiles sourceType="GoodsReceipt" sourceId={item.goodsReceiptId} kind="DeliveryNote" label="Delivery files" canUpload={false}/>
         {item.outcome
-          ? <footer><div className="technical-review-result"><span>Reviewed by <b>{item.reviewedByName}</b>{item.reviewedAt ? ` · ${when(item.reviewedAt)}` : ''}</span>{item.notes && <p>{item.notes}</p>}</div>{item.outcome === 'Rejected' && <button type="button" className="lav-button secondary" onClick={() => openReview(item)}>Review again</button>}</footer>
+          ? <footer><div className="technical-review-result"><span>Reviewed by <b>{item.reviewedByName}</b>{item.reviewedAt ? ` · ${when(item.reviewedAt)}` : ''}</span>{item.notes && <p>{item.notes}</p>}{item.technicalAcceptanceId && <EvidenceFiles sourceType="GoodsReceiptTechnicalAcceptance" sourceId={item.technicalAcceptanceId} kind="Inspection" label="Inspection files" canUpload={item.reviewedByUserId === currentUser.id}/>}</div>{item.outcome === 'Rejected' && <button type="button" className="lav-button secondary" onClick={() => openReview(item)}>Review again</button>}</footer>
           : <footer><span>Confirm the material and specification.</span><button type="button" className="lav-button primary" onClick={() => openReview(item)}>Review delivery</button></footer>}
       </article>)}</div> : <Empty>{activeList === 'pending' ? 'No delivery needs an Engineer decision.' : 'No delivery has been reviewed.'}</Empty>}
       {items.length < totalCount && <footer className="technical-load-more"><button type="button" className="lav-button secondary" disabled={loadingMore} onClick={() => { setLoadingMore(true); setPage(current => current + 1) }}>{loadingMore ? 'Loading…' : 'Load more deliveries'}</button><span>{items.length} of {totalCount}</span></footer>}
@@ -361,7 +383,7 @@ function StorekeeperActions({ currentUser, projectSummaries, orders, receipts, r
       <label><span>Physical quantity counted</span><input type="number" min="0" step="0.001" required value={count.quantity} onChange={e => setCount({ ...count, quantity: e.target.value })}/></label><label><span>Count note</span><input minLength={3} required value={count.notes} onChange={e => setCount({ ...count, notes: e.target.value })}/></label><button className="lav-button primary" disabled={busy}>Submit count</button>
     </form>}
     </div>
-    <div className="lav-panel ops-form"><h2>Transfers awaiting Stores</h2><p>Dispatch and receipt are confirmed by different Storekeepers.</p>{actionableTransfers.map(item => <article className="ops-action-item" key={item.id}><b>{item.materialName}</b><span>{item.quantity} {item.materialUnit} · {item.fromProjectName} → {item.toProjectName}</span>{item.status === 'PendingDispatch' ? <button type="button" className="lav-button secondary" onClick={() => void submit(() => inventoryApi.dispatchTransfer(item.id), 'Transfer dispatched.')}>Dispatch</button> : <button type="button" className="lav-button secondary" onClick={() => { setReceiptTransferId(item.id); setTransferReceipt({ quantity: String(item.quantity), notes: '' }) }}>Confirm receipt</button>}</article>)}{actionableTransfers.length === 0 && <Empty>No transfer handoff requires action for this account.</Empty>}</div>
+    <div className="lav-panel ops-form"><h2>Transfers awaiting Stores</h2>{actionableTransfers.map(item => <article className="ops-action-item" key={item.id}><b>{item.materialName}</b><span>{item.quantity} {item.materialUnit} · {item.fromProjectName} → {item.toProjectName}</span>{item.status === 'PendingDispatch' ? <button type="button" className="lav-button secondary" onClick={() => void submit(() => inventoryApi.dispatchTransfer(item.id), 'Transfer dispatched.')}>Dispatch</button> : <button type="button" className="lav-button secondary" onClick={() => { setReceiptTransferId(item.id); setTransferReceipt({ quantity: String(item.quantity), notes: '' }) }}>Confirm receipt</button>}</article>)}{actionableTransfers.length === 0 && <Empty>No transfer handoff requires action for this account.</Empty>}</div>
     {receiptTransfer && <div className="ops-modal-wrap" role="presentation"><button type="button" className="ops-modal-backdrop" aria-label="Close transfer form" onClick={() => setReceiptTransferId(null)}/><form className="lav-panel ops-form ops-modal" onSubmit={event => { event.preventDefault(); void submit(() => inventoryApi.receiveTransfer(receiptTransfer.id, { receivedQuantity: Number(transferReceipt.quantity), notes: transferReceipt.notes.trim() || null }), 'Destination receipt recorded and the movement trail updated.').then(saved => { if (saved) setReceiptTransferId(null) }) }}><header><div><span className="lav-kicker">DESTINATION CHECK</span><h2>Confirm transfer receipt</h2><p>{receiptTransfer.fromProjectName} → {receiptTransfer.toProjectName}</p></div><button type="button" className="ops-modal-close" onClick={() => setReceiptTransferId(null)}>×</button></header><label><span>Material</span><input value={receiptTransfer.materialName} disabled/></label><div className="ops-fields"><label><span>Quantity received</span><input type="number" min="0" step="0.001" required value={transferReceipt.quantity} onChange={event => setTransferReceipt({ ...transferReceipt, quantity: event.target.value })}/></label><label><span>Unit</span><select disabled value={receiptTransfer.materialUnit}><option>{receiptTransfer.materialUnit}</option></select></label></div><label><span>Receipt note {Number(transferReceipt.quantity) === receiptTransfer.quantity ? '(optional)' : '(explain the difference)'}</span><textarea required={Number(transferReceipt.quantity) !== receiptTransfer.quantity} minLength={3} rows={3} value={transferReceipt.notes} onChange={event => setTransferReceipt({ ...transferReceipt, notes: event.target.value })}/></label><div className="ops-buttons"><button type="button" className="lav-button secondary" onClick={() => setReceiptTransferId(null)}>Cancel</button><button className="lav-button primary" disabled={busy}>Save destination receipt</button></div></form></div>}
   </section>
 }
@@ -385,28 +407,31 @@ function SupervisorInventoryActions({ currentUser, balances, materials, counts, 
   const run = async (action: () => Promise<unknown>, text: string) => { try { await action(); setError(null); onChanged(text) } catch (error) { setError(messageOf(error)) } }
   return <section className="ops-action-grid two">
     <form className="lav-panel ops-form" onSubmit={event => { event.preventDefault(); void run(() => inventoryApi.createTransfer({ fromProjectId: Number(form.from), toProjectId: Number(form.to), materialId: Number(form.material), quantity: Number(form.quantity), reason: form.reason }), 'Transfer request sent to Stores.') }}><h2>Request a site transfer</h2><p>Stores dispatches and the receiving store confirms separately.</p>{error && <Notice tone="error">{error}</Notice>}<div className="ops-fields"><label><span>From</span><select required value={form.from} onChange={e => setForm({ ...form, from: e.target.value })}><option value="">Choose</option>{currentUser.projects.map(p => <option value={p.id} key={p.id}>{p.name}</option>)}</select></label><label><span>To</span><select required value={form.to} onChange={e => setForm({ ...form, to: e.target.value })}><option value="">Choose</option>{currentUser.projects.map(p => <option value={p.id} key={p.id}>{p.name}</option>)}</select></label></div><label><span>Material in sending store</span><select required value={form.material} onChange={e => setForm({ ...form, material: e.target.value })}><option value="">Choose material</option>{materials.filter(m => balances.some(b => b.projectId === Number(form.from) && b.materialId === m.id)).map(m => <option value={m.id} key={m.id}>{m.name} ({m.unit})</option>)}</select></label><label><span>Quantity</span><input type="number" min="0.001" step="0.001" required value={form.quantity} onChange={e => setForm({ ...form, quantity: e.target.value })}/></label><label><span>Reason</span><input minLength={3} required value={form.reason} onChange={e => setForm({ ...form, reason: e.target.value })}/></label><button className="lav-button primary">Request transfer</button></form>
-    <div className="lav-panel ops-form"><h2>Stock counts to review</h2><p>Approve only if stock has not moved since the physical count.</p>{counts.filter(c => c.status === 'AwaitingReview').map(count => <article className="ops-action-item" key={count.id}><b>{count.materialName} · {count.projectName}</b><span>System {count.systemQuantity} · Counted {count.countedQuantity} · Difference {count.variance}</span><div><button className="lav-button primary" onClick={() => void run(() => inventoryApi.reviewCount(count.id, { approve: true, notes: 'Physical count reviewed and accepted' }), 'Count approved and ledger adjusted.')}>Approve</button><button className="lav-button secondary" onClick={() => void run(() => inventoryApi.reviewCount(count.id, { approve: false, notes: 'Fresh count required' }), 'Count returned for a fresh count.')}>Reject</button></div></article>)}{!counts.some(c => c.status === 'AwaitingReview') && <Empty>No physical count awaits review.</Empty>}</div>
+    <div className="lav-panel ops-form"><h2>Stock counts to review</h2>{counts.filter(c => c.status === 'AwaitingReview').map(count => <article className="ops-action-item" key={count.id}><b>{count.materialName} · {count.projectName}</b><span>System {count.systemQuantity} · Counted {count.countedQuantity} · Difference {count.variance}</span><div><button className="lav-button primary" onClick={() => void run(() => inventoryApi.reviewCount(count.id, { approve: true, notes: 'Physical count reviewed and accepted' }), 'Count approved and ledger adjusted.')}>Approve</button><button className="lav-button secondary" onClick={() => void run(() => inventoryApi.reviewCount(count.id, { approve: false, notes: 'Fresh count required' }), 'Count returned for a fresh count.')}>Reject</button></div></article>)}{!counts.some(c => c.status === 'AwaitingReview') && <Empty>No physical count awaits review.</Empty>}</div>
   </section>
 }
 
 function MovementSummary({ issues, transfers, counts }: { issues: MaterialIssue[]; transfers: StockTransfer[]; counts: StockCount[] }) {
-  return <section className="ops-summary-grid"><article><span>Foreman handovers</span><strong>{issues.length}</strong><small>{issues.filter(item => item.status === 'Disputed').length} disputed</small></article><article><span>Transfers moving</span><strong>{transfers.filter(item => item.status === 'InTransit').length}</strong><small>Require destination confirmation</small></article><article><span>Count differences</span><strong>{counts.filter(item => item.variance !== 0).length}</strong><small>Nothing is silently overwritten</small></article></section>
+  return <section className="ops-summary-grid"><article><span>Foreman handovers</span><strong>{issues.length}</strong><small>{issues.filter(item => item.status === 'Disputed').length} disputed</small></article><article><span>Transfers moving</span><strong>{transfers.filter(item => item.status === 'InTransit').length}</strong><small>{transfers.filter(item => item.status === 'InTransit').length} awaiting receipt</small></article><article><span>Count differences</span><strong>{counts.filter(item => item.variance !== 0).length}</strong><small>{counts.filter(item => item.status === 'AwaitingReview').length} awaiting review</small></article></section>
 }
 
 type FinanceDeskSection = 'invoices' | 'authorized' | 'executed'
 
 export function LiveFinanceView({ currentUser }: { currentUser: CurrentUser }) {
+  const [searchParams, setSearchParams] = useSearchParams()
   const [invoices, setInvoices] = useState<SupplierInvoice[]>([])
   const [authorizations, setAuthorizations] = useState<PaymentAuthorization[]>([])
   const [payments, setPayments] = useState<Payment[]>([])
   const [orders, setOrders] = useState<PurchaseOrder[]>([])
   const [receipts, setReceipts] = useState<GoodsReceipt[]>([])
+  const [technicalAcceptances, setTechnicalAcceptances] = useState<TechnicalAcceptanceWorkItem[]>([])
   const [cashBookRequest, setCashBookRequest] = useState<{ role: CurrentUser['role']; refresh: number; data: CashBook | null; error: string | null } | null>(null)
   const [loadedRequest, setLoadedRequest] = useState<{ role: CurrentUser['role']; refresh: number } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [refresh, setRefresh] = useState(0)
-  const [financeSection, setFinanceSection] = useState<FinanceDeskSection>('invoices')
+  const requestedSection = searchParams.get('section')
+  const financeSection: FinanceDeskSection = requestedSection === 'authorized' || requestedSection === 'executed' ? requestedSection : 'invoices'
   const role = currentUser.role
   const loading = loadedRequest?.role !== role || loadedRequest.refresh !== refresh
   const cashBookRequestIsCurrent = cashBookRequest?.role === role && cashBookRequest.refresh === refresh
@@ -418,7 +443,8 @@ export function LiveFinanceView({ currentUser }: { currentUser: CurrentUser }) {
     const tasks: Promise<unknown>[] = [financeApi.invoices(controller.signal)]
     if (role !== 'Procurement Officer') tasks.push(financeApi.authorizations(role === 'Finance Officer', controller.signal), financeApi.payments(controller.signal))
     if (role === 'Procurement Officer') tasks.push(purchaseOrdersApi.list({ page: 1, pageSize: 100, status: 'Issued' }, controller.signal), inventoryApi.receipts(controller.signal))
-    Promise.all(tasks).then(results => { let i = 0; setInvoices((results[i++] as { items: SupplierInvoice[] }).items); if (role !== 'Procurement Officer') { setAuthorizations((results[i++] as { items: PaymentAuthorization[] }).items); setPayments((results[i] as { items: Payment[] }).items) } else { setOrders((results[i++] as { items: PurchaseOrder[] }).items); setReceipts((results[i] as { items: GoodsReceipt[] }).items) } setError(null) }).catch(error => { if (!(error instanceof DOMException && error.name === 'AbortError')) setError(messageOf(error)) }).finally(() => { if (!controller.signal.aborted) setLoadedRequest({ role, refresh }) })
+    if (['Finance Officer', 'CEO', 'Auditor'].includes(role)) tasks.push(inventoryApi.technicalAcceptances({ pageSize: 100 }, controller.signal))
+    Promise.all(tasks).then(results => { let i = 0; setInvoices((results[i++] as { items: SupplierInvoice[] }).items); if (role !== 'Procurement Officer') { setAuthorizations((results[i++] as { items: PaymentAuthorization[] }).items); setPayments((results[i++] as { items: Payment[] }).items) } else { setOrders((results[i++] as { items: PurchaseOrder[] }).items); setReceipts((results[i++] as { items: GoodsReceipt[] }).items) } if (['Finance Officer', 'CEO', 'Auditor'].includes(role)) setTechnicalAcceptances((results[i] as { items: TechnicalAcceptanceWorkItem[] }).items); else setTechnicalAcceptances([]); setError(null) }).catch(error => { if (!(error instanceof DOMException && error.name === 'AbortError')) setError(messageOf(error)) }).finally(() => { if (!controller.signal.aborted) setLoadedRequest({ role, refresh }) })
     if (role === 'CEO') financeApi.cashBook(controller.signal)
       .then(data => { if (!controller.signal.aborted) setCashBookRequest({ role, refresh, data, error: null }) })
       .catch(error => { if (!(error instanceof DOMException && error.name === 'AbortError')) setCashBookRequest({ role, refresh, data: null, error: messageOf(error) }) })
@@ -428,17 +454,29 @@ export function LiveFinanceView({ currentUser }: { currentUser: CurrentUser }) {
   return <div className="lav-view ops-view"><header className="lav-page-head"><div><h1>{role === 'Procurement Officer' ? 'Supplier invoices' : 'Invoices and payments'}</h1></div></header>{error && <Notice tone="error">{error}</Notice>}{notice && <Notice tone="success">{notice}</Notice>}
     {loading ? <Loading>Loading finance records…</Loading> : <>
     {role === 'Finance Officer' && <nav className="ops-action-nav finance-section-nav" aria-label="Invoices and payments sections">
-      <button type="button" className={financeSection === 'invoices' ? 'active' : ''} aria-current={financeSection === 'invoices' ? 'page' : undefined} onClick={() => setFinanceSection('invoices')}>Supplier invoices</button>
-      <button type="button" className={financeSection === 'authorized' ? 'active' : ''} aria-current={financeSection === 'authorized' ? 'page' : undefined} onClick={() => setFinanceSection('authorized')}>Authorized payments</button>
-      <button type="button" className={financeSection === 'executed' ? 'active' : ''} aria-current={financeSection === 'executed' ? 'page' : undefined} onClick={() => setFinanceSection('executed')}>Executed payments</button>
+      <button type="button" className={financeSection === 'invoices' ? 'active' : ''} aria-current={financeSection === 'invoices' ? 'page' : undefined} onClick={() => setSearchParams({}, { replace: true })}>Supplier invoices</button>
+      <button type="button" className={financeSection === 'authorized' ? 'active' : ''} aria-current={financeSection === 'authorized' ? 'page' : undefined} onClick={() => setSearchParams({ section: 'authorized' }, { replace: true })}>Authorized payments</button>
+      <button type="button" className={financeSection === 'executed' ? 'active' : ''} aria-current={financeSection === 'executed' ? 'page' : undefined} onClick={() => setSearchParams({ section: 'executed' }, { replace: true })}>Executed payments</button>
     </nav>}
     {role === 'Procurement Officer' && <InvoiceCapture orders={orders} receipts={receipts} invoices={invoices} onRun={run}/>}
-    {(role !== 'Finance Officer' || financeSection === 'invoices') && <section className="lav-panel ops-panel"><header className="lav-panel-head"><div><span className="lav-kicker">THREE-WAY MATCH</span><h2>Supplier invoices</h2></div><strong>{invoices.length} records</strong></header>{invoices.length ? <div className="ops-invoice-grid">{invoices.map(invoice => <InvoiceCard key={invoice.id} invoice={invoice} currentUser={currentUser} run={run}/>)}</div> : <Empty>Invoices appear only after an issued PO has an accepted GRN.</Empty>}</section>}
+    {(role !== 'Finance Officer' || financeSection === 'invoices') && <section className="lav-panel ops-panel"><header className="lav-panel-head"><div><span className="lav-kicker">THREE-WAY MATCH</span><h2>Supplier invoices</h2></div><strong>{invoices.length} records</strong></header>{invoices.length ? <div className="ops-invoice-grid">{invoices.map(invoice => <InvoiceCard key={invoice.id} invoice={invoice} technicalAcceptances={technicalAcceptances.filter(item => item.purchaseOrderId === invoice.purchaseOrderId && item.technicalAcceptanceId !== null)} currentUser={currentUser} run={run}/>)}</div> : <Empty>Invoices appear only after an issued PO has an accepted GRN.</Empty>}</section>}
     {role === 'CEO' && cashBookLoading && <section className="lav-panel ops-panel"><Loading>Loading cash book…</Loading></section>}
     {role === 'CEO' && cashBookError && <section className="lav-panel ops-panel"><Notice tone="error">{cashBookError}</Notice></section>}
     {role === 'CEO' && cashBook && <CeoCashBook cashBook={cashBook}/>}
     {role === 'Finance Officer' && financeSection === 'authorized' && <FinancePaymentActions currentUser={currentUser} authorizations={authorizations} run={run}/>}
-    {role !== 'Procurement Officer' && (role !== 'Finance Officer' || financeSection === 'executed') && <section className="lav-panel ops-panel"><header className="lav-panel-head"><div><span className="lav-kicker">PAYMENT PROOF</span><h2>Executed payments</h2></div></header>{payments.length ? <div className="ops-table"><div className="ops-row payment head"><span>Payment</span><span>Amount</span><span>Method</span><span>External proof</span></div>{payments.map(payment => <div className="ops-row payment" key={payment.id}><span data-label="Payment"><b>{payment.displayNumber}</b><small>{when(payment.paidAt)}</small></span><span data-label="Amount">{money(payment.amount)}</span><span data-label="Method">{payment.method}</span><span data-label="External proof"><b>{payment.externalReference}</b><small>Recorded by {payment.paidByName}</small></span></div>)}</div> : <Empty>No payment has been executed.</Empty>}</section>}
+    {role !== 'Procurement Officer' && (role !== 'Finance Officer' || financeSection === 'executed') && <section className="lav-panel ops-panel">
+      <header className="lav-panel-head"><div><span className="lav-kicker">PAYMENT PROOF</span><h2>Executed payments</h2></div></header>
+      {payments.length ? <div className="ops-table">
+        <div className="ops-row payment head"><span>Payment</span><span>Amount</span><span>Method</span><span>External proof</span><span>Files</span></div>
+        {payments.map(payment => <div className="ops-row payment" key={payment.id}>
+          <span data-label="Payment"><b>{payment.displayNumber}</b><small>{when(payment.paidAt)}</small></span>
+          <span data-label="Amount">{money(payment.amount)}</span>
+          <span data-label="Method">{payment.method}</span>
+          <span data-label="External proof"><b>{payment.externalReference}</b><small>Recorded by {payment.paidByName}</small></span>
+          <EvidenceFiles sourceType="Payment" sourceId={payment.id} kind="PaymentProof" label="Files" canUpload={role === 'Finance Officer' && payment.paidByName === currentUser.fullName}/>
+        </div>)}
+      </div> : <Empty>No payment has been executed.</Empty>}
+    </section>}
     </>}
   </div>
 }
@@ -499,10 +537,10 @@ function InvoiceCapture({ orders, receipts, invoices, onRun }: { orders: Purchas
     return accepted === ordered && !invoices.some(invoice => invoice.purchaseOrderId === order.id && !['Mismatch', 'Returned', 'Rejected'].includes(invoice.status))
   })
   const selected = orders.find(order => order.id === Number(form.order)); const line = selected?.lines[0]
-  return <form className="lav-panel ops-form ops-invoice-form" onSubmit={event => { event.preventDefault(); void onRun(() => financeApi.createInvoice({ purchaseOrderId: Number(form.order), invoiceNumber: form.number, quantity: Number(form.quantity), unitPrice: Number(form.price), amount: Number(form.amount), documentReference: form.document || null }), 'Invoice captured for independent Finance review.').then(saved => { if (saved) setForm({ order: '', number: '', quantity: '', price: '', amount: '', document: '' }) }) }}><h2>Capture supplier invoice</h2><p>The source is immutable. A mismatch must be replaced, never edited over.</p><div className="ops-fields four"><label><span>Issued PO ready for invoice</span><select required value={form.order} onChange={e => { const order = orders.find(item => item.id === Number(e.target.value)); const nextLine = order?.lines[0]; const accepted = order ? invoiceEligibleQuantity(order, receipts) : 0; const unitPrice = nextLine?.unitPrice ?? 0; setForm({ ...form, order: e.target.value, quantity: accepted ? String(accepted) : '', price: unitPrice ? String(unitPrice) : '', amount: accepted && unitPrice ? (accepted * unitPrice).toFixed(2) : '' }) }}><option value="">Choose order</option>{available.map(order => { const accepted = invoiceEligibleQuantity(order, receipts); return <option value={order.id} key={order.id}>{order.supplierName} · {accepted} {order.lines[0]?.materialUnit} accepted</option> })}</select></label><label><span>Invoice number</span><input required value={form.number} onChange={e => setForm({ ...form, number: e.target.value })}/></label><label><span>Quantity {line ? `(${line.materialUnit})` : ''}</span><input type="number" min="0.001" step="0.001" required value={form.quantity} onChange={e => setForm({ ...form, quantity: e.target.value })}/></label><label><span>Unit price</span><input type="number" min="0.01" step="0.01" required value={form.price} onChange={e => setForm({ ...form, price: e.target.value })}/></label><label><span>Invoice amount</span><input type="number" min="0.01" step="0.01" required value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })}/></label><label><span>Document reference</span><input value={form.document} onChange={e => setForm({ ...form, document: e.target.value })}/></label></div><button className="lav-button primary">Send to Finance</button></form>
+  return <form className="lav-panel ops-form ops-invoice-form" onSubmit={event => { event.preventDefault(); void onRun(() => financeApi.createInvoice({ purchaseOrderId: Number(form.order), invoiceNumber: form.number, quantity: Number(form.quantity), unitPrice: Number(form.price), amount: Number(form.amount), documentReference: form.document || null }), 'Invoice captured for independent Finance review.').then(saved => { if (saved) setForm({ order: '', number: '', quantity: '', price: '', amount: '', document: '' }) }) }}><h2>Capture supplier invoice</h2><div className="ops-fields four"><label><span>Issued PO ready for invoice</span><select required value={form.order} onChange={e => { const order = orders.find(item => item.id === Number(e.target.value)); const nextLine = order?.lines[0]; const accepted = order ? invoiceEligibleQuantity(order, receipts) : 0; const unitPrice = nextLine?.unitPrice ?? 0; setForm({ ...form, order: e.target.value, quantity: accepted ? String(accepted) : '', price: unitPrice ? String(unitPrice) : '', amount: accepted && unitPrice ? (accepted * unitPrice).toFixed(2) : '' }) }}><option value="">Choose order</option>{available.map(order => { const accepted = invoiceEligibleQuantity(order, receipts); return <option value={order.id} key={order.id}>{order.supplierName} · {accepted} {order.lines[0]?.materialUnit} accepted</option> })}</select></label><label><span>Invoice number</span><input required value={form.number} onChange={e => setForm({ ...form, number: e.target.value })}/></label><label><span>Quantity {line ? `(${line.materialUnit})` : ''}</span><input type="number" min="0.001" step="0.001" required value={form.quantity} onChange={e => setForm({ ...form, quantity: e.target.value })}/></label><label><span>Unit price</span><input type="number" min="0.01" step="0.01" required value={form.price} onChange={e => setForm({ ...form, price: e.target.value })}/></label><label><span>Invoice amount</span><input type="number" min="0.01" step="0.01" required value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })}/></label><label><span>Document reference</span><input value={form.document} onChange={e => setForm({ ...form, document: e.target.value })}/></label></div><button className="lav-button primary">Send to Finance</button></form>
 }
 
-function InvoiceCard({ invoice, currentUser, run }: { invoice: SupplierInvoice; currentUser: CurrentUser; run: (action: () => Promise<unknown>, text: string) => Promise<boolean> }) {
+function InvoiceCard({ invoice, technicalAcceptances, currentUser, run }: { invoice: SupplierInvoice; technicalAcceptances: TechnicalAcceptanceWorkItem[]; currentUser: CurrentUser; run: (action: () => Promise<unknown>, text: string) => Promise<boolean> }) {
   const role = currentUser.role
   const technicalStatus = invoice.requiresTechnicalAcceptance ? invoice.technicalAcceptanceStatus ?? 'Pending' : 'NotRequired'
   const action = () => {
@@ -525,14 +563,38 @@ function InvoiceCard({ invoice, currentUser, run }: { invoice: SupplierInvoice; 
         ? `${invoice.technicalAcceptanceRejectedCount} ${invoice.technicalAcceptanceRejectedCount === 1 ? 'delivery' : 'deliveries'} rejected`
         : `${invoice.technicalAcceptanceAcceptedCount} of ${invoice.technicalAcceptanceRequiredCount} deliveries accepted`}</span>
   </div>
-  return <article><header><div><span>{invoice.projectName}</span><h3>{invoice.supplierName}</h3><small>Invoice {invoice.invoiceNumber}</small></div><b className={`ops-status ${invoice.status.toLowerCase()}`}>{invoice.status.replaceAll(/([A-Z])/g, ' $1').trim()}</b></header><strong>{money(invoice.amount)}</strong><p>{invoice.quantity} {invoice.materialUnit} of {invoice.materialName}</p>{technicalState}{invoice.reviewedAt && <div className="ops-match"><span className={invoice.quantityMatches ? 'pass' : 'fail'}>Quantity {invoice.quantityMatches ? 'matches' : 'differs'}</span><span className={invoice.priceMatches ? 'pass' : 'fail'}>Price {invoice.priceMatches ? 'matches' : 'differs'}</span><span className={invoice.amountMatches ? 'pass' : 'fail'}>Total {invoice.amountMatches ? 'matches' : 'differs'}</span></div>}<footer><small>Captured by {invoice.capturedByName} · {when(invoice.capturedAt)}</small>{action()}</footer></article>
+  return <article>
+    <header><div><span>{invoice.projectName}</span><h3>{invoice.supplierName}</h3><small>Invoice {invoice.invoiceNumber}</small></div><b className={`ops-status ${invoice.status.toLowerCase()}`}>{invoice.status.replaceAll(/([A-Z])/g, ' $1').trim()}</b></header>
+    <strong>{money(invoice.amount)}</strong>
+    <p>{invoice.quantity} {invoice.materialUnit} of {invoice.materialName}</p>
+    {technicalState}
+    {technicalAcceptances.length > 0 && <div className="invoice-acceptance-files">{technicalAcceptances.map(item => item.technicalAcceptanceId && <EvidenceFiles key={item.technicalAcceptanceId} sourceType="GoodsReceiptTechnicalAcceptance" sourceId={item.technicalAcceptanceId} kind="Inspection" label={`Inspection files · ${item.receiptNumber}`} canUpload={false}/>)}</div>}
+    {invoice.reviewedAt && <div className="ops-match"><span className={invoice.quantityMatches ? 'pass' : 'fail'}>Quantity {invoice.quantityMatches ? 'matches' : 'differs'}</span><span className={invoice.priceMatches ? 'pass' : 'fail'}>Price {invoice.priceMatches ? 'matches' : 'differs'}</span><span className={invoice.amountMatches ? 'pass' : 'fail'}>Total {invoice.amountMatches ? 'matches' : 'differs'}</span></div>}
+    <EvidenceFiles sourceType="SupplierInvoice" sourceId={invoice.id} kind="Invoice" label="Invoice files" canUpload={role === 'Procurement Officer' && invoice.capturedByName === currentUser.fullName}/>
+    <footer><small>Captured by {invoice.capturedByName} · {when(invoice.capturedAt)}</small>{action()}</footer>
+  </article>
 }
 
 function FinancePaymentActions({ currentUser, authorizations, run }: { currentUser: CurrentUser; authorizations: PaymentAuthorization[]; run: (action: () => Promise<unknown>, text: string) => Promise<boolean> }) {
   const [selectedId, setSelectedId] = useState<number | null>(null)
-  const [form, setForm] = useState({ method: 'BankTransfer', reference: '', evidence: '' })
+  const [form, setForm] = useState({ method: 'BankTransfer', reference: '', evidence: '', cashAccount: '' })
+  const [cashAccounts, setCashAccounts] = useState<CashAccount[]>([])
+  const [cashAccountLoading, setCashAccountLoading] = useState(false)
+  const [cashAccountError, setCashAccountError] = useState<string | null>(null)
   const selected = authorizations.find(item => item.id === selectedId)
+  const selectedProjectId = selected?.projectId ?? null
   const unpaid = authorizations.filter(item => !item.isPaid)
+
+  useEffect(() => {
+    if (selectedProjectId === null) return
+    const controller = new AbortController()
+    cashAccountsApi.list(selectedProjectId, controller.signal)
+      .then(setCashAccounts)
+      .catch(cause => { if (!(cause instanceof DOMException && cause.name === 'AbortError')) setCashAccountError(messageOf(cause)) })
+      .finally(() => { if (!controller.signal.aborted) setCashAccountLoading(false) })
+    return () => controller.abort()
+  }, [selectedProjectId])
+
   return <section className="lav-panel ops-panel">
     <header className="lav-panel-head"><div><span className="lav-kicker">READY TO PAY</span><h2>Authorized payments</h2></div></header>
     <div className="ops-issue-grid">
@@ -542,7 +604,7 @@ function FinancePaymentActions({ currentUser, authorizations, run }: { currentUs
           <div><span>{item.projectName}</span><b>{item.supplierName}</b><strong>{money(item.amount)}</strong></div>
           <p>Authorized by {item.authorizedByName}</p>
           {canExecute
-            ? <button type="button" className="lav-button primary" onClick={() => { setSelectedId(item.id); setForm({ method: 'BankTransfer', reference: '', evidence: '' }) }}>Record payment</button>
+            ? <button type="button" className="lav-button primary" onClick={() => { setCashAccounts([]); setCashAccountError(null); setCashAccountLoading(true); setSelectedId(item.id); setForm({ method: 'BankTransfer', reference: '', evidence: '', cashAccount: '' }) }}>Record payment</button>
             : <span className="ops-status awaitingconfirmation">Authorization must come from another account</span>}
         </article>
       })}
@@ -550,13 +612,15 @@ function FinancePaymentActions({ currentUser, authorizations, run }: { currentUs
     </div>
     {selected && <div className="ops-modal-wrap" role="presentation">
       <button type="button" className="ops-modal-backdrop" aria-label="Close payment form" onClick={() => setSelectedId(null)}/>
-      <form className="lav-panel ops-form ops-modal" onSubmit={event => { event.preventDefault(); void run(() => financeApi.pay(selected.id, { method: form.method, externalReference: form.reference, evidenceReference: form.evidence.trim() || null }), `Payment recorded with external reference ${form.reference}.`).then(saved => { if (saved) setSelectedId(null) }) }}>
+      <form className="lav-panel ops-form ops-modal" onSubmit={event => { event.preventDefault(); void run(() => financeApi.pay(selected.id, { method: form.method, externalReference: form.reference, evidenceReference: form.evidence.trim() || null, cashAccountId: form.cashAccount ? Number(form.cashAccount) : null }), `Payment recorded with external reference ${form.reference}.`).then(saved => { if (saved) setSelectedId(null) }) }}>
         <header><div><span className="lav-kicker">PAYMENT</span><h2>Record approved payment</h2><p>{selected.supplierName} · {selected.projectName}</p></div><button type="button" className="ops-modal-close" onClick={() => setSelectedId(null)}>×</button></header>
         <div className="ops-payment-lock"><span>Authorized amount</span><strong>{money(selected.amount)}</strong></div>
+        {cashAccountError && <Notice tone="error">Cash accounts could not be loaded: {cashAccountError}</Notice>}
+        <label><span>Cash account</span><select required={cashAccounts.length > 0} disabled={cashAccountLoading || Boolean(cashAccountError)} value={form.cashAccount} onChange={event => setForm({ ...form, cashAccount: event.target.value })}><option value="">{cashAccountLoading ? 'Loading accounts…' : cashAccounts.length ? 'Choose cash account' : 'No approved cash account'}</option>{cashAccounts.map(account => <option key={account.id} value={account.id}>{account.name} · {money(account.balance)}</option>)}</select></label>
         <label><span>Payment method</span><select value={form.method} onChange={event => setForm({ ...form, method: event.target.value })}><option value="BankTransfer">Bank transfer</option><option value="MPesa">M-Pesa</option><option value="Cheque">Cheque</option><option value="Cash">Cash</option></select></label>
         <label><span>External transaction reference</span><input required minLength={3} maxLength={100} value={form.reference} onChange={event => setForm({ ...form, reference: event.target.value })} placeholder="Bank, M-Pesa or cheque reference"/></label>
         <label><span>Evidence reference (optional)</span><input maxLength={500} value={form.evidence} onChange={event => setForm({ ...form, evidence: event.target.value })} placeholder="Receipt or confirmation file"/></label>
-        <div className="ops-buttons"><button type="button" className="lav-button secondary" onClick={() => setSelectedId(null)}>Cancel</button><button className="lav-button primary">Record payment</button></div>
+        <div className="ops-buttons"><button type="button" className="lav-button secondary" onClick={() => setSelectedId(null)}>Cancel</button><button className="lav-button primary" disabled={cashAccountLoading || Boolean(cashAccountError) || (cashAccounts.length > 0 && !form.cashAccount)}>Record payment</button></div>
       </form>
     </div>}
   </section>
@@ -608,7 +672,7 @@ function PettyCashRequestForm({ summaries, run }: { summaries: ProjectSummary[];
   const [form, setForm] = useState({ projectId: '', costCodeId: '', purpose: '', amount: '', neededByDate: '' })
   const selected = summaries.find(item => item.project.id === Number(form.projectId))
   return <form className="lav-panel ops-form" onSubmit={event => { event.preventDefault(); void run(() => pettyCashApi.create({ projectId: Number(form.projectId), costCodeId: Number(form.costCodeId), purpose: form.purpose, amount: Number(form.amount), neededByDate: form.neededByDate }), 'Petty-cash request submitted.').then(saved => { if (saved) setForm({ projectId: '', costCodeId: '', purpose: '', amount: '', neededByDate: '' }) }) }}>
-    <h2>Request petty cash</h2><p>For small urgent site costs only. The maximum is KES 100,000.</p>
+    <h2>Request petty cash</h2><p>Maximum KES 100,000</p>
     <div className="ops-fields"><label><span>Project</span><select required value={form.projectId} onChange={event => setForm({ ...form, projectId: event.target.value, costCodeId: '' })}><option value="">Choose project</option>{summaries.map(item => <option key={item.project.id} value={item.project.id}>{item.project.name}</option>)}</select></label><label><span>Budget area</span><select required disabled={!selected} value={form.costCodeId} onChange={event => setForm({ ...form, costCodeId: event.target.value })}><option value="">Choose budget area</option>{selected?.costCodes.filter(item => item.isActive).map(item => <option key={item.id} value={item.id}>{item.code} · {item.name}</option>)}</select></label></div>
     <div className="ops-fields"><label><span>Amount</span><input type="number" min="1" max="100000" step="0.01" required value={form.amount} onChange={event => setForm({ ...form, amount: event.target.value })}/></label><label><span>Needed by</span><input type="date" required value={form.neededByDate} onChange={event => setForm({ ...form, neededByDate: event.target.value })}/></label></div>
     <label><span>Purpose of the money</span><input minLength={3} maxLength={500} required value={form.purpose} onChange={event => setForm({ ...form, purpose: event.target.value })} placeholder="What will this cash pay for?"/></label><button className="lav-button primary">Send to Finance</button>
@@ -624,6 +688,10 @@ function PettyCashCard({ item, currentUser, run }: { item: PettyCashRequest; cur
     {item.disbursement && <p className="petty-cash-proof">Handed to {item.disbursement.recipientName}: {money(item.disbursement.amount)} by {item.disbursement.method} · {item.disbursement.externalReference}</p>}
     {item.receiptConfirmation && <p className="petty-cash-proof">Receipt confirmed by {item.receiptConfirmation.confirmedByName} · {when(item.receiptConfirmation.confirmedAt)}</p>}
     {item.latestReconciliation && <p className="petty-cash-proof">Accounted: {money(item.latestReconciliation.amountSpent)} spent + {money(item.latestReconciliation.amountReturned)} returned · {item.latestReconciliation.status}</p>}
+    {(item.disbursement || item.latestReconciliation) && <div className="petty-cash-evidence">
+      {item.disbursement && <EvidenceFiles sourceType="PettyCashDisbursement" sourceId={item.disbursement.id} kind="PaymentProof" label="Handover files" canUpload={role === 'Finance Officer' && item.disbursement.disbursedByUserId === currentUser.id}/>}
+      {item.latestReconciliation && <EvidenceFiles sourceType="PettyCashReconciliation" sourceId={item.latestReconciliation.id} kind="Receipt" label="Receipt files" canUpload={role === 'Supervisor' && item.latestReconciliation.submittedByName === currentUser.fullName}/>}
+    </div>}
     <div className="ops-buttons petty-cash-actions">
       {role === 'Finance Officer' && item.status === 'PendingFinanceApproval' && <button className="lav-button primary" onClick={() => setOpen('decision')}>Review request</button>}
       {role === 'Finance Officer' && item.status === 'Approved' && <button className="lav-button primary" onClick={() => setOpen('disburse')}>Record handover</button>}
@@ -650,8 +718,30 @@ function PettyCashDecision({ item, close, run }: { item: PettyCashRequest; close
 }
 
 function PettyCashDisbursementForm({ item, close, run }: { item: PettyCashRequest; close: () => void; run: (action: () => Promise<unknown>, text: string) => Promise<boolean> }) {
-  const [form, setForm] = useState({ method: 'MPesa', reference: '', recipient: item.requestedByName, acknowledgement: '', evidence: '' })
-  return <form className="petty-cash-inline" onSubmit={event => { event.preventDefault(); void run(() => pettyCashApi.disburse(item.id, { method: form.method, externalReference: form.reference, recipientName: form.recipient, recipientAcknowledgementReference: form.acknowledgement, evidenceReference: form.evidence }), 'Petty-cash handover recorded.').then(saved => { if (saved) close() }) }}><PettyCashPurpose item={item}/><div className="ops-fields"><label><span>Method</span><select value={form.method} onChange={event => setForm({ ...form, method: event.target.value })}><option>MPesa</option><option>BankTransfer</option><option>Cheque</option><option>Cash</option></select></label><label><span>Payment reference</span><input required minLength={3} value={form.reference} onChange={event => setForm({ ...form, reference: event.target.value })}/></label></div><label><span>Recipient</span><input required minLength={3} value={form.recipient} onChange={event => setForm({ ...form, recipient: event.target.value })}/></label><label><span>Recipient acknowledgement</span><input required minLength={3} value={form.acknowledgement} onChange={event => setForm({ ...form, acknowledgement: event.target.value })} placeholder="Signed voucher, PIN or message reference"/></label><label><span>Cash-out evidence</span><input required minLength={3} value={form.evidence} onChange={event => setForm({ ...form, evidence: event.target.value })}/></label><div className="ops-buttons"><button className="lav-button secondary" type="button" onClick={close}>Cancel</button><button className="lav-button primary">Record handover</button></div></form>
+  const [form, setForm] = useState({ method: 'MPesa', reference: '', recipient: item.requestedByName, acknowledgement: '', evidence: '', cashAccount: '' })
+  const [cashAccounts, setCashAccounts] = useState<CashAccount[]>([])
+  const [cashAccountLoading, setCashAccountLoading] = useState(true)
+  const [cashAccountError, setCashAccountError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const controller = new AbortController()
+    cashAccountsApi.list(item.projectId, controller.signal)
+      .then(setCashAccounts)
+      .catch(cause => { if (!(cause instanceof DOMException && cause.name === 'AbortError')) setCashAccountError(messageOf(cause)) })
+      .finally(() => { if (!controller.signal.aborted) setCashAccountLoading(false) })
+    return () => controller.abort()
+  }, [item.projectId])
+
+  return <form className="petty-cash-inline" onSubmit={event => { event.preventDefault(); void run(() => pettyCashApi.disburse(item.id, { method: form.method, externalReference: form.reference, recipientName: form.recipient, recipientAcknowledgementReference: form.acknowledgement, evidenceReference: form.evidence, cashAccountId: form.cashAccount ? Number(form.cashAccount) : null }), 'Petty-cash handover recorded.').then(saved => { if (saved) close() }) }}>
+    <PettyCashPurpose item={item}/>
+    {cashAccountError && <Notice tone="error">Cash accounts could not be loaded: {cashAccountError}</Notice>}
+    <label><span>Cash account</span><select required={cashAccounts.length > 0} disabled={cashAccountLoading || Boolean(cashAccountError)} value={form.cashAccount} onChange={event => setForm({ ...form, cashAccount: event.target.value })}><option value="">{cashAccountLoading ? 'Loading accounts…' : cashAccounts.length ? 'Choose cash account' : 'No approved cash account'}</option>{cashAccounts.map(account => <option key={account.id} value={account.id}>{account.name} · {money(account.balance)}</option>)}</select></label>
+    <div className="ops-fields"><label><span>Method</span><select value={form.method} onChange={event => setForm({ ...form, method: event.target.value })}><option>MPesa</option><option>BankTransfer</option><option>Cheque</option><option>Cash</option></select></label><label><span>Payment reference</span><input required minLength={3} value={form.reference} onChange={event => setForm({ ...form, reference: event.target.value })}/></label></div>
+    <label><span>Recipient</span><input required minLength={3} value={form.recipient} onChange={event => setForm({ ...form, recipient: event.target.value })}/></label>
+    <label><span>Recipient acknowledgement</span><input required minLength={3} value={form.acknowledgement} onChange={event => setForm({ ...form, acknowledgement: event.target.value })} placeholder="Signed voucher, PIN or message reference"/></label>
+    <label><span>Cash-out evidence</span><input required minLength={3} value={form.evidence} onChange={event => setForm({ ...form, evidence: event.target.value })}/></label>
+    <div className="ops-buttons"><button className="lav-button secondary" type="button" onClick={close}>Cancel</button><button className="lav-button primary" disabled={cashAccountLoading || Boolean(cashAccountError) || (cashAccounts.length > 0 && !form.cashAccount)}>Record handover</button></div>
+  </form>
 }
 
 function PettyCashReceiptForm({ item, close, run }: { item: PettyCashRequest; close: () => void; run: (action: () => Promise<unknown>, text: string) => Promise<boolean> }) {
@@ -745,6 +835,25 @@ function controlRecordTitle(item: ControlEvent) {
   return item.entityType.replaceAll(/([A-Z])/g, ' $1').trim()
 }
 
+function controlEventEvidence(item: ControlEvent) {
+  const sources: Record<string, { sourceType: string; kind: string }> = {
+    GoodsReceipt: { sourceType: 'GoodsReceipt', kind: 'DeliveryNote' },
+    GoodsReceiptTechnicalAcceptance: { sourceType: 'GoodsReceiptTechnicalAcceptance', kind: 'Inspection' },
+    MaterialUsage: { sourceType: 'MaterialUsageRecord', kind: 'Photo' },
+    SupplierInvoice: { sourceType: 'SupplierInvoice', kind: 'Invoice' },
+    Payment: { sourceType: 'Payment', kind: 'PaymentProof' },
+    PettyCashDisbursement: { sourceType: 'PettyCashDisbursement', kind: 'PaymentProof' },
+    PettyCashReconciliation: { sourceType: 'PettyCashReconciliation', kind: 'Receipt' },
+    OpeningPositionBatch: { sourceType: 'OpeningPositionBatch', kind: 'Other' },
+    MaterialReturn: { sourceType: 'MaterialReturn', kind: 'Photo' },
+    MaterialReturnReceipt: { sourceType: 'MaterialReturnReceipt', kind: 'Photo' },
+    MaterialIssueDisputeResolution: { sourceType: 'MaterialIssueDisputeResolution', kind: 'Photo' },
+    MaterialCustodyCloseout: { sourceType: 'MaterialCustodyCloseout', kind: 'Photo' },
+    ControlledCorrection: { sourceType: 'ControlledCorrection', kind: 'Other' },
+  }
+  return sources[item.entityType] ?? null
+}
+
 function keyControlMilestones(items: ControlEvent[]) {
   const ordered = [...items].sort((left, right) => new Date(left.occurredAt).getTime() - new Date(right.occurredAt).getTime())
   const findFirst = (matches: (item: ControlEvent) => boolean) => ordered.find(matches)
@@ -825,11 +934,13 @@ export function LiveAuditView() {
             <div className="ops-timeline">
               {ordered.map((item, index) => {
                 const eventMaterial = controlEventMaterial(item)
+                const evidence = controlEventEvidence(item)
                 return <article key={`${item.entityType}-${item.entityId}-${item.sequenceNumber}`}>
                   <i>{index + 1}</i>
                   <div>
                     <span>{item.actorRole} · {item.actorName}</span>
                     <b>{controlEventLabel(item)}{eventMaterial ? `: ${eventMaterial}` : ''}</b>
+                    {evidence && <EvidenceFiles sourceType={evidence.sourceType} sourceId={item.entityId} kind={evidence.kind} label="Files" canUpload={false}/>}
                   </div>
                   <time>{when(item.occurredAt)}</time>
                 </article>

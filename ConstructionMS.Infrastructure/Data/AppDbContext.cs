@@ -70,6 +70,27 @@ public class AppDbContext : DbContext
     public DbSet<PettyCashReconciliationEvent> PettyCashReconciliationEvents => Set<PettyCashReconciliationEvent>();
     public DbSet<ControlEvent> ControlEvents => Set<ControlEvent>();
     public DbSet<SecurityAuditEvent> SecurityAuditEvents => Set<SecurityAuditEvent>();
+    public DbSet<InAppNotification> InAppNotifications => Set<InAppNotification>();
+    public DbSet<InAppNotificationReadReceipt> InAppNotificationReadReceipts => Set<InAppNotificationReadReceipt>();
+    public DbSet<InAppNotificationResolutionReceipt> InAppNotificationResolutionReceipts => Set<InAppNotificationResolutionReceipt>();
+    public DbSet<EvidenceDocument> EvidenceDocuments => Set<EvidenceDocument>();
+    public DbSet<EvidenceAttachment> EvidenceAttachments => Set<EvidenceAttachment>();
+    public DbSet<OpeningPositionBatch> OpeningPositionBatches => Set<OpeningPositionBatch>();
+    public DbSet<OpeningInventoryLine> OpeningInventoryLines => Set<OpeningInventoryLine>();
+    public DbSet<OpeningCashLine> OpeningCashLines => Set<OpeningCashLine>();
+    public DbSet<OpeningPositionVerification> OpeningPositionVerifications => Set<OpeningPositionVerification>();
+    public DbSet<OpeningPositionDecision> OpeningPositionDecisions => Set<OpeningPositionDecision>();
+    public DbSet<OpeningPositionPosting> OpeningPositionPostings => Set<OpeningPositionPosting>();
+    public DbSet<MaterialReturn> MaterialReturns => Set<MaterialReturn>();
+    public DbSet<MaterialIssueDisputeResolution> MaterialIssueDisputeResolutions => Set<MaterialIssueDisputeResolution>();
+    public DbSet<MaterialCustodyCloseout> MaterialCustodyCloseouts => Set<MaterialCustodyCloseout>();
+    public DbSet<MaterialCustodyCloseoutDecision> MaterialCustodyCloseoutDecisions => Set<MaterialCustodyCloseoutDecision>();
+    public DbSet<OperationalPeriod> OperationalPeriods => Set<OperationalPeriod>();
+    public DbSet<OperationalPeriodEvent> OperationalPeriodEvents => Set<OperationalPeriodEvent>();
+    public DbSet<ControlledCorrection> ControlledCorrections => Set<ControlledCorrection>();
+    public DbSet<ControlledCorrectionDecision> ControlledCorrectionDecisions => Set<ControlledCorrectionDecision>();
+    public DbSet<CashAccount> CashAccounts => Set<CashAccount>();
+    public DbSet<CashLedgerEntry> CashLedgerEntries => Set<CashLedgerEntry>();
 
     private void GuardAppendOnlyEvidence()
     {
@@ -102,7 +123,22 @@ public class AppDbContext : DbContext
                     or PettyCashReceiptConfirmation
                     or PettyCashReconciliationEvent
                     or ControlEvent
-                    or SecurityAuditEvent);
+                    or SecurityAuditEvent
+                    or InAppNotification
+                    or InAppNotificationReadReceipt
+                    or InAppNotificationResolutionReceipt
+                    or EvidenceDocument
+                    or EvidenceAttachment
+                    or OpeningInventoryLine
+                    or OpeningCashLine
+                    or OpeningPositionVerification
+                    or OpeningPositionDecision
+                    or OpeningPositionPosting
+                    or MaterialIssueDisputeResolution
+                    or MaterialCustodyCloseoutDecision
+                    or OperationalPeriodEvent
+                    or ControlledCorrectionDecision
+                    or CashLedgerEntry);
 
         if (changedEvidence is not null)
         {
@@ -182,7 +218,9 @@ public class AppDbContext : DbContext
         var deletedControlRecord = ChangeTracker.Entries()
             .FirstOrDefault(entry => entry.State == EntityState.Deleted
                 && entry.Entity is MaterialIssue or StockTransfer or StockCount or SupplierInvoice
-                    or PettyCashRequest or PettyCashReconciliation);
+                    or PettyCashRequest or PettyCashReconciliation or OpeningPositionBatch
+                    or MaterialReturn or MaterialCustodyCloseout or OperationalPeriod
+                    or ControlledCorrection or CashAccount);
         if (deletedControlRecord is not null)
         {
             throw new InvalidOperationException(
@@ -225,6 +263,36 @@ public class AppDbContext : DbContext
             nameof(PettyCashReconciliation.SubmittedByUserId),
             nameof(PettyCashReconciliation.SubmittedAt));
         RejectProtectedChanges<Requisition>(nameof(Requisition.RequestType));
+        RejectProtectedChanges<OpeningPositionBatch>(
+            nameof(OpeningPositionBatch.BatchNumber), nameof(OpeningPositionBatch.PositionType),
+            nameof(OpeningPositionBatch.ProjectId), nameof(OpeningPositionBatch.AsOfDate),
+            nameof(OpeningPositionBatch.Notes), nameof(OpeningPositionBatch.EvidenceReference),
+            nameof(OpeningPositionBatch.SubmittedByUserId), nameof(OpeningPositionBatch.SubmittedAt));
+        RejectProtectedChanges<MaterialReturn>(
+            nameof(MaterialReturn.ReturnNumber), nameof(MaterialReturn.MaterialIssueId),
+            nameof(MaterialReturn.QuantityOffered), nameof(MaterialReturn.Condition),
+            nameof(MaterialReturn.Notes), nameof(MaterialReturn.EvidenceReference),
+            nameof(MaterialReturn.ReturnedByUserId), nameof(MaterialReturn.ReturnedAt));
+        RejectProtectedChanges<MaterialCustodyCloseout>(
+            nameof(MaterialCustodyCloseout.CloseoutNumber), nameof(MaterialCustodyCloseout.MaterialIssueId),
+            nameof(MaterialCustodyCloseout.Revision), nameof(MaterialCustodyCloseout.ConfirmedQuantity),
+            nameof(MaterialCustodyCloseout.UsedQuantity), nameof(MaterialCustodyCloseout.WastedQuantity),
+            nameof(MaterialCustodyCloseout.ReturnedQuantity), nameof(MaterialCustodyCloseout.UnaccountedQuantity),
+            nameof(MaterialCustodyCloseout.Notes), nameof(MaterialCustodyCloseout.EvidenceReference),
+            nameof(MaterialCustodyCloseout.SubmittedByUserId), nameof(MaterialCustodyCloseout.SubmittedAt));
+        RejectProtectedChanges<OperationalPeriod>(
+            nameof(OperationalPeriod.PeriodNumber), nameof(OperationalPeriod.ProjectId),
+            nameof(OperationalPeriod.Scope), nameof(OperationalPeriod.Name),
+            nameof(OperationalPeriod.StartDate), nameof(OperationalPeriod.EndDate),
+            nameof(OperationalPeriod.CreatedByUserId), nameof(OperationalPeriod.CreatedAt));
+        RejectProtectedChanges<ControlledCorrection>(
+            nameof(ControlledCorrection.CorrectionNumber), nameof(ControlledCorrection.OperationalPeriodId),
+            nameof(ControlledCorrection.ProjectId), nameof(ControlledCorrection.CorrectionType),
+            nameof(ControlledCorrection.MaterialId), nameof(ControlledCorrection.CashAccountName),
+            nameof(ControlledCorrection.QuantityDelta), nameof(ControlledCorrection.AmountDelta),
+            nameof(ControlledCorrection.Reason), nameof(ControlledCorrection.EvidenceReference),
+            nameof(ControlledCorrection.SubmittedByUserId), nameof(ControlledCorrection.SubmittedAt));
+        RejectProtectedChanges<CashAccount>(nameof(CashAccount.ProjectId), nameof(CashAccount.Name));
     }
 
     private void RejectProtectedChanges<TEntity>(params string[] propertyNames)
@@ -326,6 +394,12 @@ public class AppDbContext : DbContext
         ConfigurePettyCashReconciliationEvents(modelBuilder);
         ConfigureControlEvents(modelBuilder);
         ConfigureSecurityAuditEvents(modelBuilder);
+        ConfigureInAppNotifications(modelBuilder);
+        ConfigureInAppNotificationReadReceipts(modelBuilder);
+        ConfigureInAppNotificationResolutionReceipts(modelBuilder);
+        ConfigureEvidenceDocuments(modelBuilder);
+        ConfigureEvidenceAttachments(modelBuilder);
+        modelBuilder.ConfigureControlWorkspaces();
     }
 
     private static void ConfigureRoles(ModelBuilder modelBuilder, DateTime seedDate)
@@ -1181,7 +1255,7 @@ public class AppDbContext : DbContext
         ledger.ToTable(table =>
         {
             table.HasCheckConstraint("CK_StockLedgerEntries_Movement",
-                "\"MovementType\" IN ('Receipt', 'TechnicalAcceptance', 'Issue', 'TransferOut', 'TransferIn', 'CountAdjustment')");
+                "\"MovementType\" IN ('Receipt', 'TechnicalAcceptance', 'Issue', 'TransferOut', 'TransferIn', 'CountAdjustment', 'OpeningBalance', 'ReturnToStore', 'HandoverCorrection', 'ControlledCorrection')");
             table.HasCheckConstraint("CK_StockLedgerEntries_Balance", "\"BalanceAfter\" >= 0");
             table.HasCheckConstraint("CK_StockLedgerEntries_Delta", "\"QuantityDelta\" <> 0");
         });
@@ -1525,6 +1599,131 @@ public class AppDbContext : DbContext
         events.HasOne(item => item.ActorUser)
             .WithMany()
             .HasForeignKey(item => item.ActorUserId)
+            .OnDelete(DeleteBehavior.Restrict);
+    }
+
+    private static void ConfigureInAppNotifications(ModelBuilder modelBuilder)
+    {
+        var notifications = modelBuilder.Entity<InAppNotification>();
+
+        notifications.Property(item => item.IdempotencyKey).HasMaxLength(260);
+        notifications.Property(item => item.TaskKey).HasMaxLength(180);
+        notifications.Property(item => item.TaskType).HasMaxLength(60);
+        notifications.Property(item => item.Title).HasMaxLength(180);
+        notifications.Property(item => item.Message).HasMaxLength(1_000);
+        notifications.Property(item => item.TargetPath).HasMaxLength(200);
+        notifications.HasIndex(item => item.IdempotencyKey).IsUnique();
+        notifications.HasIndex(item => new { item.RecipientUserId, item.CreatedAt });
+        notifications.HasIndex(item => new { item.RecipientUserId, item.TaskDueAt });
+        notifications.HasIndex(item => item.ProjectId);
+        notifications.ToTable(table => table.HasCheckConstraint(
+            "CK_InAppNotifications_Timestamps",
+            "\"TaskDueAt\" >= \"TaskOpenedAt\" AND \"CreatedAt\" >= \"TaskDueAt\""));
+
+        notifications.HasOne(item => item.RecipientUser)
+            .WithMany()
+            .HasForeignKey(item => item.RecipientUserId)
+            .OnDelete(DeleteBehavior.Restrict);
+        notifications.HasOne(item => item.Project)
+            .WithMany()
+            .HasForeignKey(item => item.ProjectId)
+            .OnDelete(DeleteBehavior.Restrict);
+    }
+
+    private static void ConfigureInAppNotificationReadReceipts(ModelBuilder modelBuilder)
+    {
+        var receipts = modelBuilder.Entity<InAppNotificationReadReceipt>();
+
+        receipts.HasIndex(item => item.InAppNotificationId).IsUnique();
+        receipts.HasIndex(item => new { item.RecipientUserId, item.ReadAt });
+        receipts.HasOne(item => item.InAppNotification)
+            .WithOne(item => item.ReadReceipt)
+            .HasForeignKey<InAppNotificationReadReceipt>(item => item.InAppNotificationId)
+            .OnDelete(DeleteBehavior.Restrict);
+        receipts.HasOne(item => item.RecipientUser)
+            .WithMany()
+            .HasForeignKey(item => item.RecipientUserId)
+            .OnDelete(DeleteBehavior.Restrict);
+    }
+
+    private static void ConfigureEvidenceDocuments(ModelBuilder modelBuilder)
+    {
+        var documents = modelBuilder.Entity<EvidenceDocument>();
+
+        documents.Property(item => item.StorageKey).HasMaxLength(64);
+        documents.Property(item => item.OriginalFileName).HasMaxLength(200);
+        documents.Property(item => item.ContentType).HasMaxLength(100);
+        documents.Property(item => item.Sha256Hash).HasMaxLength(64);
+        documents.HasIndex(item => item.StorageKey).IsUnique();
+        documents.HasIndex(item => new { item.ProjectId, item.UploadedAt });
+        documents.HasIndex(item => item.Sha256Hash);
+        documents.ToTable(table =>
+        {
+            table.HasCheckConstraint(
+                "CK_EvidenceDocuments_SizeBytes",
+                "\"SizeBytes\" > 0 AND \"SizeBytes\" <= 10485760");
+            table.HasCheckConstraint(
+                "CK_EvidenceDocuments_ContentType",
+                "\"ContentType\" IN ('application/pdf', 'image/jpeg', 'image/png', 'image/webp')");
+        });
+        documents.HasOne(item => item.Project)
+            .WithMany()
+            .HasForeignKey(item => item.ProjectId)
+            .OnDelete(DeleteBehavior.Restrict);
+        documents.HasOne(item => item.UploadedByUser)
+            .WithMany()
+            .HasForeignKey(item => item.UploadedByUserId)
+            .OnDelete(DeleteBehavior.Restrict);
+        documents.HasOne(item => item.Attachment)
+            .WithOne(item => item.EvidenceDocument)
+            .HasForeignKey<EvidenceAttachment>(item => item.EvidenceDocumentId)
+            .OnDelete(DeleteBehavior.Restrict);
+    }
+
+    private static void ConfigureEvidenceAttachments(ModelBuilder modelBuilder)
+    {
+        var attachments = modelBuilder.Entity<EvidenceAttachment>();
+
+        attachments.Property(item => item.SourceType).HasMaxLength(60);
+        attachments.Property(item => item.EvidenceKind).HasMaxLength(30);
+        attachments.HasIndex(item => item.EvidenceDocumentId).IsUnique();
+        attachments.HasIndex(item => new { item.SourceType, item.SourceId, item.LinkedAt });
+        attachments.HasIndex(item => item.ProjectId);
+        attachments.ToTable(table =>
+        {
+            table.HasCheckConstraint(
+                "CK_EvidenceAttachments_SourceId",
+                "\"SourceId\" > 0");
+            table.HasCheckConstraint(
+                "CK_EvidenceAttachments_SourceType",
+                "\"SourceType\" IN ('ProjectProgressVerification', 'GoodsReceipt', 'GoodsReceiptTechnicalAcceptance', 'MaterialUsageRecord', 'SupplierInvoice', 'Payment', 'PettyCashDisbursement', 'PettyCashReconciliation', 'OpeningPositionBatch', 'MaterialReturn', 'MaterialReturnReceipt', 'MaterialIssueDisputeResolution', 'MaterialCustodyCloseout', 'ControlledCorrection')");
+            table.HasCheckConstraint(
+                "CK_EvidenceAttachments_EvidenceKind",
+                "\"EvidenceKind\" IN ('Photo', 'DeliveryNote', 'Inspection', 'Invoice', 'PaymentProof', 'Receipt', 'Other')");
+        });
+        attachments.HasOne(item => item.Project)
+            .WithMany()
+            .HasForeignKey(item => item.ProjectId)
+            .OnDelete(DeleteBehavior.Restrict);
+        attachments.HasOne(item => item.LinkedByUser)
+            .WithMany()
+            .HasForeignKey(item => item.LinkedByUserId)
+            .OnDelete(DeleteBehavior.Restrict);
+    }
+
+    private static void ConfigureInAppNotificationResolutionReceipts(ModelBuilder modelBuilder)
+    {
+        var receipts = modelBuilder.Entity<InAppNotificationResolutionReceipt>();
+
+        receipts.Property(item => item.Reason).HasMaxLength(60);
+        receipts.HasIndex(item => item.InAppNotificationId).IsUnique();
+        receipts.HasIndex(item => item.ResolvedAt);
+        receipts.ToTable(table => table.HasCheckConstraint(
+            "CK_InAppNotificationResolutionReceipts_Reason",
+            "\"Reason\" = 'TaskNoLongerOverdue'"));
+        receipts.HasOne(item => item.InAppNotification)
+            .WithOne(item => item.ResolutionReceipt)
+            .HasForeignKey<InAppNotificationResolutionReceipt>(item => item.InAppNotificationId)
             .OnDelete(DeleteBehavior.Restrict);
     }
 }

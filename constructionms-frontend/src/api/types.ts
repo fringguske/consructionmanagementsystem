@@ -625,6 +625,7 @@ export type TechnicalAcceptanceStatus = 'NotRequired' | 'Pending' | TechnicalAcc
 
 export interface TechnicalAcceptanceWorkItem {
   goodsReceiptId: number
+  technicalAcceptanceId: number | null
   receiptNumber: string
   purchaseOrderId: number
   purchaseOrderNumber: string
@@ -719,7 +720,7 @@ export interface SupplierInvoice {
 }
 
 export interface PaymentAuthorization {
-  id: number; authorizationNumber: string; supplierInvoiceId: number; amount: number
+  id: number; authorizationNumber: string; supplierInvoiceId: number; projectId: number; amount: number
   supplierName: string; projectName: string; authorizedByUserId: number; authorizedByName: string; notes: string | null
   authorizedAt: IsoDateTime; isPaid: boolean
 }
@@ -756,6 +757,15 @@ export interface CashBookProject {
 export interface CashBook {
   generatedAt: IsoDateTime
   projects: CashBookProject[]
+}
+
+export interface CashAccount {
+  id: number
+  projectId: number
+  projectName: string
+  name: string
+  balance: number
+  updatedAt: IsoDateTime
 }
 
 export type PettyCashStatus =
@@ -803,4 +813,251 @@ export interface ControlEvent {
   eventType: string; actorName: string; actorRole: ConstructionRole; detailsJson: string | null
   materialName: string | null; materialUnit: string | null; requestedQuantity: number | null; eventQuantity: number | null
   occurredAt: IsoDateTime; eventHash: string
+}
+
+export interface AppNotification {
+  id: number
+  taskKey: string
+  taskType: string
+  title: string
+  message: string
+  projectId: number | null
+  projectName: string | null
+  targetPath: string
+  taskDueAt: IsoDateTime
+  createdAt: IsoDateTime
+  isRead: boolean
+  readAt: IsoDateTime | null
+}
+
+export interface NotificationCount {
+  unreadCount: number
+}
+
+export interface NotificationReadResult {
+  markedReadCount: number
+}
+
+export interface MyTask {
+  taskKey: string
+  taskType: string
+  title: string
+  detail: string
+  requiredRole: string
+  projectId: number | null
+  projectName: string | null
+  sourceEntityType: string
+  sourceEntityId: number
+  targetPath: string
+  openedAt: IsoDateTime
+  dueAt: IsoDateTime
+  isOverdue: boolean
+  priority: string
+}
+
+export interface MyTasksResponse {
+  generatedAt: IsoDateTime
+  actualRole: string
+  totalCount: number
+  overdueCount: number
+  items: MyTask[]
+}
+
+export interface EvidenceDocument {
+  id: string
+  projectId: number
+  projectName: string
+  sourceType: string
+  sourceId: number
+  evidenceKind: string
+  originalFileName: string
+  contentType: string
+  sizeBytes: number
+  sha256Hash: string
+  uploadedByUserId: number
+  uploadedByName: string
+  uploadedAt: IsoDateTime
+}
+
+export type OpeningPositionType = 'Inventory' | 'Cash'
+export type OpeningPositionStatus = 'AwaitingVerification' | 'AwaitingApproval' | 'Approved' | 'Rejected'
+
+export interface OpeningInventoryLine {
+  materialId: number
+  materialName: string
+  unit: string
+  quantity: number
+  unitCost: number | null
+}
+
+export interface OpeningCashLine {
+  accountName: string
+  amount: number
+}
+
+export interface OpeningPosition {
+  id: number
+  batchNumber: string
+  positionType: OpeningPositionType
+  projectId: number
+  projectName: string
+  asOfDate: IsoDate
+  notes: string | null
+  evidenceReference: string | null
+  status: OpeningPositionStatus
+  submittedByName: string
+  submittedAt: IsoDateTime
+  verifiedByName: string | null
+  verificationNotes: string | null
+  verifiedAt: IsoDateTime | null
+  decidedByName: string | null
+  decisionNotes: string | null
+  decidedAt: IsoDateTime | null
+  inventoryLines: OpeningInventoryLine[]
+  cashLines: OpeningCashLine[]
+}
+
+export interface CreateOpeningPositionRequest {
+  projectId: number
+  positionType: OpeningPositionType
+  asOfDate: IsoDate
+  notes?: string | null
+  evidenceReference?: string | null
+  inventoryLines: Array<{ materialId: number; quantity: number; unitCost?: number | null }>
+  cashLines: Array<{ accountName: string; amount: number }>
+}
+
+export type MaterialReturnStatus = 'AwaitingReceipt' | 'Received' | 'Rejected'
+
+export interface MaterialReturn {
+  id: number
+  returnNumber: string
+  materialIssueId: number
+  projectId: number
+  projectName: string
+  materialName: string
+  unit: string
+  quantityOffered: number
+  quantityAccepted: number | null
+  condition: string
+  status: MaterialReturnStatus
+  returnedByName: string
+  returnedAt: IsoDateTime
+  receivedByName: string | null
+  receivedAt: IsoDateTime | null
+  notes: string | null
+  evidenceReference: string | null
+}
+
+export interface MaterialIssueDisputeResolution {
+  id: number
+  resolutionNumber: string
+  materialIssueId: number
+  projectId: number
+  projectName: string
+  materialName: string
+  unit: string
+  issuedQuantity: number
+  foremanReceivedQuantity: number
+  returnedToStoreQuantity: number
+  notes: string
+  evidenceReference: string | null
+  resolvedByName: string
+  resolvedAt: IsoDateTime
+}
+
+export interface CreateMaterialReturnRequest {
+  materialIssueId: number
+  quantity: number
+  condition: string
+  notes?: string | null
+  evidenceReference?: string | null
+}
+
+export interface CustodyCloseout {
+  id: number
+  closeoutNumber: string
+  materialIssueId: number
+  revision: number
+  projectId: number
+  projectName: string
+  materialName: string
+  unit: string
+  confirmedQuantity: number
+  usedQuantity: number
+  wastedQuantity: number
+  returnedQuantity: number
+  unaccountedQuantity: number
+  status: 'AwaitingReview' | 'Approved' | 'Returned'
+  submittedByName: string
+  submittedAt: IsoDateTime
+  notes: string | null
+  evidenceReference: string | null
+  decidedByName: string | null
+  decisionNotes: string | null
+  decidedAt: IsoDateTime | null
+}
+
+export type OperationalPeriodScope = 'Inventory' | 'Finance'
+export type OperationalPeriodStatus = 'Open' | 'AwaitingClose' | 'Closed' | 'Returned'
+
+export interface OperationalPeriod {
+  id: number
+  periodNumber: string
+  projectId: number
+  projectName: string
+  scope: OperationalPeriodScope
+  name: string
+  startDate: IsoDate
+  endDate: IsoDate
+  status: OperationalPeriodStatus
+  createdByName: string
+  createdAt: IsoDateTime
+  latestEventType: string | null
+  latestEventNotes: string | null
+  latestActorName: string | null
+  latestEventAt: IsoDateTime | null
+}
+
+export interface CreateOperationalPeriodRequest {
+  projectId: number
+  scope: OperationalPeriodScope
+  name: string
+  startDate: IsoDate
+  endDate: IsoDate
+}
+
+export interface ControlledCorrection {
+  id: number
+  correctionNumber: string
+  operationalPeriodId: number
+  periodName: string
+  projectId: number
+  projectName: string
+  correctionType: OperationalPeriodScope
+  materialId: number | null
+  materialName: string | null
+  unit: string | null
+  cashAccountName: string | null
+  quantityDelta: number
+  amountDelta: number
+  reason: string
+  evidenceReference: string | null
+  status: 'AwaitingApproval' | 'Approved' | 'Rejected'
+  submittedByName: string
+  submittedAt: IsoDateTime
+  decidedByName: string | null
+  decisionNotes: string | null
+  decidedAt: IsoDateTime | null
+}
+
+export interface CreateControlledCorrectionRequest {
+  operationalPeriodId: number
+  correctionType: OperationalPeriodScope
+  materialId?: number | null
+  cashAccountName?: string | null
+  quantityDelta: number
+  amountDelta: number
+  reason: string
+  evidenceReference?: string | null
 }

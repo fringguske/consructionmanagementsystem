@@ -23,6 +23,7 @@ public sealed class DecidePettyCashRequestDto
 
 public sealed class DisbursePettyCashRequestDto
 {
+    [Range(1, long.MaxValue)] public long? CashAccountId { get; set; }
     [Required, StringLength(30)] public string Method { get; set; } = string.Empty;
     [Required, StringLength(100, MinimumLength = 3)] public string ExternalReference { get; set; } = string.Empty;
     [Required, StringLength(150, MinimumLength = 3)] public string RecipientName { get; set; } = string.Empty;

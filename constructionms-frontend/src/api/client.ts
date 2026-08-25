@@ -67,10 +67,26 @@ import type {
   PaymentAuthorization,
   Payment,
   CashBook,
+  CashAccount,
   PettyCashRequest,
   ControlEvent,
   ChangePasswordRequest,
   ChangeUsernameRequest,
+  AppNotification,
+  ControlledCorrection,
+  CreateControlledCorrectionRequest,
+  CreateMaterialReturnRequest,
+  CreateOpeningPositionRequest,
+  CreateOperationalPeriodRequest,
+  CustodyCloseout,
+  EvidenceDocument,
+  MaterialReturn,
+  MaterialIssueDisputeResolution,
+  MyTasksResponse,
+  NotificationCount,
+  NotificationReadResult,
+  OpeningPosition,
+  OperationalPeriod,
 } from './types'
 
 interface ProblemDetails {
@@ -239,6 +255,63 @@ async function request<T>(
   }
 
   return body.data as T
+}
+
+async function requestFormData<T>(
+  path: string,
+  formData: FormData,
+  signal?: AbortSignal,
+): Promise<T> {
+  let response: Response
+  try {
+    response = await fetch(buildUrl(path), {
+      method: 'POST',
+      credentials: 'include',
+      headers: new Headers({ Accept: 'application/json' }),
+      body: formData,
+      signal,
+    })
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') throw error
+    throw new ApiError('The server could not be reached. Check your connection and try again.', 0)
+  }
+
+  const body = await readResponseBody(response)
+  if (!response.ok) {
+    throw new ApiError(
+      getErrorMessage(response, body),
+      response.status,
+      body,
+      getValidationErrors(body),
+    )
+  }
+  if (!isApiEnvelope(body) || !body.success) {
+    throw new ApiError(
+      isApiEnvelope(body) ? body.error || 'The upload could not be completed.' : 'The server returned an unexpected response.',
+      response.status,
+      body,
+    )
+  }
+  return body.data as T
+}
+
+async function requestFile(path: string, signal?: AbortSignal): Promise<Blob> {
+  let response: Response
+  try {
+    response = await fetch(buildUrl(path), {
+      credentials: 'include',
+      headers: new Headers({ Accept: 'application/pdf,image/jpeg,image/png,image/webp' }),
+      signal,
+    })
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') throw error
+    throw new ApiError('The server could not be reached. Check your connection and try again.', 0)
+  }
+  if (!response.ok) {
+    const body = await readResponseBody(response)
+    throw new ApiError(getErrorMessage(response, body), response.status, body, getValidationErrors(body))
+  }
+  return response.blob()
 }
 
 async function requestWithoutResponse(
@@ -774,7 +847,7 @@ export const financeApi = {
     request<SupplierInvoice>(`/finance/invoices/${id}/authorize`, { method: 'POST', body: { notes: notes || null }, signal }),
   authorizations: (unpaidOnly = false, signal?: AbortSignal) =>
     request<PaginatedResult<PaymentAuthorization>>('/finance/authorizations', { signal }, { page: 1, pageSize: 100, unpaidOnly }),
-  pay: (id: number, body: { method: string; externalReference: string; evidenceReference?: string | null }, signal?: AbortSignal) =>
+  pay: (id: number, body: { method: string; externalReference: string; evidenceReference?: string | null; cashAccountId?: number | null }, signal?: AbortSignal) =>
     request<Payment>(`/finance/authorizations/${id}/pay`, { method: 'POST', body, signal }),
   payments: (signal?: AbortSignal) => request<PaginatedResult<Payment>>('/finance/payments', { signal }, { page: 1, pageSize: 100 }),
   cashBook: (signal?: AbortSignal) => request<CashBook>('/finance/cash-book', { signal }),
@@ -790,7 +863,7 @@ export const pettyCashApi = {
     request<PettyCashRequest>('/finance/petty-cash', { method: 'POST', body, signal }),
   decide: (id: number, body: { approve: boolean; amountApproved?: number | null; notes: string }, signal?: AbortSignal) =>
     request<PettyCashRequest>(`/finance/petty-cash/${id}/decision`, { method: 'POST', body, signal }),
-  disburse: (id: number, body: { method: string; externalReference: string; recipientName: string; recipientAcknowledgementReference: string; evidenceReference: string }, signal?: AbortSignal) =>
+  disburse: (id: number, body: { method: string; externalReference: string; recipientName: string; recipientAcknowledgementReference: string; evidenceReference: string; cashAccountId?: number | null }, signal?: AbortSignal) =>
     request<PettyCashRequest>(`/finance/petty-cash/${id}/disburse`, { method: 'POST', body, signal }),
   confirmReceipt: (id: number, body: { amountReceived: number; notes?: string | null }, signal?: AbortSignal) =>
     request<PettyCashRequest>(`/finance/petty-cash/${id}/receipt-confirmation`, { method: 'POST', body, signal }),
@@ -798,4 +871,101 @@ export const pettyCashApi = {
     request<PettyCashRequest>(`/finance/petty-cash/${id}/reconciliation`, { method: 'POST', body, signal }),
   reviewReconciliation: (id: number, body: { approve: boolean; notes: string }, signal?: AbortSignal) =>
     request<PettyCashRequest>(`/finance/petty-cash/${id}/reconciliation-decision`, { method: 'POST', body, signal }),
+}
+
+export const documentsApi = {
+  uploadEvidence: (
+    file: File,
+    sourceType: string,
+    sourceId: number,
+    evidenceKind: string,
+    signal?: AbortSignal,
+  ) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('sourceType', sourceType)
+    formData.append('sourceId', String(sourceId))
+    formData.append('evidenceKind', evidenceKind)
+    return requestFormData<EvidenceDocument>('/evidence', formData, signal)
+  },
+  forSource: (sourceType: string, sourceId: number, signal?: AbortSignal) =>
+    request<EvidenceDocument[]>(`/evidence/source/${encodeURIComponent(sourceType)}/${sourceId}`, { signal }),
+  content: (documentId: string, signal?: AbortSignal) =>
+    requestFile(`/evidence/${encodeURIComponent(documentId)}/content`, signal),
+}
+
+export const notificationsApi = {
+  list: (signal?: AbortSignal) =>
+    request<PaginatedResult<AppNotification>>('/notifications', { signal }, { page: 1, pageSize: 50 }),
+  unreadCount: (signal?: AbortSignal) => request<NotificationCount>('/notifications/unread-count', { signal }),
+  markRead: (notificationId: number, signal?: AbortSignal) =>
+    request<NotificationReadResult>(`/notifications/${notificationId}/read`, { method: 'POST', body: {}, signal }),
+  markAllRead: (signal?: AbortSignal) =>
+    request<NotificationReadResult>('/notifications/read-all', { method: 'POST', body: {}, signal }),
+}
+
+export const tasksApi = {
+  list: (query: { projectId?: number; overdueOnly?: boolean } = {}, signal?: AbortSignal) =>
+    request<MyTasksResponse>('/my-tasks', { signal }, query),
+}
+
+export const openingPositionsApi = {
+  list: (projectId?: number, signal?: AbortSignal) =>
+    request<OpeningPosition[]>('/controls/opening-positions', { signal }, { projectId }),
+  create: (payload: CreateOpeningPositionRequest, signal?: AbortSignal) =>
+    request<OpeningPosition>('/controls/opening-positions', { method: 'POST', body: payload, signal }),
+  verify: (id: number, approve: boolean, notes: string, signal?: AbortSignal) =>
+    request<OpeningPosition>(`/controls/opening-positions/${id}/verify`, {
+      method: 'POST', body: { approve, notes }, signal,
+    }),
+  decide: (id: number, approve: boolean, notes: string, signal?: AbortSignal) =>
+    request<OpeningPosition>(`/controls/opening-positions/${id}/decision`, {
+      method: 'POST', body: { approve, notes }, signal,
+    }),
+}
+
+export const cashAccountsApi = {
+  list: (projectId: number, signal?: AbortSignal) =>
+    request<CashAccount[]>('/controls/cash-accounts', { signal }, { projectId }),
+}
+
+export const custodyControlsApi = {
+  resolveDispute: (materialIssueId: number, notes: string, evidenceReference?: string | null, signal?: AbortSignal) =>
+    request<MaterialIssueDisputeResolution>(`/controls/custody/disputes/${materialIssueId}/resolve`, { method: 'POST', body: { notes, evidenceReference: evidenceReference || null }, signal }),
+  returns: (projectId?: number, signal?: AbortSignal) =>
+    request<MaterialReturn[]>('/controls/custody/returns', { signal }, { projectId }),
+  createReturn: (payload: CreateMaterialReturnRequest, signal?: AbortSignal) =>
+    request<MaterialReturn>('/controls/custody/returns', { method: 'POST', body: payload, signal }),
+  receiveReturn: (
+    id: number,
+    payload: { accept: boolean; quantityAccepted: number; notes: string; evidenceReference?: string | null },
+    signal?: AbortSignal,
+  ) => request<MaterialReturn>(`/controls/custody/returns/${id}/receive`, { method: 'POST', body: payload, signal }),
+  closeouts: (projectId?: number, signal?: AbortSignal) =>
+    request<CustodyCloseout[]>('/controls/custody/closeouts', { signal }, { projectId }),
+  submitCloseout: (payload: { materialIssueId: number; notes?: string | null; evidenceReference?: string | null }, signal?: AbortSignal) =>
+    request<CustodyCloseout>('/controls/custody/closeouts', { method: 'POST', body: payload, signal }),
+  reviewCloseout: (id: number, approve: boolean, notes: string, signal?: AbortSignal) =>
+    request<CustodyCloseout>(`/controls/custody/closeouts/${id}/review`, { method: 'POST', body: { approve, notes }, signal }),
+}
+
+export const accountingPeriodsApi = {
+  list: (projectId?: number, signal?: AbortSignal) =>
+    request<OperationalPeriod[]>('/controls/periods', { signal }, { projectId }),
+  create: (payload: CreateOperationalPeriodRequest, signal?: AbortSignal) =>
+    request<OperationalPeriod>('/controls/periods', { method: 'POST', body: payload, signal }),
+  submitClose: (id: number, notes: string, signal?: AbortSignal) =>
+    request<OperationalPeriod>(`/controls/periods/${id}/submit-close`, { method: 'POST', body: { notes }, signal }),
+  decide: (id: number, approve: boolean, notes: string, signal?: AbortSignal) =>
+    request<OperationalPeriod>(`/controls/periods/${id}/decision`, {
+      method: 'POST', body: { approve, notes }, signal,
+    }),
+  corrections: (projectId?: number, signal?: AbortSignal) =>
+    request<ControlledCorrection[]>('/controls/corrections', { signal }, { projectId }),
+  createCorrection: (payload: CreateControlledCorrectionRequest, signal?: AbortSignal) =>
+    request<ControlledCorrection>('/controls/corrections', { method: 'POST', body: payload, signal }),
+  decideCorrection: (id: number, approve: boolean, notes: string, signal?: AbortSignal) =>
+    request<ControlledCorrection>(`/controls/corrections/${id}/decision`, {
+    method: 'POST', body: { approve, notes }, signal,
+  }),
 }

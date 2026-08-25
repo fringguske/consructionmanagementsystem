@@ -90,6 +90,117 @@ namespace ConstructionMS.Infrastructure.Migrations
                         });
                 });
 
+            modelBuilder.Entity("ConstructionMS.Domain.Entities.CashAccount", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<decimal>("Balance")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<int>("ProjectId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectId", "Name")
+                        .IsUnique();
+
+                    b.ToTable("CashAccounts", t =>
+                        {
+                            t.HasCheckConstraint("CK_CashAccounts_Balance", "\"Balance\" >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("ConstructionMS.Domain.Entities.CashLedgerEntry", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<decimal>("AmountDelta")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal>("BalanceAfter")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<long>("CashAccountId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("EntryNumber")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("EntryType")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<DateTime>("PostedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("PostedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ProjectId")
+                        .HasColumnType("integer");
+
+                    b.Property<long>("ReferenceId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("ReferenceNumber")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<string>("ReferenceType")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EntryNumber")
+                        .IsUnique();
+
+                    b.HasIndex("PostedByUserId");
+
+                    b.HasIndex("ProjectId");
+
+                    b.HasIndex("CashAccountId", "PostedAt");
+
+                    b.HasIndex("CashAccountId", "ReferenceType", "ReferenceId", "EntryType")
+                        .IsUnique();
+
+                    b.ToTable("CashLedgerEntries", t =>
+                        {
+                            t.HasCheckConstraint("CK_CashLedgerEntries_Balance", "\"BalanceAfter\" >= 0");
+
+                            t.HasCheckConstraint("CK_CashLedgerEntries_Type", "\"EntryType\" IN ('OpeningBalance', 'ControlledCorrection', 'SupplierPayment', 'PettyCashDisbursement', 'CashReturn')");
+                        });
+                });
+
             modelBuilder.Entity("ConstructionMS.Domain.Entities.ControlEvent", b =>
                 {
                     b.Property<long>("Id")
@@ -170,6 +281,128 @@ namespace ConstructionMS.Infrastructure.Migrations
                     b.ToTable("ControlEvents");
                 });
 
+            modelBuilder.Entity("ConstructionMS.Domain.Entities.ControlledCorrection", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<decimal>("AmountDelta")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<string>("CashAccountName")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("CorrectionNumber")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("CorrectionType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("EvidenceReference")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<int?>("MaterialId")
+                        .HasColumnType("integer");
+
+                    b.Property<long>("OperationalPeriodId")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("ProjectId")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("QuantityDelta")
+                        .HasPrecision(18, 3)
+                        .HasColumnType("numeric(18,3)");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<DateTime>("SubmittedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("SubmittedByUserId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CorrectionNumber")
+                        .IsUnique();
+
+                    b.HasIndex("MaterialId");
+
+                    b.HasIndex("OperationalPeriodId");
+
+                    b.HasIndex("SubmittedByUserId");
+
+                    b.HasIndex("ProjectId", "Status", "SubmittedAt");
+
+                    b.ToTable("ControlledCorrections", t =>
+                        {
+                            t.HasCheckConstraint("CK_ControlledCorrections_Status", "\"Status\" IN ('AwaitingApproval', 'Approved', 'Rejected')");
+
+                            t.HasCheckConstraint("CK_ControlledCorrections_Type", "\"CorrectionType\" IN ('Inventory', 'Finance')");
+
+                            t.HasCheckConstraint("CK_ControlledCorrections_Values", "(\"CorrectionType\" = 'Inventory' AND \"MaterialId\" IS NOT NULL AND \"CashAccountName\" IS NULL AND \"QuantityDelta\" <> 0 AND \"AmountDelta\" = 0) OR (\"CorrectionType\" = 'Finance' AND \"MaterialId\" IS NULL AND \"CashAccountName\" IS NOT NULL AND \"QuantityDelta\" = 0 AND \"AmountDelta\" <> 0)");
+                        });
+                });
+
+            modelBuilder.Entity("ConstructionMS.Domain.Entities.ControlledCorrectionDecision", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<long>("ControlledCorrectionId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("DecidedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("DecidedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Notes")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("Outcome")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ControlledCorrectionId")
+                        .IsUnique();
+
+                    b.HasIndex("DecidedByUserId");
+
+                    b.ToTable("ControlledCorrectionDecisions", t =>
+                        {
+                            t.HasCheckConstraint("CK_ControlledCorrectionDecisions_Outcome", "\"Outcome\" IN ('Approved', 'Rejected')");
+                        });
+                });
+
             modelBuilder.Entity("ConstructionMS.Domain.Entities.CostCode", b =>
                 {
                     b.Property<int>("Id")
@@ -244,6 +477,117 @@ namespace ConstructionMS.Infrastructure.Migrations
                     b.ToTable("EngineerTechnicalChecks", t =>
                         {
                             t.HasCheckConstraint("CK_EngineerTechnicalChecks_Outcome", "\"Outcome\" IN ('Verified', 'RevisionRequired')");
+                        });
+                });
+
+            modelBuilder.Entity("ConstructionMS.Domain.Entities.EvidenceAttachment", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<Guid>("EvidenceDocumentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("EvidenceKind")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<DateTime>("LinkedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("LinkedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ProjectId")
+                        .HasColumnType("integer");
+
+                    b.Property<long>("SourceId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("SourceType")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EvidenceDocumentId")
+                        .IsUnique();
+
+                    b.HasIndex("LinkedByUserId");
+
+                    b.HasIndex("ProjectId");
+
+                    b.HasIndex("SourceType", "SourceId", "LinkedAt");
+
+                    b.ToTable("EvidenceAttachments", t =>
+                        {
+                            t.HasCheckConstraint("CK_EvidenceAttachments_EvidenceKind", "\"EvidenceKind\" IN ('Photo', 'DeliveryNote', 'Inspection', 'Invoice', 'PaymentProof', 'Receipt', 'Other')");
+
+                            t.HasCheckConstraint("CK_EvidenceAttachments_SourceId", "\"SourceId\" > 0");
+
+                            t.HasCheckConstraint("CK_EvidenceAttachments_SourceType", "\"SourceType\" IN ('ProjectProgressVerification', 'GoodsReceipt', 'GoodsReceiptTechnicalAcceptance', 'MaterialUsageRecord', 'SupplierInvoice', 'Payment', 'PettyCashDisbursement', 'PettyCashReconciliation', 'OpeningPositionBatch', 'MaterialReturn', 'MaterialReturnReceipt', 'MaterialIssueDisputeResolution', 'MaterialCustodyCloseout', 'ControlledCorrection')");
+                        });
+                });
+
+            modelBuilder.Entity("ConstructionMS.Domain.Entities.EvidenceDocument", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("OriginalFileName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<int>("ProjectId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Sha256Hash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<long>("SizeBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("StorageKey")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTime>("UploadedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("UploadedByUserId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Sha256Hash");
+
+                    b.HasIndex("StorageKey")
+                        .IsUnique();
+
+                    b.HasIndex("UploadedByUserId");
+
+                    b.HasIndex("ProjectId", "UploadedAt");
+
+                    b.ToTable("EvidenceDocuments", t =>
+                        {
+                            t.HasCheckConstraint("CK_EvidenceDocuments_ContentType", "\"ContentType\" IN ('application/pdf', 'image/jpeg', 'image/png', 'image/webp')");
+
+                            t.HasCheckConstraint("CK_EvidenceDocuments_SizeBytes", "\"SizeBytes\" > 0 AND \"SizeBytes\" <= 10485760");
                         });
                 });
 
@@ -382,6 +726,135 @@ namespace ConstructionMS.Infrastructure.Migrations
                         });
                 });
 
+            modelBuilder.Entity("ConstructionMS.Domain.Entities.InAppNotification", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("IdempotencyKey")
+                        .IsRequired()
+                        .HasMaxLength(260)
+                        .HasColumnType("character varying(260)");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<int?>("ProjectId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("RecipientUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("TargetPath")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime>("TaskDueAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("TaskKey")
+                        .IsRequired()
+                        .HasMaxLength(180)
+                        .HasColumnType("character varying(180)");
+
+                    b.Property<DateTime>("TaskOpenedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("TaskType")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(180)
+                        .HasColumnType("character varying(180)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IdempotencyKey")
+                        .IsUnique();
+
+                    b.HasIndex("ProjectId");
+
+                    b.HasIndex("RecipientUserId", "CreatedAt");
+
+                    b.HasIndex("RecipientUserId", "TaskDueAt");
+
+                    b.ToTable("InAppNotifications", t =>
+                        {
+                            t.HasCheckConstraint("CK_InAppNotifications_Timestamps", "\"TaskDueAt\" >= \"TaskOpenedAt\" AND \"CreatedAt\" >= \"TaskDueAt\"");
+                        });
+                });
+
+            modelBuilder.Entity("ConstructionMS.Domain.Entities.InAppNotificationReadReceipt", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<long>("InAppNotificationId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("ReadAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("RecipientUserId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("InAppNotificationId")
+                        .IsUnique();
+
+                    b.HasIndex("RecipientUserId", "ReadAt");
+
+                    b.ToTable("InAppNotificationReadReceipts");
+                });
+
+            modelBuilder.Entity("ConstructionMS.Domain.Entities.InAppNotificationResolutionReceipt", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<long>("InAppNotificationId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)");
+
+                    b.Property<DateTime>("ResolvedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("InAppNotificationId")
+                        .IsUnique();
+
+                    b.HasIndex("ResolvedAt");
+
+                    b.ToTable("InAppNotificationResolutionReceipts", t =>
+                        {
+                            t.HasCheckConstraint("CK_InAppNotificationResolutionReceipts_Reason", "\"Reason\" = 'TaskNoLongerOverdue'");
+                        });
+                });
+
             modelBuilder.Entity("ConstructionMS.Domain.Entities.Material", b =>
                 {
                     b.Property<int>("Id")
@@ -427,6 +900,128 @@ namespace ConstructionMS.Infrastructure.Migrations
                             t.HasCheckConstraint("CK_Materials_ReorderLevel_NonNegative", "\"ReorderLevel\" <> 'NaN'::numeric AND \"ReorderLevel\" >= 0");
 
                             t.HasCheckConstraint("CK_Materials_StandardPrice_NonNegative", "\"StandardPrice\" <> 'NaN'::numeric AND \"StandardPrice\" >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("ConstructionMS.Domain.Entities.MaterialCustodyCloseout", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("CloseoutNumber")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<decimal>("ConfirmedQuantity")
+                        .HasPrecision(18, 3)
+                        .HasColumnType("numeric(18,3)");
+
+                    b.Property<string>("EvidenceReference")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<long>("MaterialIssueId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<decimal>("ReturnedQuantity")
+                        .HasPrecision(18, 3)
+                        .HasColumnType("numeric(18,3)");
+
+                    b.Property<int>("Revision")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<DateTime>("SubmittedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("SubmittedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("UnaccountedQuantity")
+                        .HasPrecision(18, 3)
+                        .HasColumnType("numeric(18,3)");
+
+                    b.Property<decimal>("UsedQuantity")
+                        .HasPrecision(18, 3)
+                        .HasColumnType("numeric(18,3)");
+
+                    b.Property<decimal>("WastedQuantity")
+                        .HasPrecision(18, 3)
+                        .HasColumnType("numeric(18,3)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CloseoutNumber")
+                        .IsUnique();
+
+                    b.HasIndex("MaterialIssueId")
+                        .IsUnique()
+                        .HasFilter("\"Status\" IN ('AwaitingReview', 'Approved')");
+
+                    b.HasIndex("SubmittedByUserId");
+
+                    b.HasIndex("MaterialIssueId", "Revision")
+                        .IsUnique();
+
+                    b.ToTable("MaterialCustodyCloseouts", t =>
+                        {
+                            t.HasCheckConstraint("CK_MaterialCustodyCloseouts_Quantities", "\"ConfirmedQuantity\" >= 0 AND \"UsedQuantity\" >= 0 AND \"WastedQuantity\" >= 0 AND \"ReturnedQuantity\" >= 0 AND \"UnaccountedQuantity\" >= 0 AND \"ConfirmedQuantity\" = \"UsedQuantity\" + \"WastedQuantity\" + \"ReturnedQuantity\" + \"UnaccountedQuantity\"");
+
+                            t.HasCheckConstraint("CK_MaterialCustodyCloseouts_Revision", "\"Revision\" > 0");
+
+                            t.HasCheckConstraint("CK_MaterialCustodyCloseouts_Status", "\"Status\" IN ('AwaitingReview', 'Approved', 'Returned')");
+                        });
+                });
+
+            modelBuilder.Entity("ConstructionMS.Domain.Entities.MaterialCustodyCloseoutDecision", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTime>("DecidedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("DecidedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<long>("MaterialCustodyCloseoutId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Notes")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("Outcome")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DecidedByUserId");
+
+                    b.HasIndex("MaterialCustodyCloseoutId")
+                        .IsUnique();
+
+                    b.ToTable("MaterialCustodyCloseoutDecisions", t =>
+                        {
+                            t.HasCheckConstraint("CK_MaterialCustodyCloseoutDecisions_Outcome", "\"Outcome\" IN ('Approved', 'Returned')");
                         });
                 });
 
@@ -516,6 +1111,148 @@ namespace ConstructionMS.Infrastructure.Migrations
                         });
                 });
 
+            modelBuilder.Entity("ConstructionMS.Domain.Entities.MaterialIssueDisputeResolution", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("EvidenceReference")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<decimal>("ForemanReceivedQuantity")
+                        .HasPrecision(18, 3)
+                        .HasColumnType("numeric(18,3)");
+
+                    b.Property<decimal>("IssuedQuantity")
+                        .HasPrecision(18, 3)
+                        .HasColumnType("numeric(18,3)");
+
+                    b.Property<long>("MaterialIssueId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Notes")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("ResolutionNumber")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<DateTime>("ResolvedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("ResolvedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("ReturnedToStoreQuantity")
+                        .HasPrecision(18, 3)
+                        .HasColumnType("numeric(18,3)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MaterialIssueId")
+                        .IsUnique();
+
+                    b.HasIndex("ResolutionNumber")
+                        .IsUnique();
+
+                    b.HasIndex("ResolvedByUserId");
+
+                    b.ToTable("MaterialIssueDisputeResolutions", t =>
+                        {
+                            t.HasCheckConstraint("CK_MaterialIssueDisputeResolutions_Quantities", "\"IssuedQuantity\" > 0 AND \"ForemanReceivedQuantity\" >= 0 AND \"ReturnedToStoreQuantity\" > 0 AND \"IssuedQuantity\" = \"ForemanReceivedQuantity\" + \"ReturnedToStoreQuantity\"");
+                        });
+                });
+
+            modelBuilder.Entity("ConstructionMS.Domain.Entities.MaterialReturn", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("Condition")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("EvidenceReference")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<long>("MaterialIssueId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<decimal?>("QuantityAccepted")
+                        .HasPrecision(18, 3)
+                        .HasColumnType("numeric(18,3)");
+
+                    b.Property<decimal>("QuantityOffered")
+                        .HasPrecision(18, 3)
+                        .HasColumnType("numeric(18,3)");
+
+                    b.Property<string>("ReceiptEvidenceReference")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("ReceiptNotes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<DateTime?>("ReceivedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("ReceivedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ReturnNumber")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<DateTime>("ReturnedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("ReturnedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ReceivedByUserId");
+
+                    b.HasIndex("ReturnNumber")
+                        .IsUnique();
+
+                    b.HasIndex("ReturnedByUserId");
+
+                    b.HasIndex("MaterialIssueId", "Status", "ReturnedAt");
+
+                    b.ToTable("MaterialReturns", t =>
+                        {
+                            t.HasCheckConstraint("CK_MaterialReturns_Quantity", "\"QuantityOffered\" > 0 AND (\"QuantityAccepted\" IS NULL OR \"QuantityAccepted\" >= 0)");
+
+                            t.HasCheckConstraint("CK_MaterialReturns_Receipt", "(\"Status\" = 'AwaitingReceipt' AND \"ReceivedByUserId\" IS NULL AND \"ReceivedAt\" IS NULL AND \"QuantityAccepted\" IS NULL) OR (\"Status\" = 'Received' AND \"ReceivedByUserId\" IS NOT NULL AND \"ReceivedAt\" IS NOT NULL AND \"QuantityAccepted\" = \"QuantityOffered\") OR (\"Status\" = 'Rejected' AND \"ReceivedByUserId\" IS NOT NULL AND \"ReceivedAt\" IS NOT NULL AND \"QuantityAccepted\" = 0)");
+
+                            t.HasCheckConstraint("CK_MaterialReturns_Status", "\"Status\" IN ('AwaitingReceipt', 'Received', 'Rejected')");
+                        });
+                });
+
             modelBuilder.Entity("ConstructionMS.Domain.Entities.MaterialTechnicalAcceptancePolicyEvent", b =>
                 {
                     b.Property<long>("Id")
@@ -597,6 +1334,351 @@ namespace ConstructionMS.Infrastructure.Migrations
                             t.HasCheckConstraint("CK_MaterialUsageRecords_Quantity", "\"Quantity\" > 0");
 
                             t.HasCheckConstraint("CK_MaterialUsageRecords_Type", "\"UsageType\" IN ('Used', 'Wastage')");
+                        });
+                });
+
+            modelBuilder.Entity("ConstructionMS.Domain.Entities.OpeningCashLine", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("AccountName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<long>("OpeningPositionBatchId")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OpeningPositionBatchId", "AccountName")
+                        .IsUnique();
+
+                    b.ToTable("OpeningCashLines", t =>
+                        {
+                            t.HasCheckConstraint("CK_OpeningCashLines_Amount", "\"Amount\" >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("ConstructionMS.Domain.Entities.OpeningInventoryLine", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<int>("MaterialId")
+                        .HasColumnType("integer");
+
+                    b.Property<long>("OpeningPositionBatchId")
+                        .HasColumnType("bigint");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(18, 3)
+                        .HasColumnType("numeric(18,3)");
+
+                    b.Property<decimal?>("UnitCost")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MaterialId");
+
+                    b.HasIndex("OpeningPositionBatchId", "MaterialId")
+                        .IsUnique();
+
+                    b.ToTable("OpeningInventoryLines", t =>
+                        {
+                            t.HasCheckConstraint("CK_OpeningInventoryLines_Values", "\"Quantity\" > 0 AND (\"UnitCost\" IS NULL OR \"UnitCost\" >= 0)");
+                        });
+                });
+
+            modelBuilder.Entity("ConstructionMS.Domain.Entities.OpeningPositionBatch", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<DateOnly>("AsOfDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("BatchNumber")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("EvidenceReference")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("PositionType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<int>("ProjectId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<DateTime>("SubmittedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("SubmittedByUserId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BatchNumber")
+                        .IsUnique();
+
+                    b.HasIndex("SubmittedByUserId");
+
+                    b.HasIndex("ProjectId", "PositionType", "SubmittedAt");
+
+                    b.ToTable("OpeningPositionBatches", t =>
+                        {
+                            t.HasCheckConstraint("CK_OpeningPositionBatches_Status", "\"Status\" IN ('AwaitingVerification', 'AwaitingApproval', 'Approved', 'Rejected')");
+
+                            t.HasCheckConstraint("CK_OpeningPositionBatches_Type", "\"PositionType\" IN ('Inventory', 'Cash')");
+                        });
+                });
+
+            modelBuilder.Entity("ConstructionMS.Domain.Entities.OpeningPositionDecision", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTime>("DecidedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("DecidedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Notes")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<long>("OpeningPositionBatchId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Outcome")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DecidedByUserId");
+
+                    b.HasIndex("OpeningPositionBatchId")
+                        .IsUnique();
+
+                    b.ToTable("OpeningPositionDecisions", t =>
+                        {
+                            t.HasCheckConstraint("CK_OpeningPositionDecisions_Outcome", "\"Outcome\" IN ('Approved', 'Rejected')");
+                        });
+                });
+
+            modelBuilder.Entity("ConstructionMS.Domain.Entities.OpeningPositionPosting", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<long>("OpeningPositionBatchId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("PostedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("PostedByUserId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OpeningPositionBatchId")
+                        .IsUnique();
+
+                    b.HasIndex("PostedByUserId");
+
+                    b.ToTable("OpeningPositionPostings");
+                });
+
+            modelBuilder.Entity("ConstructionMS.Domain.Entities.OpeningPositionVerification", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("Notes")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<long>("OpeningPositionBatchId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Outcome")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime>("VerifiedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("VerifiedByUserId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OpeningPositionBatchId")
+                        .IsUnique();
+
+                    b.HasIndex("VerifiedByUserId");
+
+                    b.ToTable("OpeningPositionVerifications", t =>
+                        {
+                            t.HasCheckConstraint("CK_OpeningPositionVerifications_Outcome", "\"Outcome\" IN ('Verified', 'Rejected')");
+                        });
+                });
+
+            modelBuilder.Entity("ConstructionMS.Domain.Entities.OperationalPeriod", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("CreatedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateOnly>("EndDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("PeriodNumber")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<int>("ProjectId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Scope")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateOnly>("StartDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("PeriodNumber")
+                        .IsUnique();
+
+                    b.HasIndex("ProjectId", "Scope", "StartDate", "EndDate");
+
+                    b.ToTable("OperationalPeriods", t =>
+                        {
+                            t.HasCheckConstraint("CK_OperationalPeriods_Dates", "\"StartDate\" <= \"EndDate\"");
+
+                            t.HasCheckConstraint("CK_OperationalPeriods_Scope", "\"Scope\" IN ('Inventory', 'Finance')");
+
+                            t.HasCheckConstraint("CK_OperationalPeriods_Status", "\"Status\" IN ('Open', 'AwaitingClose', 'Closed', 'Returned')");
+                        });
+                });
+
+            modelBuilder.Entity("ConstructionMS.Domain.Entities.OperationalPeriodEvent", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("ActorRole")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<int>("ActorUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("Notes")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<DateTime>("OccurredAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<long>("OperationalPeriodId")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("SequenceNumber")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ActorUserId");
+
+                    b.HasIndex("OperationalPeriodId", "SequenceNumber")
+                        .IsUnique();
+
+                    b.ToTable("OperationalPeriodEvents", t =>
+                        {
+                            t.HasCheckConstraint("CK_OperationalPeriodEvents_Sequence", "\"SequenceNumber\" > 0");
+
+                            t.HasCheckConstraint("CK_OperationalPeriodEvents_Type", "\"EventType\" IN ('Opened', 'CloseSubmitted', 'Closed', 'CloseReturned')");
                         });
                 });
 
@@ -2072,7 +3154,7 @@ namespace ConstructionMS.Infrastructure.Migrations
 
                             t.HasCheckConstraint("CK_StockLedgerEntries_Delta", "\"QuantityDelta\" <> 0");
 
-                            t.HasCheckConstraint("CK_StockLedgerEntries_Movement", "\"MovementType\" IN ('Receipt', 'TechnicalAcceptance', 'Issue', 'TransferOut', 'TransferIn', 'CountAdjustment')");
+                            t.HasCheckConstraint("CK_StockLedgerEntries_Movement", "\"MovementType\" IN ('Receipt', 'TechnicalAcceptance', 'Issue', 'TransferOut', 'TransferIn', 'CountAdjustment', 'OpeningBalance', 'ReturnToStore', 'HandoverCorrection', 'ControlledCorrection')");
                         });
                 });
 
@@ -2630,6 +3712,44 @@ namespace ConstructionMS.Infrastructure.Migrations
                     b.Navigation("ReviewedByUser");
                 });
 
+            modelBuilder.Entity("ConstructionMS.Domain.Entities.CashAccount", b =>
+                {
+                    b.HasOne("ConstructionMS.Domain.Entities.Project", "Project")
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Project");
+                });
+
+            modelBuilder.Entity("ConstructionMS.Domain.Entities.CashLedgerEntry", b =>
+                {
+                    b.HasOne("ConstructionMS.Domain.Entities.CashAccount", "CashAccount")
+                        .WithMany()
+                        .HasForeignKey("CashAccountId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ConstructionMS.Domain.Entities.User", "PostedByUser")
+                        .WithMany()
+                        .HasForeignKey("PostedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ConstructionMS.Domain.Entities.Project", "Project")
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("CashAccount");
+
+                    b.Navigation("PostedByUser");
+
+                    b.Navigation("Project");
+                });
+
             modelBuilder.Entity("ConstructionMS.Domain.Entities.ControlEvent", b =>
                 {
                     b.HasOne("ConstructionMS.Domain.Entities.User", "ActorUser")
@@ -2654,6 +3774,59 @@ namespace ConstructionMS.Infrastructure.Migrations
                     b.Navigation("Project");
 
                     b.Navigation("Requisition");
+                });
+
+            modelBuilder.Entity("ConstructionMS.Domain.Entities.ControlledCorrection", b =>
+                {
+                    b.HasOne("ConstructionMS.Domain.Entities.Material", "Material")
+                        .WithMany()
+                        .HasForeignKey("MaterialId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ConstructionMS.Domain.Entities.OperationalPeriod", "OperationalPeriod")
+                        .WithMany()
+                        .HasForeignKey("OperationalPeriodId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ConstructionMS.Domain.Entities.Project", "Project")
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ConstructionMS.Domain.Entities.User", "SubmittedByUser")
+                        .WithMany()
+                        .HasForeignKey("SubmittedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Material");
+
+                    b.Navigation("OperationalPeriod");
+
+                    b.Navigation("Project");
+
+                    b.Navigation("SubmittedByUser");
+                });
+
+            modelBuilder.Entity("ConstructionMS.Domain.Entities.ControlledCorrectionDecision", b =>
+                {
+                    b.HasOne("ConstructionMS.Domain.Entities.ControlledCorrection", "ControlledCorrection")
+                        .WithOne("Decision")
+                        .HasForeignKey("ConstructionMS.Domain.Entities.ControlledCorrectionDecision", "ControlledCorrectionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ConstructionMS.Domain.Entities.User", "DecidedByUser")
+                        .WithMany()
+                        .HasForeignKey("DecidedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("ControlledCorrection");
+
+                    b.Navigation("DecidedByUser");
                 });
 
             modelBuilder.Entity("ConstructionMS.Domain.Entities.CostCode", b =>
@@ -2684,6 +3857,52 @@ namespace ConstructionMS.Infrastructure.Migrations
                     b.Navigation("EngineerUser");
 
                     b.Navigation("Requisition");
+                });
+
+            modelBuilder.Entity("ConstructionMS.Domain.Entities.EvidenceAttachment", b =>
+                {
+                    b.HasOne("ConstructionMS.Domain.Entities.EvidenceDocument", "EvidenceDocument")
+                        .WithOne("Attachment")
+                        .HasForeignKey("ConstructionMS.Domain.Entities.EvidenceAttachment", "EvidenceDocumentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ConstructionMS.Domain.Entities.User", "LinkedByUser")
+                        .WithMany()
+                        .HasForeignKey("LinkedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ConstructionMS.Domain.Entities.Project", "Project")
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("EvidenceDocument");
+
+                    b.Navigation("LinkedByUser");
+
+                    b.Navigation("Project");
+                });
+
+            modelBuilder.Entity("ConstructionMS.Domain.Entities.EvidenceDocument", b =>
+                {
+                    b.HasOne("ConstructionMS.Domain.Entities.Project", "Project")
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ConstructionMS.Domain.Entities.User", "UploadedByUser")
+                        .WithMany()
+                        .HasForeignKey("UploadedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Project");
+
+                    b.Navigation("UploadedByUser");
                 });
 
             modelBuilder.Entity("ConstructionMS.Domain.Entities.GoodsReceipt", b =>
@@ -2748,6 +3967,92 @@ namespace ConstructionMS.Infrastructure.Migrations
                     b.Navigation("GoodsReceipt");
                 });
 
+            modelBuilder.Entity("ConstructionMS.Domain.Entities.InAppNotification", b =>
+                {
+                    b.HasOne("ConstructionMS.Domain.Entities.Project", "Project")
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ConstructionMS.Domain.Entities.User", "RecipientUser")
+                        .WithMany()
+                        .HasForeignKey("RecipientUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Project");
+
+                    b.Navigation("RecipientUser");
+                });
+
+            modelBuilder.Entity("ConstructionMS.Domain.Entities.InAppNotificationReadReceipt", b =>
+                {
+                    b.HasOne("ConstructionMS.Domain.Entities.InAppNotification", "InAppNotification")
+                        .WithOne("ReadReceipt")
+                        .HasForeignKey("ConstructionMS.Domain.Entities.InAppNotificationReadReceipt", "InAppNotificationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ConstructionMS.Domain.Entities.User", "RecipientUser")
+                        .WithMany()
+                        .HasForeignKey("RecipientUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("InAppNotification");
+
+                    b.Navigation("RecipientUser");
+                });
+
+            modelBuilder.Entity("ConstructionMS.Domain.Entities.InAppNotificationResolutionReceipt", b =>
+                {
+                    b.HasOne("ConstructionMS.Domain.Entities.InAppNotification", "InAppNotification")
+                        .WithOne("ResolutionReceipt")
+                        .HasForeignKey("ConstructionMS.Domain.Entities.InAppNotificationResolutionReceipt", "InAppNotificationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("InAppNotification");
+                });
+
+            modelBuilder.Entity("ConstructionMS.Domain.Entities.MaterialCustodyCloseout", b =>
+                {
+                    b.HasOne("ConstructionMS.Domain.Entities.MaterialIssue", "MaterialIssue")
+                        .WithMany("MaterialCustodyCloseouts")
+                        .HasForeignKey("MaterialIssueId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ConstructionMS.Domain.Entities.User", "SubmittedByUser")
+                        .WithMany()
+                        .HasForeignKey("SubmittedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("MaterialIssue");
+
+                    b.Navigation("SubmittedByUser");
+                });
+
+            modelBuilder.Entity("ConstructionMS.Domain.Entities.MaterialCustodyCloseoutDecision", b =>
+                {
+                    b.HasOne("ConstructionMS.Domain.Entities.User", "DecidedByUser")
+                        .WithMany()
+                        .HasForeignKey("DecidedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ConstructionMS.Domain.Entities.MaterialCustodyCloseout", "MaterialCustodyCloseout")
+                        .WithOne("Decision")
+                        .HasForeignKey("ConstructionMS.Domain.Entities.MaterialCustodyCloseoutDecision", "MaterialCustodyCloseoutId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("DecidedByUser");
+
+                    b.Navigation("MaterialCustodyCloseout");
+                });
+
             modelBuilder.Entity("ConstructionMS.Domain.Entities.MaterialIssue", b =>
                 {
                     b.HasOne("ConstructionMS.Domain.Entities.User", "ConfirmedByUser")
@@ -2798,6 +4103,51 @@ namespace ConstructionMS.Infrastructure.Migrations
                     b.Navigation("Requisition");
                 });
 
+            modelBuilder.Entity("ConstructionMS.Domain.Entities.MaterialIssueDisputeResolution", b =>
+                {
+                    b.HasOne("ConstructionMS.Domain.Entities.MaterialIssue", "MaterialIssue")
+                        .WithOne("DisputeResolution")
+                        .HasForeignKey("ConstructionMS.Domain.Entities.MaterialIssueDisputeResolution", "MaterialIssueId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ConstructionMS.Domain.Entities.User", "ResolvedByUser")
+                        .WithMany()
+                        .HasForeignKey("ResolvedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("MaterialIssue");
+
+                    b.Navigation("ResolvedByUser");
+                });
+
+            modelBuilder.Entity("ConstructionMS.Domain.Entities.MaterialReturn", b =>
+                {
+                    b.HasOne("ConstructionMS.Domain.Entities.MaterialIssue", "MaterialIssue")
+                        .WithMany("Returns")
+                        .HasForeignKey("MaterialIssueId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ConstructionMS.Domain.Entities.User", "ReceivedByUser")
+                        .WithMany()
+                        .HasForeignKey("ReceivedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ConstructionMS.Domain.Entities.User", "ReturnedByUser")
+                        .WithMany()
+                        .HasForeignKey("ReturnedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("MaterialIssue");
+
+                    b.Navigation("ReceivedByUser");
+
+                    b.Navigation("ReturnedByUser");
+                });
+
             modelBuilder.Entity("ConstructionMS.Domain.Entities.MaterialTechnicalAcceptancePolicyEvent", b =>
                 {
                     b.HasOne("ConstructionMS.Domain.Entities.User", "ChangedByUser")
@@ -2834,6 +4184,150 @@ namespace ConstructionMS.Infrastructure.Migrations
                     b.Navigation("MaterialIssue");
 
                     b.Navigation("RecordedByUser");
+                });
+
+            modelBuilder.Entity("ConstructionMS.Domain.Entities.OpeningCashLine", b =>
+                {
+                    b.HasOne("ConstructionMS.Domain.Entities.OpeningPositionBatch", "OpeningPositionBatch")
+                        .WithMany("CashLines")
+                        .HasForeignKey("OpeningPositionBatchId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("OpeningPositionBatch");
+                });
+
+            modelBuilder.Entity("ConstructionMS.Domain.Entities.OpeningInventoryLine", b =>
+                {
+                    b.HasOne("ConstructionMS.Domain.Entities.Material", "Material")
+                        .WithMany()
+                        .HasForeignKey("MaterialId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ConstructionMS.Domain.Entities.OpeningPositionBatch", "OpeningPositionBatch")
+                        .WithMany("InventoryLines")
+                        .HasForeignKey("OpeningPositionBatchId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Material");
+
+                    b.Navigation("OpeningPositionBatch");
+                });
+
+            modelBuilder.Entity("ConstructionMS.Domain.Entities.OpeningPositionBatch", b =>
+                {
+                    b.HasOne("ConstructionMS.Domain.Entities.Project", "Project")
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ConstructionMS.Domain.Entities.User", "SubmittedByUser")
+                        .WithMany()
+                        .HasForeignKey("SubmittedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Project");
+
+                    b.Navigation("SubmittedByUser");
+                });
+
+            modelBuilder.Entity("ConstructionMS.Domain.Entities.OpeningPositionDecision", b =>
+                {
+                    b.HasOne("ConstructionMS.Domain.Entities.User", "DecidedByUser")
+                        .WithMany()
+                        .HasForeignKey("DecidedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ConstructionMS.Domain.Entities.OpeningPositionBatch", "OpeningPositionBatch")
+                        .WithOne("Decision")
+                        .HasForeignKey("ConstructionMS.Domain.Entities.OpeningPositionDecision", "OpeningPositionBatchId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("DecidedByUser");
+
+                    b.Navigation("OpeningPositionBatch");
+                });
+
+            modelBuilder.Entity("ConstructionMS.Domain.Entities.OpeningPositionPosting", b =>
+                {
+                    b.HasOne("ConstructionMS.Domain.Entities.OpeningPositionBatch", "OpeningPositionBatch")
+                        .WithOne("Posting")
+                        .HasForeignKey("ConstructionMS.Domain.Entities.OpeningPositionPosting", "OpeningPositionBatchId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ConstructionMS.Domain.Entities.User", "PostedByUser")
+                        .WithMany()
+                        .HasForeignKey("PostedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("OpeningPositionBatch");
+
+                    b.Navigation("PostedByUser");
+                });
+
+            modelBuilder.Entity("ConstructionMS.Domain.Entities.OpeningPositionVerification", b =>
+                {
+                    b.HasOne("ConstructionMS.Domain.Entities.OpeningPositionBatch", "OpeningPositionBatch")
+                        .WithOne("Verification")
+                        .HasForeignKey("ConstructionMS.Domain.Entities.OpeningPositionVerification", "OpeningPositionBatchId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ConstructionMS.Domain.Entities.User", "VerifiedByUser")
+                        .WithMany()
+                        .HasForeignKey("VerifiedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("OpeningPositionBatch");
+
+                    b.Navigation("VerifiedByUser");
+                });
+
+            modelBuilder.Entity("ConstructionMS.Domain.Entities.OperationalPeriod", b =>
+                {
+                    b.HasOne("ConstructionMS.Domain.Entities.User", "CreatedByUser")
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ConstructionMS.Domain.Entities.Project", "Project")
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("CreatedByUser");
+
+                    b.Navigation("Project");
+                });
+
+            modelBuilder.Entity("ConstructionMS.Domain.Entities.OperationalPeriodEvent", b =>
+                {
+                    b.HasOne("ConstructionMS.Domain.Entities.User", "ActorUser")
+                        .WithMany()
+                        .HasForeignKey("ActorUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ConstructionMS.Domain.Entities.OperationalPeriod", "OperationalPeriod")
+                        .WithMany("Events")
+                        .HasForeignKey("OperationalPeriodId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("ActorUser");
+
+                    b.Navigation("OperationalPeriod");
                 });
 
             modelBuilder.Entity("ConstructionMS.Domain.Entities.Payment", b =>
@@ -3575,14 +5069,61 @@ namespace ConstructionMS.Infrastructure.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("ConstructionMS.Domain.Entities.ControlledCorrection", b =>
+                {
+                    b.Navigation("Decision");
+                });
+
+            modelBuilder.Entity("ConstructionMS.Domain.Entities.EvidenceDocument", b =>
+                {
+                    b.Navigation("Attachment")
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("ConstructionMS.Domain.Entities.GoodsReceipt", b =>
                 {
                     b.Navigation("TechnicalAcceptances");
                 });
 
+            modelBuilder.Entity("ConstructionMS.Domain.Entities.InAppNotification", b =>
+                {
+                    b.Navigation("ReadReceipt");
+
+                    b.Navigation("ResolutionReceipt");
+                });
+
+            modelBuilder.Entity("ConstructionMS.Domain.Entities.MaterialCustodyCloseout", b =>
+                {
+                    b.Navigation("Decision");
+                });
+
             modelBuilder.Entity("ConstructionMS.Domain.Entities.MaterialIssue", b =>
                 {
+                    b.Navigation("DisputeResolution");
+
+                    b.Navigation("MaterialCustodyCloseouts");
+
+                    b.Navigation("Returns");
+
                     b.Navigation("UsageRecords");
+                });
+
+            modelBuilder.Entity("ConstructionMS.Domain.Entities.OpeningPositionBatch", b =>
+                {
+                    b.Navigation("CashLines");
+
+                    b.Navigation("Decision");
+
+                    b.Navigation("InventoryLines");
+
+                    b.Navigation("Posting");
+
+                    b.Navigation("Verification");
+                });
+
+            modelBuilder.Entity("ConstructionMS.Domain.Entities.OperationalPeriod", b =>
+                {
+                    b.Navigation("Events");
                 });
 
             modelBuilder.Entity("ConstructionMS.Domain.Entities.Payment", b =>

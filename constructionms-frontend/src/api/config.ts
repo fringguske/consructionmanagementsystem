@@ -1,17 +1,11 @@
-export type ApiMode = 'demo' | 'live'
-
-function resolveApiMode(value: string | undefined): ApiMode {
+function requireLiveMode(value: string | undefined): void {
   const normalized = value?.trim().toLowerCase()
 
-  if (!normalized || normalized === 'demo') {
-    return 'demo'
+  if (!normalized || normalized === 'live') {
+    return
   }
 
-  if (normalized === 'live') {
-    return 'live'
-  }
-
-  throw new Error(`Unsupported VITE_API_MODE "${value}". Use "demo" or "live".`)
+  throw new Error(`Unsupported VITE_API_MODE "${value}". This application runs in live mode only.`)
 }
 
 function resolveApiBaseUrl(value: string | undefined): string {
@@ -22,8 +16,7 @@ function resolveApiBaseUrl(value: string | undefined): string {
 }
 
 export const apiConfig = Object.freeze({
-  mode: resolveApiMode(import.meta.env.VITE_API_MODE),
   baseUrl: resolveApiBaseUrl(import.meta.env.VITE_API_BASE_URL),
 })
 
-export const isLiveApiMode = apiConfig.mode === 'live'
+requireLiveMode(import.meta.env.VITE_API_MODE)

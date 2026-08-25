@@ -113,6 +113,10 @@ public sealed class PettyCashService(AppDbContext db, IActorRoleResolver roles) 
         if (item.Status != PettyCashStatuses.Approved || !item.AmountApproved.HasValue) throw new InvalidOperationException("Finance has not approved this petty-cash request for disbursement.");
         if (item.RequestedByUserId == actorUserId) throw new UnauthorizedAccessException("The requester cannot execute this disbursement.");
         await RequireProjectAccessAsync(actorUserId, item.ProjectId);
+        var cashAccount = await ResolveCashAccountForPostingAsync(
+            item.ProjectId,
+            request.CashAccountId,
+            item.AmountApproved.Value);
         if (await db.PettyCashDisbursements.AnyAsync(candidate => candidate.PettyCashRequestId == item.Id)) throw new InvalidOperationException("This petty-cash request has already been disbursed.");
         if (await db.PettyCashDisbursements.AnyAsync(candidate => candidate.ExternalReference == reference)
             || await db.Payments.AnyAsync(candidate => candidate.ExternalReference == reference)) throw new InvalidOperationException("That payment reference is already recorded.");
@@ -127,9 +131,39 @@ public sealed class PettyCashService(AppDbContext db, IActorRoleResolver roles) 
         db.PettyCashDisbursements.Add(disbursement);
         item.Status = PettyCashStatuses.Disbursed;
         await db.SaveChangesAsync();
+        if (cashAccount is not null)
+        {
+            cashAccount.Balance -= disbursement.Amount;
+            cashAccount.UpdatedAt = now;
+            db.CashLedgerEntries.Add(new CashLedgerEntry
+            {
+                EntryNumber = Reference("CASH", now),
+                CashAccountId = cashAccount.Id,
+                ProjectId = item.ProjectId,
+                AmountDelta = -disbursement.Amount,
+                BalanceAfter = cashAccount.Balance,
+                EntryType = "PettyCashDisbursement",
+                ReferenceType = "PettyCashDisbursement",
+                ReferenceId = disbursement.Id,
+                ReferenceNumber = disbursement.DisbursementNumber,
+                PostedByUserId = actorUserId,
+                PostedAt = now,
+                Notes = item.Purpose
+            });
+        }
         await _events.AppendAsync(Chain(item.Id), null, item.ProjectId, "PettyCashDisbursement", disbursement.Id,
             disbursement.DisbursementNumber, "PettyCashDisbursed", actorUserId, actorRole,
-            new { disbursement.Amount, method, reference, recipient, acknowledgement, evidence }, now);
+            new
+            {
+                disbursement.Amount,
+                method,
+                reference,
+                recipient,
+                acknowledgement,
+                evidence,
+                cashAccountId = cashAccount?.Id,
+                cashAccountName = cashAccount?.Name
+            }, now);
         await db.SaveChangesAsync();
         await transaction.CommitAsync();
         return await LoadAsync(item.Id);
@@ -226,13 +260,51 @@ public sealed class PettyCashService(AppDbContext db, IActorRoleResolver roles) 
         var reconciliation = item.Reconciliations.Single(candidate => candidate.Status == PettyCashReconciliationStatuses.PendingReview);
         if (reconciliation.SubmittedByUserId == actorUserId) throw new UnauthorizedAccessException("The person submitting evidence cannot review it.");
         await RequireProjectAccessAsync(actorUserId, item.ProjectId);
+        CashAccount? returnAccount = null;
+        if (request.Approve && reconciliation.AmountReturned > 0 && item.Disbursement is not null)
+        {
+            var sourceEntry = await db.CashLedgerEntries.AsNoTracking()
+                .SingleOrDefaultAsync(entry =>
+                    entry.ReferenceType == "PettyCashDisbursement"
+                    && entry.ReferenceId == item.Disbursement.Id
+                    && entry.EntryType == "PettyCashDisbursement");
+            if (sourceEntry is not null)
+            {
+                returnAccount = await db.CashAccounts
+                    .FromSqlInterpolated($"SELECT * FROM \"CashAccounts\" WHERE \"Id\" = {sourceEntry.CashAccountId} FOR UPDATE")
+                    .SingleAsync();
+            }
+        }
         var now = DateTime.UtcNow;
         reconciliation.Status = request.Approve ? PettyCashReconciliationStatuses.Approved : PettyCashReconciliationStatuses.Returned;
         reconciliation.ReviewedByUserId = actorUserId;
         reconciliation.ReviewedAt = now;
         reconciliation.ReviewNotes = notes;
         reconciliation.AmountExpensed = request.Approve ? reconciliation.AmountSpent : null;
-        if (request.Approve) item.AmountCommitted = reconciliation.AmountSpent;
+        if (request.Approve)
+        {
+            item.AmountCommitted = reconciliation.AmountSpent;
+            if (returnAccount is not null)
+            {
+                returnAccount.Balance += reconciliation.AmountReturned;
+                returnAccount.UpdatedAt = now;
+                db.CashLedgerEntries.Add(new CashLedgerEntry
+                {
+                    EntryNumber = Reference("CASH", now),
+                    CashAccountId = returnAccount.Id,
+                    ProjectId = item.ProjectId,
+                    AmountDelta = reconciliation.AmountReturned,
+                    BalanceAfter = returnAccount.Balance,
+                    EntryType = "CashReturn",
+                    ReferenceType = "PettyCashReconciliation",
+                    ReferenceId = reconciliation.Id,
+                    ReferenceNumber = reconciliation.ReconciliationNumber,
+                    PostedByUserId = actorUserId,
+                    PostedAt = now,
+                    Notes = reconciliation.ReturnReference
+                });
+            }
+        }
         db.PettyCashReconciliationEvents.Add(new PettyCashReconciliationEvent
         {
             PettyCashReconciliationId = reconciliation.Id,
@@ -326,6 +398,29 @@ public sealed class PettyCashService(AppDbContext db, IActorRoleResolver roles) 
             && !await db.UserProjectAssignments.AsNoTracking().AnyAsync(item =>
                 item.UserId == userId && item.ProjectId == projectId && item.IsActive))
             throw new UnauthorizedAccessException("You are not assigned to this project.");
+    }
+
+    private async Task<CashAccount?> ResolveCashAccountForPostingAsync(
+        int projectId,
+        long? cashAccountId,
+        decimal amount)
+    {
+        if (!cashAccountId.HasValue)
+        {
+            if (await db.CashAccounts.AsNoTracking().AnyAsync(item => item.ProjectId == projectId))
+                throw new ArgumentException("Select the project cash account used for this handover.", nameof(cashAccountId));
+            return null;
+        }
+        if (cashAccountId <= 0)
+            throw new ArgumentException("Cash-account ID must be positive.", nameof(cashAccountId));
+
+        var account = await db.CashAccounts
+            .FromSqlInterpolated($"SELECT * FROM \"CashAccounts\" WHERE \"Id\" = {cashAccountId.Value} AND \"ProjectId\" = {projectId} FOR UPDATE")
+            .SingleOrDefaultAsync()
+            ?? throw new KeyNotFoundException("The selected project cash account was not found.");
+        if (account.Balance < amount)
+            throw new InvalidOperationException($"The selected cash account has insufficient funds. Available balance: KES {account.Balance:N2}.");
+        return account;
     }
 
     private async Task<bool> HasUnreconciledRequestAsync(int userId) =>

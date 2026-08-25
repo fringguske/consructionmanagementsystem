@@ -34,6 +34,7 @@ public sealed class AuthorizePaymentRequestDto
 
 public sealed class ExecutePaymentRequestDto
 {
+    [Range(1, long.MaxValue)] public long? CashAccountId { get; set; }
     [Required, StringLength(30)] public string Method { get; set; } = string.Empty;
     [Required, StringLength(100)] public string ExternalReference { get; set; } = string.Empty;
     [StringLength(500)] public string? EvidenceReference { get; set; }
@@ -89,6 +90,7 @@ public sealed class PaymentAuthorizationResponseDto
     public long Id { get; set; }
     public string AuthorizationNumber { get; set; } = string.Empty;
     public long SupplierInvoiceId { get; set; }
+    public int ProjectId { get; set; }
     public decimal Amount { get; set; }
     public string SupplierName { get; set; } = string.Empty;
     public string ProjectName { get; set; } = string.Empty;

@@ -402,7 +402,19 @@ public sealed class InventoryWorkflowService : IInventoryWorkflowService
             ?? throw new KeyNotFoundException("The material issue was not found.");
         if (issue.IssuedToUserId != actorUserId) throw new UnauthorizedAccessException("Only the receiving Foreman may account for these materials.");
         if (issue.Status != MaterialIssueStatuses.Confirmed) throw new InvalidOperationException("Confirm the full material receipt before recording use or wastage.");
-        var already = await _db.MaterialUsageRecords.Where(item => item.MaterialIssueId == id).SumAsync(item => (decimal?)item.Quantity) ?? 0;
+        if (await _db.MaterialCustodyCloseouts.AnyAsync(item =>
+                item.MaterialIssueId == id && item.Status != CustodyCloseoutStatuses.Returned))
+            throw new InvalidOperationException("Material use cannot change while this custody record is under review or closed.");
+        if (await _db.MaterialReturns.AnyAsync(item =>
+                item.MaterialIssueId == id && item.Status == MaterialReturnStatuses.AwaitingReceipt))
+            throw new InvalidOperationException("Wait for Stores to decide the pending material return before recording more use.");
+        var usedOrWasted = await _db.MaterialUsageRecords
+            .Where(item => item.MaterialIssueId == id)
+            .SumAsync(item => (decimal?)item.Quantity) ?? 0;
+        var returned = await _db.MaterialReturns
+            .Where(item => item.MaterialIssueId == id && item.Status == MaterialReturnStatuses.Received)
+            .SumAsync(item => item.QuantityAccepted ?? 0);
+        var already = usedOrWasted + returned;
         if (already + quantity > issue.ConfirmedQuantity) throw new InvalidOperationException("This entry would account for more than the confirmed quantity.");
         var now = DateTime.UtcNow;
         var record = new MaterialUsageRecord
@@ -657,6 +669,8 @@ public sealed class InventoryWorkflowService : IInventoryWorkflowService
         .Include(item => item.Requisition).Include(item => item.Project).Include(item => item.Material)
         .Include(item => item.IssuedByUser).Include(item => item.IssuedToUser).Include(item => item.ConfirmedByUser)
         .Include(item => item.UsageRecords).ThenInclude(record => record.RecordedByUser)
+        .Include(item => item.Returns)
+        .Include(item => item.MaterialCustodyCloseouts)
         .AsSplitQuery();
 
     private async Task<MaterialIssueResponseDto> LoadIssueAsync(long id)
@@ -670,7 +684,11 @@ public sealed class InventoryWorkflowService : IInventoryWorkflowService
         var usage = item.UsageRecords.OrderBy(record => record.RecordedAt).ToList();
         var used = usage.Where(record => record.UsageType == "Used").Sum(record => record.Quantity);
         var wasted = usage.Where(record => record.UsageType == "Wastage").Sum(record => record.Quantity);
+        var returned = item.Returns
+            .Where(record => record.Status == MaterialReturnStatuses.Received)
+            .Sum(record => record.QuantityAccepted ?? 0);
         var confirmed = item.ConfirmedQuantity ?? 0;
+        var closeout = item.MaterialCustodyCloseouts.OrderByDescending(record => record.Revision).FirstOrDefault();
         return new MaterialIssueResponseDto
         {
             Id = item.Id, IssueNumber = item.IssueNumber, RequisitionId = item.RequisitionId,
@@ -680,7 +698,9 @@ public sealed class InventoryWorkflowService : IInventoryWorkflowService
             IssuedToUserId = item.IssuedToUserId, IssuedToName = item.IssuedToUser.FullName, Notes = item.Notes,
             IssuedAt = item.IssuedAt, ConfirmedQuantity = item.ConfirmedQuantity, ConfirmationNotes = item.ConfirmationNotes,
             ConfirmedAt = item.ConfirmedAt, UsedQuantity = used, WastedQuantity = wasted,
-            UnaccountedQuantity = Math.Max(0, confirmed - used - wasted),
+            ReturnedQuantity = returned,
+            UnaccountedQuantity = Math.Max(0, confirmed - used - wasted - returned),
+            CustodyStatus = closeout?.Status ?? (item.Status == MaterialIssueStatuses.Confirmed ? "Open" : item.Status),
             Usage = usage.Select(record => new MaterialUsageResponseDto
             {
                 Id = record.Id, UsageType = record.UsageType, Quantity = record.Quantity,
@@ -731,6 +751,7 @@ public sealed class InventoryWorkflowService : IInventoryWorkflowService
         return new TechnicalAcceptanceResponseDto
         {
             GoodsReceiptId = item.Id,
+            TechnicalAcceptanceId = latestReview?.Id,
             ReceiptNumber = item.ReceiptNumber,
             PurchaseOrderId = item.PurchaseOrderId,
             PurchaseOrderNumber = item.PurchaseOrder.PurchaseOrderNumber,

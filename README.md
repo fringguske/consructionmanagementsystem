@@ -2,11 +2,11 @@
 
 ConstructionMS is a React and ASP.NET Core construction-control system for multiple sites. The live workflow covers authenticated project scope, project progress and budgets, material requisitions, independently approved supplier onboarding, supplier sourcing, purchase orders, inventory and controlled payments.
 
-The existing React demonstration remains the default. Set the frontend to `live` mode only after the API and database have been configured.
+The React application is live-only: every displayed record and counter comes from the authenticated API.
 
 ## Repository structure
 
-- `constructionms-frontend` — React/Vite UI with separate `demo` and `live` API modes.
+- `constructionms-frontend` — React/Vite UI backed by the live API.
 - `ConstructionMS.Api` — authenticated HTTP endpoints, authorization, rate limiting and health checks.
 - `ConstructionMS.Application` — request/response contracts and service interfaces.
 - `ConstructionMS.Domain` — persistent workflow entities.
@@ -27,6 +27,10 @@ The existing React demonstration remains the default. Set the frontend to `live`
 - Supplier invoice capture after full receipt, Finance three-way matching only after required delivery checks, Supervisor payment authorization, CEO high-value exceptions, Finance execution and system receipts.
 - Supervisor-requested petty cash with Finance approval and handover, immutable Supervisor receipt confirmation, full accountability and Finance reconciliation.
 - One CEO/Auditor material-and-money trace backed by hash-linked control events.
+- Role-specific task inboxes and persistent in-app overdue notifications.
+- Controlled opening inventory/cash positions, material returns and custody close-out.
+- Inventory and finance period closing with separately approved corrections.
+- Private, authenticated evidence-file upload and download for supported workflow records.
 - PostgreSQL triggers that reject updates or deletes to approval/evidence records.
 
 ## Secure configuration
@@ -38,8 +42,8 @@ Production must also override:
 - `AllowedHosts` with the public hostname;
 - `Cors__AllowedOrigins__0` only when the frontend is genuinely cross-origin;
 - `ItVerification__Enabled=true` and `ItVerification__TesterUserId=<stable user ID>` are preferred. `ItVerification__TesterUsername=<username>` remains a fallback for initial setup.
-  while the named Administrator account needs live role inspection during development;
 - TLS at nginx or the hosting platform, because production authentication cookies are Secure;
+- `EvidenceStorage__RootPath` with a private, backed-up directory outside the web root;
 - trusted forwarded-proxy addresses if nginx is not running on the same host.
 
 Never commit connection strings, `.env` files, certificates, database dumps or bootstrap credentials. The repository ignore rules cover common variants, including `*.pem` and every `.env` except `.env.example`.
@@ -106,16 +110,16 @@ For a published deployment, run the same two options after the API DLL. The comm
 requires an up-to-date database, an active Administrator account, and the normal
 deployment connection string. It never creates a second Administrator.
 
-## Frontend modes
+## Frontend configuration
 
-`constructionms-frontend/.env.example` documents the two safe settings. Demo mode is the default:
+`constructionms-frontend/.env.example` documents the live API setting:
 
 ```text
-VITE_API_MODE=demo
+VITE_API_MODE=live
 VITE_API_BASE_URL=/api/v1
 ```
 
-For the real authenticated paths, use an uncommitted local `.env` with `VITE_API_MODE=live`. All frontend requests send the HTTP-only session cookie and use the typed client in `src/api`.
+All frontend requests send the HTTP-only session cookie and use the typed client in `src/api`.
 
 ## Health endpoints
 
