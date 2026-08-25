@@ -7,3 +7,9 @@
   stroke-linejoin: round;
   stroke-width: 1.8;
 }
+
+.live-sidebar nav a {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+  padding: 0.65rem 0.8rem;
+}

@@ -261,7 +261,7 @@ function Shell({ currentUser, onLogout, onRoleChanged, onCredentialsChanged }: {
   return <div className="live-shell">
     <aside className={`live-sidebar ${navOpen ? 'open' : ''}`}>
       <header><div className="live-brand-mark" aria-hidden="true"><span/><span/><span/></div><div><strong>CONSTRUCT</strong><small>CONTROL SYSTEM</small></div><button aria-label="Close navigation" onClick={() => setNavOpen(false)}>×</button></header>
-      <nav aria-label={`${currentUser.role} workspace`}><span>WORKSPACE</span>{nav.map(item => <NavLink key={item.to} to={item.to} end={item.to === '/'} onClick={() => setNavOpen(false)}><i aria-hidden="true">{item.glyph}</i><b>{item.label}</b></NavLink>)}</nav>
+      <nav aria-label={`${currentUser.role} workspace`}><span>WORKSPACE</span>{nav.map(item => <NavLink key={item.to} to={item.to} end={item.to === '/'} onClick={() => setNavOpen(false)}><b>{item.label}</b></NavLink>)}</nav>
       <footer><span>{currentUser.role}</span><strong>{currentUser.projects.length ? `${currentUser.projects.length} assigned project${currentUser.projects.length === 1 ? '' : 's'}` : 'Portfolio access'}</strong></footer>
     </aside>
     {navOpen && <button className="live-sidebar-scrim" aria-label="Close navigation" onClick={() => setNavOpen(false)}/>}
