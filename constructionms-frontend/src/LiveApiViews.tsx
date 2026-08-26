@@ -6,6 +6,7 @@ import {
   type FormEvent,
   type ReactNode,
 } from 'react'
+import { useSearchParams } from 'react-router'
 import {
   ApiError,
   authApi,
@@ -24,7 +25,9 @@ import {
   type TechnicalCheckOutcome,
 } from './api'
 import { EvidenceFiles } from './EvidenceReferenceField'
+import { CeoOverview } from './CeoOverview'
 import './live-api.css'
+import './ceo-overview.css'
 
 export type LiveDestination = 'access' | 'projects' | 'requisitions' | 'sourcing' | 'suppliers' | 'purchase-orders' | 'inventory' | 'finance' | 'audit'
 
@@ -154,9 +157,9 @@ function initials(name: string): string {
 
 function statusLabel(status: RequisitionStatus): string {
   const labels: Record<RequisitionStatus, string> = {
-    AwaitingTechnicalCheck: 'Engineer check',
-    AwaitingSupervisorDecision: 'Supervisor decision',
-    ReturnedForRevision: 'Returned to foreman',
+    AwaitingTechnicalCheck: 'Waiting for Engineer',
+    AwaitingSupervisorDecision: 'Waiting for Supervisor',
+    ReturnedForRevision: 'Waiting for Foreman',
     Approved: 'Approved',
     Rejected: 'Rejected',
   }
@@ -470,7 +473,13 @@ export function LiveLoginView({ onAuthenticated }: LiveLoginViewProps) {
   )
 }
 
-export function LiveDashboardView({ currentUser, onNavigate }: LiveDashboardViewProps) {
+export function LiveDashboardView(props: LiveDashboardViewProps) {
+  return props.currentUser.role === 'CEO'
+    ? <CeoOverview currentUser={props.currentUser}/>
+    : <RoleDashboardView {...props}/>
+}
+
+function RoleDashboardView({ currentUser, onNavigate }: LiveDashboardViewProps) {
   const [dashboard, setDashboard] = useState<DashboardResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
@@ -490,7 +499,7 @@ export function LiveDashboardView({ currentUser, onNavigate }: LiveDashboardView
       })
 
     return () => controller.abort()
-  }, [refreshKey])
+  }, [currentUser.id, currentUser.role, refreshKey])
 
   const assignedNames = currentUser.projects.map((project) => project.name).join(', ')
   const actions = dashboardActions(currentUser.role)
@@ -595,6 +604,8 @@ export function LiveDashboardView({ currentUser, onNavigate }: LiveDashboardView
 }
 
 export function LiveProjectsView({ currentUser }: LiveProjectsViewProps) {
+  const [searchParams, setSearchParams] = useSearchParams()
+  const requestedProjectId = Number(searchParams.get('projectId'))
   const [entries, setEntries] = useState<ProjectEntry[]>([])
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
@@ -623,6 +634,9 @@ export function LiveProjectsView({ currentUser }: LiveProjectsViewProps) {
 
         setEntries(loadedEntries)
         setSelectedProjectId((current) => {
+          if (requestedProjectId > 0 && loadedEntries.some((entry) => entry.project.id === requestedProjectId)) {
+            return requestedProjectId
+          }
           if (current && loadedEntries.some((entry) => entry.project.id === current)) {
             return current
           }
@@ -640,7 +654,7 @@ export function LiveProjectsView({ currentUser }: LiveProjectsViewProps) {
       })
 
     return () => controller.abort()
-  }, [refreshKey])
+  }, [refreshKey, requestedProjectId])
 
   const selectedEntry = entries.find((entry) => entry.project.id === selectedProjectId) ?? null
 
@@ -653,6 +667,7 @@ export function LiveProjectsView({ currentUser }: LiveProjectsViewProps) {
   function reloadProjects(preferredProjectId?: number) {
     if (preferredProjectId !== undefined) {
       setSelectedProjectId(preferredProjectId)
+      setSearchParams({ projectId: String(preferredProjectId) }, { replace: true })
     }
     setLoading(true)
     setRefreshKey((value) => value + 1)
@@ -709,7 +724,10 @@ export function LiveProjectsView({ currentUser }: LiveProjectsViewProps) {
                   type="button"
                   key={project.id}
                   className={selectedProjectId === project.id ? 'active' : ''}
-                  onClick={() => setSelectedProjectId(project.id)}
+                  onClick={() => {
+                    setSelectedProjectId(project.id)
+                    setSearchParams({ projectId: String(project.id) }, { replace: true })
+                  }}
                   aria-current={selectedProjectId === project.id ? 'true' : undefined}
                 >
                   <span className="lav-project-monogram" aria-hidden="true">
@@ -941,12 +959,10 @@ function ProjectDetail({ entry, currentUser, onSummaryChanged }: ProjectDetailPr
             <article>
               <span>Cost areas</span>
               <strong>{summary.costCodes.filter((code) => code.isActive).length}</strong>
-              <small>Available for material requests</small>
             </article>
             <article>
               <span>Progress checks</span>
               <strong>{summary.progressVerificationCount}</strong>
-              <small>Append-only engineer records</small>
             </article>
             {summary.canViewFinancials && (
               <article>
@@ -1002,25 +1018,21 @@ function CeoProjectControls({
   }
 
   return (
-    <section className="lav-ceo-project-tools" aria-label="CEO project controls">
-      <header>
-        <div>
-          <span className="lav-kicker">CEO controls</span>
-          <h3>Set up this project</h3>
-        </div>
-      </header>
-
-      <CostCodeForm projectId={projectId} onSaved={refreshSummary} />
-      <BudgetRevisionForm
-        key={summary.costCodes
-          .filter((costCode) => costCode.isActive)
-          .map((costCode) => costCode.id)
-          .join(':')}
-        projectId={projectId}
-        summary={summary}
-        onSaved={refreshSummary}
-      />
-    </section>
+    <details className="lav-ceo-project-tools">
+      <summary>Project setup</summary>
+      <div className="lav-ceo-project-tools-body">
+        <CostCodeForm projectId={projectId} onSaved={refreshSummary} />
+        <BudgetRevisionForm
+          key={summary.costCodes
+            .filter((costCode) => costCode.isActive)
+            .map((costCode) => costCode.id)
+            .join(':')}
+          projectId={projectId}
+          summary={summary}
+          onSaved={refreshSummary}
+        />
+      </div>
+    </details>
   )
 }
 
@@ -1071,7 +1083,6 @@ function CostCodeForm({ projectId, onSaved }: CostCodeFormProps) {
       <header>
         <div>
           <strong>Add a budget area</strong>
-          <small>Use areas such as Foundation, Roofing or electrical.</small>
         </div>
       </header>
       {message && <Notice tone={message.tone}>{message.text}</Notice>}

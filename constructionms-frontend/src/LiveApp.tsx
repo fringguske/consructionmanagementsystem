@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
-import { BrowserRouter, Navigate, NavLink, Route, Routes, useNavigate } from 'react-router'
+import { BrowserRouter, Link, Navigate, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router'
 import {
   ApiError,
   authApi,
@@ -30,7 +30,7 @@ const OpeningPositionsView = lazy(() => import('./LiveGovernanceViews').then(mod
 const CustodyCloseoutView = lazy(() => import('./LiveGovernanceViews').then(module => ({ default: module.CustodyCloseoutView })))
 const PeriodClosingView = lazy(() => import('./LiveGovernanceViews').then(module => ({ default: module.PeriodClosingView })))
 
-type NavItem = { to: string; label: string; glyph: string }
+type NavItem = { to: string; label: string; glyph: string; activePaths?: readonly string[] }
 
 const roleNavigation: Record<ConstructionRole, readonly NavItem[]> = {
   Administrator: [
@@ -40,19 +40,11 @@ const roleNavigation: Record<ConstructionRole, readonly NavItem[]> = {
   ],
   CEO: [
     { to: '/', label: 'Overview', glyph: 'OV' },
-    { to: '/tasks', label: 'My tasks', glyph: 'TK' },
     { to: '/projects', label: 'Projects', glyph: 'PR' },
-    { to: '/requisitions', label: 'Material requests', glyph: 'MR' },
-    { to: '/sourcing', label: 'Supplier sourcing', glyph: 'SO' },
-    { to: '/suppliers', label: 'Supplier register', glyph: 'SU' },
-    { to: '/purchase-orders', label: 'Purchase orders', glyph: 'PO' },
-    { to: '/inventory', label: 'Materials inventory', glyph: 'MI' },
-    { to: '/opening-positions', label: 'Opening positions', glyph: 'OP' },
-    { to: '/custody-close-out', label: 'Custody close-out', glyph: 'CU' },
-    { to: '/finance', label: 'Money', glyph: 'MO' },
-    { to: '/petty-cash', label: 'Petty cash', glyph: 'PC' },
-    { to: '/period-close', label: 'Period closing', glyph: 'CL' },
-    { to: '/audit', label: 'Complete chain', glyph: 'AU' },
+    { to: '/inventory', label: 'Materials', glyph: 'MI', activePaths: ['/requisitions', '/sourcing', '/suppliers', '/purchase-orders', '/custody-close-out'] },
+    { to: '/finance', label: 'Money', glyph: 'MO', activePaths: ['/petty-cash'] },
+    { to: '/tasks', label: 'My decisions', glyph: 'TK', activePaths: ['/opening-positions', '/period-close'] },
+    { to: '/audit', label: 'Records & audit', glyph: 'AU' },
   ],
   Supervisor: [
     { to: '/', label: 'Overview', glyph: 'OV' },
@@ -129,6 +121,55 @@ const roleNavigation: Record<ConstructionRole, readonly NavItem[]> = {
   ],
 }
 
+const additionalRoleRoutes: Partial<Record<ConstructionRole, readonly string[]>> = {
+  CEO: [
+    '/requisitions',
+    '/sourcing',
+    '/suppliers',
+    '/purchase-orders',
+    '/opening-positions',
+    '/custody-close-out',
+    '/petty-cash',
+    '/period-close',
+  ],
+}
+
+type CeoContextLink = { to: string; label: string }
+
+const ceoContextSections: Array<{ paths: readonly string[]; label: string; links: readonly CeoContextLink[] }> = [
+  {
+    paths: ['/inventory', '/requisitions', '/sourcing', '/suppliers', '/purchase-orders', '/custody-close-out'],
+    label: 'Materials',
+    links: [
+      { to: '/inventory', label: 'Current stock' },
+      { to: '/requisitions', label: 'Requests' },
+      { to: '/sourcing', label: 'Buying' },
+      { to: '/suppliers', label: 'Suppliers' },
+      { to: '/purchase-orders', label: 'Orders' },
+      { to: '/custody-close-out', label: 'Custody' },
+    ],
+  },
+  {
+    paths: ['/finance', '/petty-cash'],
+    label: 'Money',
+    links: [
+      { to: '/finance', label: 'Summary' },
+      { to: '/finance?section=invoices', label: 'Supplier invoices' },
+      { to: '/finance?section=executed', label: 'Executed payments' },
+      { to: '/petty-cash', label: 'Petty cash' },
+    ],
+  },
+  {
+    paths: ['/tasks', '/opening-positions', '/period-close'],
+    label: 'My decisions',
+    links: [
+      { to: '/tasks', label: 'Waiting decisions' },
+      { to: '/opening-positions', label: 'Starting balances' },
+      { to: '/period-close', label: 'Period closing' },
+    ],
+  },
+]
+
 const destinationPaths: Record<LiveDestination, string> = {
   access: '/access', projects: '/projects', requisitions: '/requisitions', sourcing: '/sourcing',
   suppliers: '/suppliers', 'purchase-orders': '/purchase-orders', inventory: '/inventory',
@@ -186,7 +227,14 @@ function PasswordDialog({ onClose, onChanged }: { onClose: () => void; onChanged
   return <AccountDialog title="Change password" onClose={onClose}><form onSubmit={event => void submit(event)}><label><span>Current password</span><input type="password" autoComplete="current-password" required value={currentPassword} onChange={event => setCurrentPassword(event.currentTarget.value)}/></label><label><span>New password</span><input type="password" autoComplete="new-password" required minLength={12} maxLength={72} value={newPassword} onChange={event => setNewPassword(event.currentTarget.value)}/></label><label><span>Confirm new password</span><input type="password" autoComplete="new-password" required minLength={12} maxLength={72} value={confirmPassword} onChange={event => setConfirmPassword(event.currentTarget.value)}/></label>{error && <p role="alert">{error}</p>}<footer><button type="button" onClick={onClose}>Cancel</button><button disabled={busy}>{busy ? 'Changing…' : 'Change password'}</button></footer></form></AccountDialog>
 }
 
-function NotificationMenu({ onNavigate }: { onNavigate: (path: string) => void }) {
+function notificationMessage(item: AppNotification, role: ConstructionRole) {
+  if (role === 'CEO' && (item.taskType === 'OpeningPositionDecision' || item.taskType === 'ControlledCorrectionDecision')) {
+    return item.message.split(' · ')[0]
+  }
+  return item.message
+}
+
+function NotificationMenu({ role, onNavigate }: { role: ConstructionRole; onNavigate: (path: string) => void }) {
   const [open, setOpen] = useState(false)
   const [items, setItems] = useState<AppNotification[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
@@ -233,8 +281,33 @@ function NotificationMenu({ onNavigate }: { onNavigate: (path: string) => void }
 
   return <div className="notification-menu">
     <button className="notification-trigger" aria-label="Notifications" aria-expanded={open} onClick={() => { if (!open) setRefresh(value => value + 1); setOpen(value => !value) }}><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9ZM10 20h4"/></svg>{Boolean(unreadCount) && <b>{unreadCount > 99 ? '99+' : unreadCount}</b>}</button>
-    {open && <section className="notification-popover" role="dialog" aria-modal="false" aria-label="Notifications"><header><h2>Notifications</h2>{Boolean(unreadCount) && <button onClick={() => void readAll()}>Mark all read</button>}</header>{loading ? <div className="notification-state">Loading…</div> : error ? <div className="notification-state error"><span>{error}</span><button onClick={() => { setLoading(true); setRefresh(value => value + 1) }}>Try again</button></div> : items.length ? <div className="notification-list">{items.map(item => <button className={item.isRead ? '' : 'unread'} key={item.id} onClick={() => void openItem(item)}><span><b>{item.title}</b>{item.projectName && <small>{item.projectName}</small>}</span><p>{item.message}</p><time>{new Intl.DateTimeFormat('en-KE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(item.createdAt))}</time></button>)}</div> : <div className="notification-state">No notifications</div>}</section>}
+    {open && <section className="notification-popover" role="dialog" aria-modal="false" aria-label="Notifications"><header><h2>Notifications</h2>{Boolean(unreadCount) && <button onClick={() => void readAll()}>Mark all read</button>}</header>{loading ? <div className="notification-state">Loading…</div> : error ? <div className="notification-state error"><span>{error}</span><button onClick={() => { setLoading(true); setRefresh(value => value + 1) }}>Try again</button></div> : items.length ? <div className="notification-list">{items.map(item => <button className={item.isRead ? '' : 'unread'} key={item.id} onClick={() => void openItem(item)}><span><b>{item.title}</b>{item.projectName && <small>{item.projectName}</small>}</span><p>{notificationMessage(item, role)}</p><time>{new Intl.DateTimeFormat('en-KE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(item.createdAt))}</time></button>)}</div> : <div className="notification-state">No notifications</div>}</section>}
   </div>
+}
+
+function isCeoContextLinkActive(pathname: string, search: string, target: string) {
+  const [targetPath, targetQuery = ''] = target.split('?')
+  if (pathname !== targetPath) return false
+  if (targetPath !== '/finance') return true
+
+  const requestedSection = new URLSearchParams(search).get('section')
+  const currentSection = requestedSection === 'invoices' || requestedSection === 'executed' ? requestedSection : 'summary'
+  const targetSection = new URLSearchParams(targetQuery).get('section') ?? 'summary'
+  return currentSection === targetSection
+}
+
+function CeoContextNavigation({ pathname, search }: { pathname: string; search: string }) {
+  const section = ceoContextSections.find(item => item.paths.includes(pathname))
+  if (!section) return null
+
+  return <nav className="ceo-context-nav" aria-label={`${section.label} sections`}>
+    {section.links.map(item => <Link
+      className={isCeoContextLinkActive(pathname, search, item.to) ? 'active' : ''}
+      aria-current={isCeoContextLinkActive(pathname, search, item.to) ? 'page' : undefined}
+      key={item.to}
+      to={item.to}
+    >{item.label}</Link>)}
+  </nav>
 }
 
 function Shell({ currentUser, onLogout, onRoleChanged, onCredentialsChanged }: { currentUser: CurrentUser; onLogout: () => void; onRoleChanged: (user: CurrentUser) => void; onCredentialsChanged: (message: string) => void }) {
@@ -245,8 +318,9 @@ function Shell({ currentUser, onLogout, onRoleChanged, onCredentialsChanged }: {
   const [usernameOpen, setUsernameOpen] = useState(false)
   const [passwordOpen, setPasswordOpen] = useState(false)
   const navigate = useNavigate()
+  const location = useLocation()
   const nav = roleNavigation[currentUser.role]
-  const allowed = useMemo(() => new Set(nav.map(item => item.to)), [nav])
+  const allowed = useMemo(() => new Set([...nav.map(item => item.to), ...(additionalRoleRoutes[currentUser.role] ?? [])]), [currentUser.role, nav])
 
   async function switchRole(role: ConstructionRole) {
     if (role === currentUser.role) { setAccountOpen(false); return }
@@ -261,12 +335,16 @@ function Shell({ currentUser, onLogout, onRoleChanged, onCredentialsChanged }: {
   return <div className="live-shell">
     <aside className={`live-sidebar ${navOpen ? 'open' : ''}`}>
       <header><div className="live-brand-mark" aria-hidden="true"><span/><span/><span/></div><div><strong>CONSTRUCT</strong><small>CONTROL SYSTEM</small></div><button aria-label="Close navigation" onClick={() => setNavOpen(false)}>×</button></header>
-      <nav aria-label={`${currentUser.role} workspace`}><span>WORKSPACE</span>{nav.map(item => <NavLink key={item.to} to={item.to} end={item.to === '/'} onClick={() => setNavOpen(false)}><b>{item.label}</b></NavLink>)}</nav>
+      <nav aria-label={`${currentUser.role} workspace`}><span>WORKSPACE</span>{nav.map(item => {
+        const groupedActive = item.activePaths?.includes(location.pathname) ?? false
+        return <NavLink key={item.to} to={item.to} end={item.to === '/'} aria-current={groupedActive ? 'page' : undefined} className={({ isActive }) => isActive || groupedActive ? 'active' : ''} onClick={() => setNavOpen(false)}><b>{item.label}</b></NavLink>
+      })}</nav>
       <footer><span>{currentUser.role}</span><strong>{currentUser.projects.length ? `${currentUser.projects.length} assigned project${currentUser.projects.length === 1 ? '' : 's'}` : 'Portfolio access'}</strong></footer>
     </aside>
     {navOpen && <button className="live-sidebar-scrim" aria-label="Close navigation" onClick={() => setNavOpen(false)}/>}
     <main className="live-main">
-      <header className="live-topbar"><button className="live-menu-button" aria-label="Open navigation" onClick={() => setNavOpen(true)}>☰</button><span className="live-mobile-brand">CONSTRUCT</span><div className="live-top-actions"><NotificationMenu onNavigate={path => navigate(path)}/><div className="live-account"><button className="live-profile" aria-expanded={accountOpen} onClick={() => setAccountOpen(value => !value)}><span>{initials(currentUser.fullName)}</span><div><strong>{currentUser.fullName}</strong><small>{currentUser.role}</small></div><i aria-hidden="true">⌄</i></button>{accountOpen && <section className="live-account-menu"><header><span>@{currentUser.username}</span><button aria-label="Close account menu" onClick={() => setAccountOpen(false)}>×</button></header>{currentUser.canSwitchRoles && <div className="live-role-list"><strong>Verification role</strong>{currentUser.availableRoles.map(role => <button className={role === currentUser.role ? 'active' : ''} disabled={switchingRole !== null} key={role} onClick={() => void switchRole(role)}><span>{role}</span>{switchingRole === role ? <small>Opening…</small> : role === currentUser.role && <small>Current</small>}</button>)}</div>}{accountError && <p role="alert">{accountError}</p>}<button onClick={() => { setAccountOpen(false); setUsernameOpen(true) }}>Change username</button><button onClick={() => { setAccountOpen(false); setPasswordOpen(true) }}>Change password</button><button className="sign-out" onClick={onLogout}>Sign out</button></section>}</div></div></header>
+      <header className="live-topbar"><button className="live-menu-button" aria-label="Open navigation" onClick={() => setNavOpen(true)}>☰</button><span className="live-mobile-brand">CONSTRUCT</span><div className="live-top-actions"><NotificationMenu role={currentUser.role} onNavigate={path => navigate(currentUser.role === 'CEO' && path === '/finance' ? '/finance?section=invoices' : path)}/><div className="live-account"><button className="live-profile" aria-expanded={accountOpen} onClick={() => setAccountOpen(value => !value)}><span>{initials(currentUser.fullName)}</span><div><strong>{currentUser.fullName}</strong><small>{currentUser.role}</small></div><i aria-hidden="true">⌄</i></button>{accountOpen && <section className="live-account-menu"><header><span>@{currentUser.username}</span><button aria-label="Close account menu" onClick={() => setAccountOpen(false)}>×</button></header>{currentUser.canSwitchRoles && <div className="live-role-list"><strong>Verification role</strong>{currentUser.availableRoles.map(role => <button className={role === currentUser.role ? 'active' : ''} disabled={switchingRole !== null} key={role} onClick={() => void switchRole(role)}><span>{role}</span>{switchingRole === role ? <small>Opening…</small> : role === currentUser.role && <small>Current</small>}</button>)}</div>}{accountError && <p role="alert">{accountError}</p>}<button onClick={() => { setAccountOpen(false); setUsernameOpen(true) }}>Change username</button><button onClick={() => { setAccountOpen(false); setPasswordOpen(true) }}>Change password</button><button className="sign-out" onClick={onLogout}>Sign out</button></section>}</div></div></header>
+      {currentUser.role === 'CEO' && <CeoContextNavigation pathname={location.pathname} search={location.search}/>}
       <div className="live-content"><Routes>
         <Route path="/" element={<LiveDashboardView currentUser={currentUser} onNavigate={destination => navigate(destinationPaths[destination])}/>}/>
         <Route path="/tasks" element={<MyTasksView currentUser={currentUser}/>}/>

@@ -15,6 +15,7 @@ import {
   type MaterialIssue,
   type MaterialIssueDisputeResolution,
   type MaterialReturn,
+  type MyTask,
   type MyTasksResponse,
   type OpeningPosition,
   type OperationalPeriod,
@@ -62,8 +63,16 @@ function Empty({ title, detail }: { title: string; detail?: string }) {
   return <div className="lav-empty"><span aria-hidden="true">—</span><h3>{title}</h3>{detail && <p>{detail}</p>}</div>
 }
 
-function safeTarget(path: string) {
-  return path.startsWith('/') && !path.startsWith('//') ? path : '/tasks'
+function safeTarget(path: string, role: CurrentUser['role']) {
+  if (!path.startsWith('/') || path.startsWith('//')) return '/tasks'
+  return role === 'CEO' && path === '/finance' ? '/finance?section=invoices' : path
+}
+
+function taskDetail(task: MyTask, role: CurrentUser['role']) {
+  if (role === 'CEO' && (task.taskType === 'OpeningPositionDecision' || task.taskType === 'ControlledCorrectionDecision')) {
+    return task.detail.split(' · ')[0]
+  }
+  return task.detail
 }
 
 function RecordEvidence({ sourceType, sourceId, canUpload, kind = 'Other' }: { sourceType: string; sourceId: number; canUpload: boolean; kind?: string }) {
@@ -87,18 +96,19 @@ export function MyTasksView({ currentUser }: { currentUser: CurrentUser }) {
     return () => controller.abort()
   }, [overdueOnly, projectId, refresh])
 
+  const heading = currentUser.role === 'CEO' ? 'My decisions' : 'My tasks'
   return <div className="lav-view governance-view ceo-readable">
-    <header className="lav-page-head"><div><span className="lav-kicker">{currentUser.role}</span><h1>My tasks</h1></div>{result && <span className={`lav-count-chip ${result.totalCount ? 'attention' : ''}`}>{result.totalCount} open</span>}</header>
+    <header className="lav-page-head"><div><span className="lav-kicker">{currentUser.role}</span><h1>{heading}</h1></div>{result && <span className={`lav-count-chip ${result.totalCount ? 'attention' : ''}`}>{result.totalCount} open</span>}</header>
     <div className="governance-toolbar"><label><span>Project</span><select value={projectId} onChange={event => setProjectId(event.currentTarget.value)}><option value="">All assigned projects</option>{currentUser.projects.map(project => <option key={project.id} value={project.id}>{project.name}</option>)}</select></label><label className="governance-check"><input type="checkbox" checked={overdueOnly} onChange={event => setOverdueOnly(event.currentTarget.checked)}/><span>Overdue only</span></label></div>
     {error && <Notice tone="error">{error} <button type="button" onClick={() => setRefresh(value => value + 1)}>Try again</button></Notice>}
     {loading ? (
       <Loading label="Loading tasks…"/>
     ) : result?.items.length ? (
       <section className="task-register" aria-label="Current tasks">
-        {result.items.map(task => <Link className={task.isOverdue ? 'attention' : ''} to={safeTarget(task.targetPath)} key={task.taskKey}><span><strong>{task.title}</strong><small>{task.detail}</small><small>{task.projectName ?? 'Company-wide'} · due {dateTime(task.dueAt)}</small></span><b>{task.isOverdue ? 'Overdue' : task.priority}</b><i aria-hidden="true">→</i></Link>)}
+        {result.items.map(task => <Link className={task.isOverdue ? 'attention' : ''} to={safeTarget(task.targetPath, currentUser.role)} key={task.taskKey}><span><strong>{task.title}</strong><small>{taskDetail(task, currentUser.role)}</small><small>{task.projectName ?? 'Company-wide'} · due {dateTime(task.dueAt)}</small></span><b>{task.isOverdue ? 'Overdue' : currentUser.role === 'CEO' ? 'Needs your decision' : task.priority}</b><i aria-hidden="true">→</i></Link>)}
       </section>
     ) : (
-      <Empty title="Nothing waiting" detail={currentUser.role === 'Auditor' ? 'Auditor access is read-only.' : undefined}/>
+      <Empty title={currentUser.role === 'CEO' ? 'No decisions waiting' : 'Nothing waiting'} detail={currentUser.role === 'Auditor' ? 'Auditor access is read-only.' : undefined}/>
     )}
   </div>
 }

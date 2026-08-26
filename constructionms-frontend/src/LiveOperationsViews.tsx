@@ -48,6 +48,16 @@ function when(value: string | null) {
   return value ? new Intl.DateTimeFormat('en-KE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(value)) : '—'
 }
 
+async function everyPage<T>(load: (page: number) => Promise<{ items: T[]; totalPages: number }>) {
+  const first = await load(1)
+  const items = [...first.items]
+  for (let page = 2; page <= first.totalPages; page += 1) {
+    const next = await load(page)
+    items.push(...next.items)
+  }
+  return items
+}
+
 function committedReceiptQuantity(order: PurchaseOrder, receipts: GoodsReceipt[]) {
   const requiresEngineer = order.lines[0]?.requiresTechnicalAcceptance ?? false
   return receipts
@@ -95,15 +105,34 @@ export function LiveInventoryView({ currentUser }: { currentUser: CurrentUser })
 
   useEffect(() => {
     const controller = new AbortController()
-    const tasks: Promise<unknown>[] = [inventoryApi.balances(controller.signal), inventoryApi.issues(controller.signal)]
+    const completeRegister = role === 'CEO' || role === 'Auditor'
+    const tasks: Promise<unknown>[] = [
+      completeRegister
+        ? everyPage<StockBalance>(page => inventoryApi.balances(controller.signal, { page, pageSize: 100 })).then(items => ({ items }))
+        : inventoryApi.balances(controller.signal),
+      completeRegister
+        ? everyPage<MaterialIssue>(page => inventoryApi.issues(controller.signal, { page, pageSize: 100 })).then(items => ({ items }))
+        : inventoryApi.issues(controller.signal),
+    ]
     if (['Storekeeper', 'Supervisor', 'CEO', 'Auditor'].includes(role)) {
-      tasks.push(inventoryApi.transfers(controller.signal), inventoryApi.counts(controller.signal))
+      tasks.push(
+        completeRegister
+          ? everyPage<StockTransfer>(page => inventoryApi.transfers(controller.signal, { page, pageSize: 100 })).then(items => ({ items }))
+          : inventoryApi.transfers(controller.signal),
+        completeRegister
+          ? everyPage<StockCount>(page => inventoryApi.counts(controller.signal, { page, pageSize: 100 })).then(items => ({ items }))
+          : inventoryApi.counts(controller.signal),
+      )
     }
     if (['Storekeeper', 'Supervisor', 'Finance Officer', 'CEO', 'Auditor'].includes(role)) {
-      tasks.push(inventoryApi.ledger(controller.signal))
+      tasks.push(completeRegister
+        ? everyPage<StockLedgerEntry>(page => inventoryApi.ledger(controller.signal, { page, pageSize: 100 })).then(items => ({ items }))
+        : inventoryApi.ledger(controller.signal))
     }
     if (['Storekeeper', 'Finance Officer', 'CEO', 'Auditor'].includes(role)) {
-      tasks.push(inventoryApi.receipts(controller.signal))
+      tasks.push(completeRegister
+        ? everyPage<GoodsReceipt>(page => inventoryApi.receipts(controller.signal, { page, pageSize: 100 })).then(items => ({ items }))
+        : inventoryApi.receipts(controller.signal))
     }
     if (role === 'Storekeeper') {
       tasks.push(purchaseOrdersApi.list({ page: 1, pageSize: 100, status: 'Issued' }, controller.signal))
@@ -415,7 +444,7 @@ function MovementSummary({ issues, transfers, counts }: { issues: MaterialIssue[
   return <section className="ops-summary-grid"><article><span>Foreman handovers</span><strong>{issues.length}</strong><small>{issues.filter(item => item.status === 'Disputed').length} disputed</small></article><article><span>Transfers moving</span><strong>{transfers.filter(item => item.status === 'InTransit').length}</strong><small>{transfers.filter(item => item.status === 'InTransit').length} awaiting receipt</small></article><article><span>Count differences</span><strong>{counts.filter(item => item.variance !== 0).length}</strong><small>{counts.filter(item => item.status === 'AwaitingReview').length} awaiting review</small></article></section>
 }
 
-type FinanceDeskSection = 'invoices' | 'authorized' | 'executed'
+type FinanceDeskSection = 'summary' | 'invoices' | 'authorized' | 'executed'
 
 export function LiveFinanceView({ currentUser }: { currentUser: CurrentUser }) {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -426,45 +455,97 @@ export function LiveFinanceView({ currentUser }: { currentUser: CurrentUser }) {
   const [receipts, setReceipts] = useState<GoodsReceipt[]>([])
   const [technicalAcceptances, setTechnicalAcceptances] = useState<TechnicalAcceptanceWorkItem[]>([])
   const [cashBookRequest, setCashBookRequest] = useState<{ role: CurrentUser['role']; refresh: number; data: CashBook | null; error: string | null } | null>(null)
-  const [loadedRequest, setLoadedRequest] = useState<{ role: CurrentUser['role']; refresh: number } | null>(null)
+  const [loadedRequest, setLoadedRequest] = useState<{ role: CurrentUser['role']; refresh: number; section: FinanceDeskSection | 'all' } | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [loadWarning, setLoadWarning] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [refresh, setRefresh] = useState(0)
-  const requestedSection = searchParams.get('section')
-  const financeSection: FinanceDeskSection = requestedSection === 'authorized' || requestedSection === 'executed' ? requestedSection : 'invoices'
   const role = currentUser.role
-  const loading = loadedRequest?.role !== role || loadedRequest.refresh !== refresh
+  const requestedSection = searchParams.get('section')
+  const financeSection: FinanceDeskSection = role === 'CEO'
+    ? requestedSection === 'invoices' || requestedSection === 'executed' ? requestedSection : 'summary'
+    : requestedSection === 'authorized' || requestedSection === 'executed' ? requestedSection : 'invoices'
+  const dataSection: FinanceDeskSection | 'all' = role === 'CEO' ? financeSection : 'all'
+  const showInvoices = role === 'Finance Officer' || role === 'CEO' ? financeSection === 'invoices' : true
+  const showExecutedPayments = role === 'Finance Officer' || role === 'CEO' ? financeSection === 'executed' : role !== 'Procurement Officer'
+  const loading = loadedRequest?.role !== role || loadedRequest.refresh !== refresh || loadedRequest.section !== dataSection
   const cashBookRequestIsCurrent = cashBookRequest?.role === role && cashBookRequest.refresh === refresh
-  const cashBookLoading = role === 'CEO' && !cashBookRequestIsCurrent
+  const cashBookLoading = role === 'CEO' && financeSection === 'summary' && !cashBookRequestIsCurrent
   const cashBook = cashBookRequestIsCurrent ? cashBookRequest.data : null
   const cashBookError = cashBookRequestIsCurrent ? cashBookRequest.error : null
   useEffect(() => {
     const controller = new AbortController()
-    const tasks: Promise<unknown>[] = [financeApi.invoices(controller.signal)]
-    if (role !== 'Procurement Officer') tasks.push(financeApi.authorizations(role === 'Finance Officer', controller.signal), financeApi.payments(controller.signal))
-    if (role === 'Procurement Officer') tasks.push(purchaseOrdersApi.list({ page: 1, pageSize: 100, status: 'Issued' }, controller.signal), inventoryApi.receipts(controller.signal))
-    if (['Finance Officer', 'CEO', 'Auditor'].includes(role)) tasks.push(inventoryApi.technicalAcceptances({ pageSize: 100 }, controller.signal))
-    Promise.all(tasks).then(results => { let i = 0; setInvoices((results[i++] as { items: SupplierInvoice[] }).items); if (role !== 'Procurement Officer') { setAuthorizations((results[i++] as { items: PaymentAuthorization[] }).items); setPayments((results[i++] as { items: Payment[] }).items) } else { setOrders((results[i++] as { items: PurchaseOrder[] }).items); setReceipts((results[i++] as { items: GoodsReceipt[] }).items) } if (['Finance Officer', 'CEO', 'Auditor'].includes(role)) setTechnicalAcceptances((results[i] as { items: TechnicalAcceptanceWorkItem[] }).items); else setTechnicalAcceptances([]); setError(null) }).catch(error => { if (!(error instanceof DOMException && error.name === 'AbortError')) setError(messageOf(error)) }).finally(() => { if (!controller.signal.aborted) setLoadedRequest({ role, refresh }) })
-    if (role === 'CEO') financeApi.cashBook(controller.signal)
+    async function loadSection() {
+      if (role === 'CEO') {
+        if (financeSection === 'summary') return null
+        if (financeSection === 'invoices') {
+          const invoiceItems = await everyPage<SupplierInvoice>(page => financeApi.invoices(controller.signal, { page, pageSize: 100 }))
+          setInvoices(invoiceItems)
+          try {
+            const acceptanceItems = await everyPage<TechnicalAcceptanceWorkItem>(page => inventoryApi.technicalAcceptances({ page, pageSize: 100 }, controller.signal))
+            setTechnicalAcceptances(acceptanceItems)
+            return null
+          } catch (error) {
+            if (error instanceof DOMException && error.name === 'AbortError') throw error
+            setTechnicalAcceptances([])
+            return 'Technical inspection details are unavailable.'
+          }
+        }
+        const paymentItems = await everyPage<Payment>(page => financeApi.payments(controller.signal, { page, pageSize: 100 }))
+        setPayments(paymentItems)
+        return null
+      }
+
+      const tasks: Promise<unknown>[] = [financeApi.invoices(controller.signal)]
+      if (role !== 'Procurement Officer') tasks.push(financeApi.authorizations(role === 'Finance Officer', controller.signal), financeApi.payments(controller.signal))
+      if (role === 'Procurement Officer') tasks.push(purchaseOrdersApi.list({ page: 1, pageSize: 100, status: 'Issued' }, controller.signal), inventoryApi.receipts(controller.signal))
+      if (['Finance Officer', 'Auditor'].includes(role)) tasks.push(inventoryApi.technicalAcceptances({ pageSize: 100 }, controller.signal))
+      const results = await Promise.all(tasks)
+      let index = 0
+      setInvoices((results[index++] as { items: SupplierInvoice[] }).items)
+      if (role !== 'Procurement Officer') {
+        setAuthorizations((results[index++] as { items: PaymentAuthorization[] }).items)
+        setPayments((results[index++] as { items: Payment[] }).items)
+      } else {
+        setOrders((results[index++] as { items: PurchaseOrder[] }).items)
+        setReceipts((results[index++] as { items: GoodsReceipt[] }).items)
+      }
+      if (['Finance Officer', 'Auditor'].includes(role)) setTechnicalAcceptances((results[index] as { items: TechnicalAcceptanceWorkItem[] }).items)
+      else setTechnicalAcceptances([])
+      return null
+    }
+
+    void loadSection()
+      .then(warning => { setLoadWarning(warning); setLoadError(null) })
+      .catch(error => {
+        if (!(error instanceof DOMException && error.name === 'AbortError')) {
+          setLoadWarning(null)
+          setLoadError(messageOf(error))
+        }
+      })
+      .finally(() => { if (!controller.signal.aborted) setLoadedRequest({ role, refresh, section: dataSection }) })
+
+    if (role === 'CEO' && financeSection === 'summary') financeApi.cashBook(controller.signal)
       .then(data => { if (!controller.signal.aborted) setCashBookRequest({ role, refresh, data, error: null }) })
       .catch(error => { if (!(error instanceof DOMException && error.name === 'AbortError')) setCashBookRequest({ role, refresh, data: null, error: messageOf(error) }) })
     return () => controller.abort()
-  }, [refresh, role])
+  }, [dataSection, financeSection, refresh, role])
   const run = async (action: () => Promise<unknown>, text: string) => { try { await action(); setNotice(text); setError(null); setRefresh(v => v + 1); return true } catch (error) { setError(messageOf(error)); return false } }
-  return <div className="lav-view ops-view"><header className="lav-page-head"><div><h1>{role === 'Procurement Officer' ? 'Supplier invoices' : 'Invoices and payments'}</h1></div></header>{error && <Notice tone="error">{error}</Notice>}{notice && <Notice tone="success">{notice}</Notice>}
-    {loading ? <Loading>Loading finance records…</Loading> : <>
+  return <div className="lav-view ops-view"><header className="lav-page-head"><div><h1>{role === 'CEO' ? 'Money' : role === 'Procurement Officer' ? 'Supplier invoices' : 'Invoices and payments'}</h1></div></header>{loadError && <Notice tone="error">{loadError} <button type="button" onClick={() => { setLoadError(null); setRefresh(value => value + 1) }}>Try again</button></Notice>}{error && <Notice tone="error">{error}</Notice>}{notice && <Notice tone="success">{notice}</Notice>}{!loading && loadWarning && <Notice>{loadWarning}</Notice>}
+    {loading ? <Loading>Loading finance records…</Loading> : loadError ? null : <>
     {role === 'Finance Officer' && <nav className="ops-action-nav finance-section-nav" aria-label="Invoices and payments sections">
       <button type="button" className={financeSection === 'invoices' ? 'active' : ''} aria-current={financeSection === 'invoices' ? 'page' : undefined} onClick={() => setSearchParams({}, { replace: true })}>Supplier invoices</button>
       <button type="button" className={financeSection === 'authorized' ? 'active' : ''} aria-current={financeSection === 'authorized' ? 'page' : undefined} onClick={() => setSearchParams({ section: 'authorized' }, { replace: true })}>Authorized payments</button>
       <button type="button" className={financeSection === 'executed' ? 'active' : ''} aria-current={financeSection === 'executed' ? 'page' : undefined} onClick={() => setSearchParams({ section: 'executed' }, { replace: true })}>Executed payments</button>
     </nav>}
     {role === 'Procurement Officer' && <InvoiceCapture orders={orders} receipts={receipts} invoices={invoices} onRun={run}/>}
-    {(role !== 'Finance Officer' || financeSection === 'invoices') && <section className="lav-panel ops-panel"><header className="lav-panel-head"><div><span className="lav-kicker">THREE-WAY MATCH</span><h2>Supplier invoices</h2></div><strong>{invoices.length} records</strong></header>{invoices.length ? <div className="ops-invoice-grid">{invoices.map(invoice => <InvoiceCard key={invoice.id} invoice={invoice} technicalAcceptances={technicalAcceptances.filter(item => item.purchaseOrderId === invoice.purchaseOrderId && item.technicalAcceptanceId !== null)} currentUser={currentUser} run={run}/>)}</div> : <Empty>Invoices appear only after an issued PO has an accepted GRN.</Empty>}</section>}
-    {role === 'CEO' && cashBookLoading && <section className="lav-panel ops-panel"><Loading>Loading cash book…</Loading></section>}
-    {role === 'CEO' && cashBookError && <section className="lav-panel ops-panel"><Notice tone="error">{cashBookError}</Notice></section>}
-    {role === 'CEO' && cashBook && <CeoCashBook cashBook={cashBook}/>}
+    {showInvoices && <section className="lav-panel ops-panel"><header className="lav-panel-head"><div><span className="lav-kicker">THREE-WAY MATCH</span><h2>Supplier invoices</h2></div><strong>{invoices.length} records</strong></header>{invoices.length ? <div className="ops-invoice-grid">{invoices.map(invoice => <InvoiceCard key={invoice.id} invoice={invoice} technicalAcceptances={technicalAcceptances.filter(item => item.purchaseOrderId === invoice.purchaseOrderId && item.technicalAcceptanceId !== null)} currentUser={currentUser} run={run}/>)}</div> : <Empty>Invoices appear only after an issued PO has an accepted GRN.</Empty>}</section>}
+    {role === 'CEO' && financeSection === 'summary' && cashBookLoading && <section className="lav-panel ops-panel"><Loading>Loading cash book…</Loading></section>}
+    {role === 'CEO' && financeSection === 'summary' && cashBookError && <section className="lav-panel ops-panel"><Notice tone="error">{cashBookError}</Notice></section>}
+    {role === 'CEO' && financeSection === 'summary' && cashBook && <CeoCashBook cashBook={cashBook}/>}
     {role === 'Finance Officer' && financeSection === 'authorized' && <FinancePaymentActions currentUser={currentUser} authorizations={authorizations} run={run}/>}
-    {role !== 'Procurement Officer' && (role !== 'Finance Officer' || financeSection === 'executed') && <section className="lav-panel ops-panel">
+    {showExecutedPayments && <section className="lav-panel ops-panel">
       <header className="lav-panel-head"><div><span className="lav-kicker">PAYMENT PROOF</span><h2>Executed payments</h2></div></header>
       {payments.length ? <div className="ops-table ops-payment-table" role="region" aria-label="Executed payments table" tabIndex={0}>
         <div className="ops-row payment head"><span>Payment</span><span>Amount</span><span>Method</span><span>External proof</span><span>Files</span></div>
@@ -893,7 +974,7 @@ export function LiveAuditView() {
   }, [events])
 
   return <div className="lav-view ops-view">
-    <header className="lav-page-head"><div><h1>Complete control chain</h1></div></header>
+    <header className="lav-page-head"><div><h1>Records &amp; audit</h1></div></header>
     {error && <Notice tone="error">{error}</Notice>}
     {loading ? <Loading>Loading complete control chain…</Loading> : <div className="ops-chain-list">
       {chains.map(([key, items]) => {

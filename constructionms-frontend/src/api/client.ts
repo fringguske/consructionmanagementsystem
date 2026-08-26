@@ -805,30 +805,30 @@ export const purchaseOrdersApi = {
 }
 
 export const inventoryApi = {
-  receipts: (signal?: AbortSignal) => request<PaginatedResult<GoodsReceipt>>('/inventory/receipts', { signal }, { page: 1, pageSize: 100 }),
+  receipts: (signal?: AbortSignal, query: PageQuery = {}) => request<PaginatedResult<GoodsReceipt>>('/inventory/receipts', { signal }, pageQuery({ page: 1, pageSize: 100, ...query })),
   technicalAcceptances: (query: { page?: number; pageSize?: number; projectId?: number; status?: Exclude<TechnicalAcceptanceStatus, 'NotRequired'> } = {}, signal?: AbortSignal) =>
     request<PaginatedResult<TechnicalAcceptanceWorkItem>>('/inventory/technical-acceptances', { signal }, { page: 1, pageSize: 100, ...query }),
   receive: (body: { purchaseOrderId: number; deliveredQuantity: number; acceptedQuantity: number; condition: string; deliveryNoteReference: string; evidenceReference?: string | null; discrepancyNotes?: string | null }, signal?: AbortSignal) =>
     request<GoodsReceipt>('/inventory/receipts', { method: 'POST', body, signal }),
   recordTechnicalAcceptance: (receiptId: number, body: { outcome: TechnicalAcceptanceOutcome; notes: string; evidenceReference?: string | null }, signal?: AbortSignal) =>
     request<TechnicalAcceptanceWorkItem>(`/inventory/receipts/${receiptId}/technical-acceptance`, { method: 'POST', body, signal }),
-  balances: (signal?: AbortSignal) => request<PaginatedResult<StockBalance>>('/inventory/balances', { signal }, { page: 1, pageSize: 100 }),
-  ledger: (signal?: AbortSignal) => request<PaginatedResult<StockLedgerEntry>>('/inventory/ledger', { signal }, { page: 1, pageSize: 100 }),
-  issues: (signal?: AbortSignal) => request<PaginatedResult<MaterialIssue>>('/inventory/issues', { signal }, { page: 1, pageSize: 100 }),
+  balances: (signal?: AbortSignal, query: PageQuery = {}) => request<PaginatedResult<StockBalance>>('/inventory/balances', { signal }, pageQuery({ page: 1, pageSize: 100, ...query })),
+  ledger: (signal?: AbortSignal, query: PageQuery = {}) => request<PaginatedResult<StockLedgerEntry>>('/inventory/ledger', { signal }, pageQuery({ page: 1, pageSize: 100, ...query })),
+  issues: (signal?: AbortSignal, query: PageQuery = {}) => request<PaginatedResult<MaterialIssue>>('/inventory/issues', { signal }, pageQuery({ page: 1, pageSize: 100, ...query })),
   issue: (body: { requisitionId: number; quantity: number; notes?: string | null }, signal?: AbortSignal) =>
     request<MaterialIssue>('/inventory/issues', { method: 'POST', body, signal }),
   confirmIssue: (id: number, body: { receivedQuantity: number; notes?: string | null }, signal?: AbortSignal) =>
     request<MaterialIssue>(`/inventory/issues/${id}/confirm`, { method: 'POST', body, signal }),
   recordUsage: (id: number, body: { usageType: 'Used' | 'Wastage'; quantity: number; purposeOrReason: string; evidenceReference?: string | null }, signal?: AbortSignal) =>
     request<MaterialIssue>(`/inventory/issues/${id}/usage`, { method: 'POST', body, signal }),
-  transfers: (signal?: AbortSignal) => request<PaginatedResult<StockTransfer>>('/inventory/transfers', { signal }, { page: 1, pageSize: 100 }),
+  transfers: (signal?: AbortSignal, query: PageQuery = {}) => request<PaginatedResult<StockTransfer>>('/inventory/transfers', { signal }, pageQuery({ page: 1, pageSize: 100, ...query })),
   createTransfer: (body: { fromProjectId: number; toProjectId: number; materialId: number; quantity: number; reason: string }, signal?: AbortSignal) =>
     request<StockTransfer>('/inventory/transfers', { method: 'POST', body, signal }),
   dispatchTransfer: (id: number, signal?: AbortSignal) =>
     request<StockTransfer>(`/inventory/transfers/${id}/dispatch`, { method: 'POST', body: {}, signal }),
   receiveTransfer: (id: number, body: { receivedQuantity: number; notes?: string | null }, signal?: AbortSignal) =>
     request<StockTransfer>(`/inventory/transfers/${id}/receive`, { method: 'POST', body, signal }),
-  counts: (signal?: AbortSignal) => request<PaginatedResult<StockCount>>('/inventory/counts', { signal }, { page: 1, pageSize: 100 }),
+  counts: (signal?: AbortSignal, query: PageQuery = {}) => request<PaginatedResult<StockCount>>('/inventory/counts', { signal }, pageQuery({ page: 1, pageSize: 100, ...query })),
   createCount: (body: { projectId: number; materialId: number; countedQuantity: number; notes: string }, signal?: AbortSignal) =>
     request<StockCount>('/inventory/counts', { method: 'POST', body, signal }),
   reviewCount: (id: number, body: { approve: boolean; notes: string }, signal?: AbortSignal) =>
@@ -836,7 +836,7 @@ export const inventoryApi = {
 }
 
 export const financeApi = {
-  invoices: (signal?: AbortSignal) => request<PaginatedResult<SupplierInvoice>>('/finance/invoices', { signal }, { page: 1, pageSize: 100 }),
+  invoices: (signal?: AbortSignal, query: PageQuery = {}) => request<PaginatedResult<SupplierInvoice>>('/finance/invoices', { signal }, pageQuery({ page: 1, pageSize: 100, ...query })),
   createInvoice: (body: { purchaseOrderId: number; invoiceNumber: string; quantity: number; unitPrice: number; amount: number; documentReference?: string | null }, signal?: AbortSignal) =>
     request<SupplierInvoice>('/finance/invoices', { method: 'POST', body, signal }),
   reviewInvoice: (id: number, notes?: string, signal?: AbortSignal) =>
@@ -849,7 +849,7 @@ export const financeApi = {
     request<PaginatedResult<PaymentAuthorization>>('/finance/authorizations', { signal }, { page: 1, pageSize: 100, unpaidOnly }),
   pay: (id: number, body: { method: string; externalReference: string; evidenceReference?: string | null; cashAccountId?: number | null }, signal?: AbortSignal) =>
     request<Payment>(`/finance/authorizations/${id}/pay`, { method: 'POST', body, signal }),
-  payments: (signal?: AbortSignal) => request<PaginatedResult<Payment>>('/finance/payments', { signal }, { page: 1, pageSize: 100 }),
+  payments: (signal?: AbortSignal, query: PageQuery = {}) => request<PaginatedResult<Payment>>('/finance/payments', { signal }, pageQuery({ page: 1, pageSize: 100, ...query })),
   cashBook: (signal?: AbortSignal) => request<CashBook>('/finance/cash-book', { signal }),
   controlEvents: (
     query: { projectId?: number; requisitionId?: number; chainKey?: string } = {},
