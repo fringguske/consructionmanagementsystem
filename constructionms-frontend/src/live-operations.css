@@ -49,6 +49,9 @@
 .technical-load-more{display:flex;align-items:center;justify-content:center;gap:.7rem;padding:0 1rem 1rem;background:#f3f6f4}.technical-load-more span{color:#64726c;font-size:.84rem;font-weight:700}
 
 .ops-action-nav.finance-section-nav{grid-template-columns:repeat(3,minmax(0,1fr))}
+.ops-action-nav.supervisor-finance-nav{grid-template-columns:repeat(2,minmax(0,1fr))}
+.ops-action-nav.petty-cash-section-nav{grid-template-columns:repeat(3,minmax(0,1fr))}
+.ops-text-action{min-height:36px;border:0;border-bottom:1px solid #315f53;background:transparent;padding:.35rem 0;color:#28584d;font:inherit;font-size:.82rem;font-weight:800;cursor:pointer}
 
 @media(max-width:680px){
   .ops-action-nav.finance-section-nav{grid-template-columns:repeat(3,minmax(0,1fr))}

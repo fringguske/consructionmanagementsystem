@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
+import { useSearchParams } from 'react-router'
 import {
   ApiError,
   supplierOnboardingApi,
@@ -53,10 +54,24 @@ function SupplierLoading() {
   return <div className="supplier-loading" role="status" aria-live="polite"><span/><p>Loading supplier records…</p></div>
 }
 
+async function everyPage<T>(load: (page: number) => Promise<{ items: T[]; totalPages: number }>) {
+  const first = await load(1)
+  const items = [...first.items]
+  for (let page = 2; page <= first.totalPages; page += 1) {
+    const next = await load(page)
+    items.push(...next.items)
+  }
+  return items
+}
+
 export function LiveSuppliersView({ currentUser }: LiveSuppliersViewProps) {
+  const [searchParams, setSearchParams] = useSearchParams()
   const [requests, setRequests] = useState<SupplierOnboardingRequest[]>([])
   const [suppliers, setSuppliers] = useState<SupplierSummary[]>([])
-  const [loading, setLoading] = useState(true)
+  const [requestsLoading, setRequestsLoading] = useState(true)
+  const [suppliersLoading, setSuppliersLoading] = useState(true)
+  const [requestsLoadError, setRequestsLoadError] = useState<string | null>(null)
+  const [suppliersLoadError, setSuppliersLoadError] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
@@ -66,32 +81,54 @@ export function LiveSuppliersView({ currentUser }: LiveSuppliersViewProps) {
 
   useEffect(() => {
     const controller = new AbortController()
-    Promise.all([
-      supplierOnboardingApi.list({ page: 1, pageSize: 100 }, controller.signal),
-      suppliersApi.list({ page: 1, pageSize: 100 }, controller.signal),
-    ])
-      .then(([requestResult, supplierResult]) => {
-        setRequests(requestResult.items)
-        setSuppliers(supplierResult.items)
-        setError(null)
+
+    void everyPage<SupplierOnboardingRequest>(page => supplierOnboardingApi.list({ page, pageSize: 100 }, controller.signal))
+      .then(requestItems => {
+        setRequests(requestItems)
+        setRequestsLoadError(null)
       })
       .catch((requestError: unknown) => {
         if (!(requestError instanceof DOMException && requestError.name === 'AbortError')) {
-          setError(messageFrom(requestError))
+          setRequestsLoadError(messageFrom(requestError))
         }
       })
       .finally(() => {
-        if (!controller.signal.aborted) setLoading(false)
+        if (!controller.signal.aborted) setRequestsLoading(false)
+      })
+
+    void everyPage<SupplierSummary>(page => suppliersApi.list({ page, pageSize: 100 }, controller.signal))
+      .then(supplierItems => {
+        setSuppliers(supplierItems)
+        setSuppliersLoadError(null)
+      })
+      .catch((requestError: unknown) => {
+        if (!(requestError instanceof DOMException && requestError.name === 'AbortError')) {
+          setSuppliersLoadError(messageFrom(requestError))
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setSuppliersLoading(false)
       })
     return () => controller.abort()
   }, [refreshKey])
 
   const pendingCount = requests.filter(request => request.status === 'Pending').length
+  const financeSection = searchParams.get('section')
+  const selectedFinanceSection: SupplierOnboardingStatus | 'Register' = financeSection === 'approved'
+    ? 'Approved'
+    : financeSection === 'rejected'
+      ? 'Rejected'
+      : financeSection === 'register'
+        ? 'Register'
+        : 'Pending'
   const requestGroups: Array<{ status: SupplierOnboardingStatus; title: string; items: SupplierOnboardingRequest[] }> = [
     { status: 'Pending', title: 'Awaiting review', items: requests.filter(request => request.status === 'Pending') },
     { status: 'Approved', title: 'Approved applications', items: requests.filter(request => request.status === 'Approved') },
     { status: 'Rejected', title: 'Rejected applications', items: requests.filter(request => request.status === 'Rejected') },
   ]
+  const visibleRequestCount = currentUser.role === 'Finance Officer'
+    ? requestGroups.find(group => group.status === selectedFinanceSection)?.items.length ?? 0
+    : requests.length
 
   async function toggleBlacklist(supplier: SupplierSummary) {
     setBlacklistBusyId(supplier.id)
@@ -111,11 +148,11 @@ export function LiveSuppliersView({ currentUser }: LiveSuppliersViewProps) {
     <div className="supplier-view ceo-readable">
       <header className="supplier-page-head">
         <div>
-          <span>SUPPLIER CONTROL</span>
-          <h1>Supplier onboarding</h1>
+          {currentUser.role !== 'Finance Officer' && <span>SUPPLIER CONTROL</span>}
+          <h1>{currentUser.role === 'Finance Officer' ? 'Supplier approvals' : 'Supplier onboarding'}</h1>
         </div>
         <div className={pendingCount > 0 ? 'needs-review' : ''}>
-          <strong>{loading ? '—' : pendingCount}</strong>
+          <strong>{requestsLoading || requestsLoadError ? '—' : pendingCount}</strong>
           <span>awaiting review</span>
         </div>
       </header>
@@ -132,21 +169,31 @@ export function LiveSuppliersView({ currentUser }: LiveSuppliersViewProps) {
         />
       )}
 
-      <section className="supplier-panel">
+      {currentUser.role === 'Finance Officer' && <nav className="ops-action-nav supplier-control-nav" aria-label="Supplier approval sections">
+        <button type="button" className={selectedFinanceSection === 'Pending' ? 'active' : ''} aria-current={selectedFinanceSection === 'Pending' ? 'page' : undefined} onClick={() => setSearchParams({}, { replace: true })}>Waiting review</button>
+        <button type="button" className={selectedFinanceSection === 'Approved' ? 'active' : ''} aria-current={selectedFinanceSection === 'Approved' ? 'page' : undefined} onClick={() => setSearchParams({ section: 'approved' }, { replace: true })}>Approved</button>
+        <button type="button" className={selectedFinanceSection === 'Rejected' ? 'active' : ''} aria-current={selectedFinanceSection === 'Rejected' ? 'page' : undefined} onClick={() => setSearchParams({ section: 'rejected' }, { replace: true })}>Rejected</button>
+        <button type="button" className={selectedFinanceSection === 'Register' ? 'active' : ''} aria-current={selectedFinanceSection === 'Register' ? 'page' : undefined} onClick={() => setSearchParams({ section: 'register' }, { replace: true })}>Supplier register</button>
+      </nav>}
+
+      {(currentUser.role !== 'Finance Officer' || selectedFinanceSection !== 'Register') && <section className="supplier-panel">
         <header className="supplier-section-head">
           <div>
-            <span>APPLICATIONS</span>
-            <h2>Onboarding decisions</h2>
+            {currentUser.role !== 'Finance Officer' && <span>APPLICATIONS</span>}
+            <h2>{currentUser.role === 'Finance Officer' ? requestGroups.find(group => group.status === selectedFinanceSection)?.title : 'Onboarding decisions'}</h2>
           </div>
         </header>
 
-        {loading ? (
+        {requestsLoadError && <div className="supplier-notice error" role="alert">Supplier applications could not be loaded: {requestsLoadError}</div>}
+        {requestsLoading ? (
           <SupplierLoading />
-        ) : requests.length === 0 ? (
-          <div className="supplier-empty">No supplier applications have been submitted.</div>
+        ) : visibleRequestCount === 0 ? (
+          requestsLoadError ? null : <div className="supplier-empty">{currentUser.role === 'Finance Officer'
+            ? selectedFinanceSection === 'Pending' ? 'No supplier application is waiting for review.' : `No ${String(selectedFinanceSection).toLowerCase()} supplier application recorded.`
+            : 'No supplier applications have been submitted.'}</div>
         ) : (
           <div className="supplier-decision-groups">
-            {requestGroups.map(group => group.items.length > 0 && (
+            {requestGroups.filter(group => currentUser.role !== 'Finance Officer' || group.status === selectedFinanceSection).map(group => group.items.length > 0 && (
               <section className={`supplier-decision-group ${group.status.toLowerCase()}`} key={group.status}>
                 <header><h3>{group.title}</h3><strong>{group.items.length}</strong></header>
                 <div className="supplier-request-list">
@@ -167,17 +214,19 @@ export function LiveSuppliersView({ currentUser }: LiveSuppliersViewProps) {
             ))}
           </div>
         )}
-      </section>
+      </section>}
 
-      <section className="supplier-panel">
+      {(currentUser.role !== 'Finance Officer' || selectedFinanceSection === 'Register') && <section className="supplier-panel">
         <header className="supplier-section-head">
           <div>
             <span>APPROVED REGISTER</span>
             <h2>Suppliers available for quotation</h2>
           </div>
-          <b>{loading ? '—' : suppliers.filter(supplier => !supplier.isBlacklisted).length} available</b>
+          <b>{suppliersLoading || suppliersLoadError ? '—' : suppliers.filter(supplier => !supplier.isBlacklisted).length} available</b>
         </header>
-        {loading ? null : suppliers.length === 0 ? (
+        {suppliersLoadError && <div className="supplier-notice error" role="alert">Supplier register could not be loaded: {suppliersLoadError}</div>}
+        {suppliersLoading ? <SupplierLoading /> : suppliers.length === 0 ? (
+          suppliersLoadError ? null :
           <div className="supplier-empty">No supplier has completed approval yet.</div>
         ) : (
           <div className="approved-supplier-list">
@@ -206,7 +255,7 @@ export function LiveSuppliersView({ currentUser }: LiveSuppliersViewProps) {
             ))}
           </div>
         )}
-      </section>
+      </section>}
     </div>
   )
 }

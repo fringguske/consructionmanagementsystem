@@ -26,6 +26,7 @@ import {
 } from './api'
 import { EvidenceFiles } from './EvidenceReferenceField'
 import { CeoOverview } from './CeoOverview'
+import { OperationalOverview } from './OperationalOverview'
 import './live-api.css'
 import './ceo-overview.css'
 
@@ -201,6 +202,16 @@ function readMoney(value: string, label: string): number {
   }
 
   return amount
+}
+
+async function everyPage<T>(load: (page: number) => Promise<{ items: T[]; totalPages: number }>) {
+  const first = await load(1)
+  const items = [...first.items]
+  for (let page = 2; page <= first.totalPages; page += 1) {
+    const next = await load(page)
+    items.push(...next.items)
+  }
+  return items
 }
 
 function dashboardActions(role: CurrentUser['role']): DashboardAction[] {
@@ -474,9 +485,11 @@ export function LiveLoginView({ onAuthenticated }: LiveLoginViewProps) {
 }
 
 export function LiveDashboardView(props: LiveDashboardViewProps) {
-  return props.currentUser.role === 'CEO'
-    ? <CeoOverview currentUser={props.currentUser}/>
-    : <RoleDashboardView {...props}/>
+  if (props.currentUser.role === 'CEO') return <CeoOverview currentUser={props.currentUser}/>
+  if (['Finance Officer', 'Foreman', 'Engineer', 'Supervisor', 'Storekeeper'].includes(props.currentUser.role)) {
+    return <OperationalOverview key={`${props.currentUser.id}-${props.currentUser.role}`} currentUser={props.currentUser}/>
+  }
+  return <RoleDashboardView {...props}/>
 }
 
 function RoleDashboardView({ currentUser, onNavigate }: LiveDashboardViewProps) {
@@ -615,11 +628,10 @@ export function LiveProjectsView({ currentUser }: LiveProjectsViewProps) {
   useEffect(() => {
     const controller = new AbortController()
 
-    projectsApi
-      .list({ page: 1, pageSize: 100 }, controller.signal)
-      .then(async (result) => {
+    everyPage<Project>(page => projectsApi.list({ page, pageSize: 100 }, controller.signal))
+      .then(async (projectItems) => {
         const loadedEntries = await Promise.all(
-          result.items.map(async (project): Promise<ProjectEntry> => {
+          projectItems.map(async (project): Promise<ProjectEntry> => {
             try {
               const summary = await projectsApi.getSummary(project.id, controller.signal)
               return { project, summary }
@@ -677,8 +689,7 @@ export function LiveProjectsView({ currentUser }: LiveProjectsViewProps) {
     <div className="lav-view ceo-readable">
       <header className="lav-page-head">
         <div>
-          <span className="lav-kicker">Live project records</span>
-          <h1>Projects</h1>
+          <h1>{currentUser.role === 'Engineer' ? 'Project progress' : currentUser.role === 'Finance Officer' ? 'Project budgets' : 'Projects'}</h1>
         </div>
         <span className="lav-count-chip">{entries.length} visible</span>
       </header>
@@ -718,7 +729,7 @@ export function LiveProjectsView({ currentUser }: LiveProjectsViewProps) {
         <div className="lav-project-layout">
           <nav className="lav-project-list" aria-label="Visible projects">
             {entries.map(({ project, summary }) => {
-              const progress = summary?.latestProgress?.percentageComplete ?? 0
+              const progress = summary?.latestProgress?.percentageComplete
               return (
                 <button
                   type="button"
@@ -737,10 +748,10 @@ export function LiveProjectsView({ currentUser }: LiveProjectsViewProps) {
                     <strong>{project.name}</strong>
                     <small>{project.location || 'Location not set'}</small>
                     <i>
-                      <b style={{ width: `${Math.min(100, Math.max(0, progress))}%` }} />
+                      <b style={{ width: `${Math.min(100, Math.max(0, progress ?? 0))}%` }} />
                     </i>
                   </span>
-                  <span className="lav-project-percent">{formatNumber(progress, 0)}%</span>
+                  <span className="lav-project-percent">{summary === null ? 'Unavailable' : progress === undefined ? 'Not recorded' : `${formatNumber(progress, 0)}%`}</span>
                 </button>
               )
             })}
@@ -909,7 +920,7 @@ interface ProjectDetailProps {
 
 function ProjectDetail({ entry, currentUser, onSummaryChanged }: ProjectDetailProps) {
   const { project, summary } = entry
-  const progress = summary?.latestProgress?.percentageComplete ?? 0
+  const progress = summary?.latestProgress?.percentageComplete
 
   return (
     <section className="lav-project-detail" aria-labelledby={`project-${project.id}-title`}>
@@ -933,10 +944,10 @@ function ProjectDetail({ entry, currentUser, onSummaryChanged }: ProjectDetailPr
           <div className="lav-progress-block">
             <div>
               <span>Verified construction progress</span>
-              <strong>{formatNumber(progress, 0)}%</strong>
+              <strong>{progress === undefined ? 'Not recorded' : `${formatNumber(progress, 0)}%`}</strong>
             </div>
-            <div className="lav-progress-track" aria-label={`${formatNumber(progress, 0)}% complete`}>
-              <i style={{ width: `${Math.min(100, Math.max(0, progress))}%` }} />
+            <div className="lav-progress-track" aria-label={progress === undefined ? 'Progress not recorded' : `${formatNumber(progress, 0)}% complete`}>
+              <i style={{ width: `${Math.min(100, Math.max(0, progress ?? 0))}%` }} />
             </div>
             {summary.latestProgress ? (
               <div className="lav-progress-note">
@@ -980,7 +991,7 @@ function ProjectDetail({ entry, currentUser, onSummaryChanged }: ProjectDetailPr
           {currentUser.role === 'Engineer' && project.status === 'Active' && (
             <ProgressVerificationForm
               projectId={project.id}
-              latestPercentage={progress}
+              latestPercentage={progress ?? 0}
               onSaved={async () => {
                 const nextSummary = await projectsApi.getSummary(project.id)
                 onSummaryChanged(project.id, nextSummary)
@@ -1310,10 +1321,11 @@ function ProgressVerificationForm({
   }
 
   return (
-    <form className="lav-inline-form" onSubmit={submit}>
+    <details className="lav-progress-entry">
+      <summary>Record progress</summary>
+      <form className="lav-inline-form" onSubmit={submit}>
       <header>
         <div>
-          <span className="lav-kicker">Engineer action</span>
           <h3>Record verified progress</h3>
         </div>
       </header>
@@ -1360,11 +1372,13 @@ function ProgressVerificationForm({
           {busy ? 'Recording…' : 'Record progress'}
         </button>
       </div>
-    </form>
+      </form>
+    </details>
   )
 }
 
 export function LiveRequisitionsView({ currentUser }: LiveRequisitionsViewProps) {
+  const [searchParams, setSearchParams] = useSearchParams()
   const [requisitions, setRequisitions] = useState<Requisition[]>([])
   const [materials, setMaterials] = useState<Material[]>([])
   const [projectSummaries, setProjectSummaries] = useState<Record<number, ProjectSummary>>({})
@@ -1376,36 +1390,32 @@ export function LiveRequisitionsView({ currentUser }: LiveRequisitionsViewProps)
   useEffect(() => {
     const controller = new AbortController()
 
-    Promise.all([
-      requisitionsApi.list({ page: 1, pageSize: 100 }, controller.signal),
-      materialsApi.list({ page: 1, pageSize: 100 }, controller.signal),
-      projectsApi.list({ page: 1, pageSize: 100 }, controller.signal),
-    ])
-      .then(async ([requestResult, materialResult, projectResult]) => {
-        const summaries = await Promise.all(
-          projectResult.items.map(async (project) => {
-            try {
-              return await projectsApi.getSummary(project.id, controller.signal)
-            } catch (requestError) {
-              if (requestError instanceof DOMException && requestError.name === 'AbortError') {
-                throw requestError
-              }
-              return null
-            }
-          }),
-        )
+    async function load() {
+      const requestItems = await everyPage<Requisition>(page => requisitionsApi.list({ page, pageSize: 100 }, controller.signal))
+      setRequisitions(requestItems)
 
-        setRequisitions(requestResult.items)
-        setMaterials(materialResult.items)
-        setProjectSummaries(
-          Object.fromEntries(
-            summaries
-              .filter((summary): summary is ProjectSummary => summary !== null)
-              .map((summary) => [summary.project.id, summary]),
-          ),
-        )
+      if (currentUser.role !== 'Foreman') {
+        setMaterials([])
+        setProjectSummaries({})
         setError(null)
-      })
+        return
+      }
+
+      const [materialResult, summaryResult] = await Promise.allSettled([
+        everyPage<Material>(page => materialsApi.list({ page, pageSize: 100 }, controller.signal)),
+        Promise.all(currentUser.projects.map(project => projectsApi.getSummary(project.id, controller.signal))),
+      ])
+      if (controller.signal.aborted) return
+
+      setMaterials(materialResult.status === 'fulfilled' ? materialResult.value : [])
+      const summaries = summaryResult.status === 'fulfilled' ? summaryResult.value : []
+      setProjectSummaries(Object.fromEntries(summaries.map(summary => [summary.project.id, summary])))
+      setError(materialResult.status === 'rejected' || summaryResult.status === 'rejected'
+        ? 'New-request setup is temporarily unavailable. Existing requests are still shown.'
+        : null)
+    }
+
+    void load()
       .catch((requestError: unknown) => {
         if (!(requestError instanceof DOMException && requestError.name === 'AbortError')) {
           setError(errorMessage(requestError))
@@ -1416,22 +1426,34 @@ export function LiveRequisitionsView({ currentUser }: LiveRequisitionsViewProps)
       })
 
     return () => controller.abort()
-  }, [refreshKey])
+  }, [currentUser.projects, currentUser.role, refreshKey])
 
-  const filteredRequisitions = useMemo(
-    () => requisitions.filter(requisition =>
-      !projectFilter || requisition.projectId === Number(projectFilter)),
-    [projectFilter, requisitions],
-  )
-
-  const queueCount = requisitions.filter((requisition) => {
+  const needsCurrentRole = (requisition: Requisition) => {
     if (currentUser.role === 'Foreman') return requisition.status === 'ReturnedForRevision'
     if (currentUser.role === 'Engineer') return requisition.status === 'AwaitingTechnicalCheck'
-    if (currentUser.role === 'Supervisor') {
-      return requisition.status === 'AwaitingSupervisorDecision'
-    }
+    if (currentUser.role === 'Supervisor') return requisition.status === 'AwaitingSupervisorDecision'
     return false
-  }).length
+  }
+  const hasSimpleQueue = ['Foreman', 'Engineer', 'Supervisor'].includes(currentUser.role)
+  const requestedQueue = searchParams.get('view')
+  const queueView = requestedQueue === 'action' || requestedQueue === 'moving' || requestedQueue === 'finished'
+    ? requestedQueue
+    : currentUser.role === 'Foreman' ? 'moving' : 'action'
+  const filteredRequisitions = requisitions.filter(requisition => {
+    if (projectFilter && requisition.projectId !== Number(projectFilter)) return false
+    if (!hasSimpleQueue) return true
+    if (queueView === 'action') return needsCurrentRole(requisition)
+    const finished = requisition.status === 'Approved' || requisition.status === 'Rejected'
+    return queueView === 'finished' ? finished : !finished
+  })
+  const queueCount = requisitions.filter(needsCurrentRole).length
+  const pageTitle = currentUser.role === 'Foreman'
+    ? 'Material requests'
+    : currentUser.role === 'Engineer'
+      ? 'Material checks'
+      : currentUser.role === 'Supervisor'
+        ? 'Material approvals'
+        : 'Requisitions'
 
   function upsertRequisition(next: Requisition) {
     setRequisitions((current) => {
@@ -1446,8 +1468,7 @@ export function LiveRequisitionsView({ currentUser }: LiveRequisitionsViewProps)
     <div className="lav-view ceo-readable">
       <header className="lav-page-head">
         <div>
-          <span className="lav-kicker">Controlled material requests</span>
-          <h1>Requisitions</h1>
+          <h1>{pageTitle}</h1>
         </div>
         {['Foreman', 'Engineer', 'Supervisor'].includes(currentUser.role) && (
           <span className={`lav-count-chip ${queueCount > 0 ? 'attention' : ''}`}>
@@ -1479,15 +1500,23 @@ export function LiveRequisitionsView({ currentUser }: LiveRequisitionsViewProps)
             <CreateRequisitionForm
               projects={Object.values(projectSummaries)}
               materials={materials}
+              openInitially={searchParams.get('new') === '1'}
               onCreated={upsertRequisition}
             />
           )}
 
+          {hasSimpleQueue && <nav className="ops-action-nav requisition-section-nav" aria-label="Material request sections">
+            <button type="button" className={queueView === 'action' ? 'active' : ''} aria-current={queueView === 'action' ? 'page' : undefined} onClick={() => setSearchParams({ view: 'action' }, { replace: true })}>Needs action</button>
+            <button type="button" className={queueView === 'moving' ? 'active' : ''} aria-current={queueView === 'moving' ? 'page' : undefined} onClick={() => setSearchParams({ view: 'moving' }, { replace: true })}>In progress</button>
+            <button type="button" className={queueView === 'finished' ? 'active' : ''} aria-current={queueView === 'finished' ? 'page' : undefined} onClick={() => setSearchParams({ view: 'finished' }, { replace: true })}>Finished</button>
+          </nav>}
+
           <section className="lav-panel lav-request-panel">
             <header className="lav-panel-head lav-request-toolbar">
               <div>
-                <span className="lav-kicker">Live records</span>
-                <h2>{currentUser.role === 'CEO' || currentUser.role === 'Auditor' ? 'Material request records' : 'Your request queue'}</h2>
+                <h2>{currentUser.role === 'CEO' || currentUser.role === 'Auditor'
+                  ? 'Material request records'
+                  : queueView === 'action' ? 'Needs action' : queueView === 'finished' ? 'Finished requests' : 'Requests in progress'}</h2>
               </div>
               <div className="lav-filter-row">
                 <label>
@@ -1539,11 +1568,12 @@ export function LiveRequisitionsView({ currentUser }: LiveRequisitionsViewProps)
 interface CreateRequisitionFormProps {
   projects: ProjectSummary[]
   materials: Material[]
+  openInitially?: boolean
   onCreated: (requisition: Requisition) => void
 }
 
-function CreateRequisitionForm({ projects, materials, onCreated }: CreateRequisitionFormProps) {
-  const [open, setOpen] = useState(false)
+function CreateRequisitionForm({ projects, materials, openInitially = false, onCreated }: CreateRequisitionFormProps) {
+  const [open, setOpen] = useState(openInitially)
   const [projectId, setProjectId] = useState('')
   const [materialId, setMaterialId] = useState('')
   const [costCodeId, setCostCodeId] = useState('')
@@ -1798,7 +1828,7 @@ function RequisitionCard({
           <strong>{requisition.projectName}</strong>
         </div>
         <div>
-          <span>Bbudget area</span>
+          <span>Budget area</span>
           <strong>
             {requisition.costCode} · {requisition.costCodeName}
           </strong>
@@ -1884,7 +1914,7 @@ function ForemanRevisionForm({
       <div className="lav-card-action-row">
         <span>Change the request using the engineer or supervisor note.</span>
         <button className="lav-button primary" type="button" onClick={() => setOpen(true)}>
-          Revisee request
+          Revise request
         </button>
       </div>
     )
@@ -1894,7 +1924,7 @@ function ForemanRevisionForm({
     <form className="lav-workflow-form" onSubmit={submit}>
       <header>
         <div>
-          <span className="lav-kicker">FoReman action</span>
+          <span className="lav-kicker">Foreman action</span>
           <h3>Revise and resubmit</h3>
         </div>
         <button className="lav-text-button" type="button" onClick={() => setOpen(false)}>
@@ -1964,7 +1994,7 @@ function ForemanRevisionForm({
         </label>
       </div>
       <div className="lav-form-actions">
-        <span>This action willsend the new revision back to the engineer.</span>
+        <span>Next: Engineer review.</span>
         <button className="lav-button primary" type="submit" disabled={busy}>
           {busy ? 'Resubmitting…' : 'Resubmit revision'}
         </button>

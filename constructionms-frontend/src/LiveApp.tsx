@@ -48,40 +48,27 @@ const roleNavigation: Record<ConstructionRole, readonly NavItem[]> = {
   ],
   Supervisor: [
     { to: '/', label: 'Overview', glyph: 'OV' },
-    { to: '/tasks', label: 'My tasks', glyph: 'TK' },
+    { to: '/tasks', label: 'My work', glyph: 'TK' },
     { to: '/projects', label: 'Projects', glyph: 'PR' },
-    { to: '/requisitions', label: 'Material approvals', glyph: 'MR' },
-    { to: '/sourcing', label: 'Sourcing exceptions', glyph: 'SO' },
-    { to: '/purchase-orders', label: 'Purchase orders', glyph: 'PO' },
-    { to: '/inventory', label: 'Stock controls', glyph: 'ST' },
-    { to: '/opening-positions', label: 'Opening positions', glyph: 'OP' },
-    { to: '/custody-close-out', label: 'Custody', glyph: 'CU' },
-    { to: '/period-close', label: 'Period closing', glyph: 'CL' },
-    { to: '/finance', label: 'Payment approvals', glyph: 'PA' },
-    { to: '/petty-cash', label: 'Petty cash', glyph: 'PC' },
+    { to: '/requisitions', label: 'Materials', glyph: 'MR', activePaths: ['/sourcing', '/purchase-orders', '/inventory', '/opening-positions', '/custody-close-out', '/period-close'] },
+    { to: '/finance', label: 'Money', glyph: 'PA', activePaths: ['/petty-cash'] },
   ],
   Engineer: [
     { to: '/', label: 'Overview', glyph: 'OV' },
-    { to: '/tasks', label: 'My tasks', glyph: 'TK' },
+    { to: '/tasks', label: 'My work', glyph: 'TK' },
     { to: '/projects', label: 'Project progress', glyph: 'PR' },
-    { to: '/requisitions', label: 'Technical checks', glyph: 'TC' },
-    { to: '/delivery-checks', label: 'Delivery checks', glyph: 'DC' },
+    { to: '/requisitions', label: 'Checks', glyph: 'TC', activePaths: ['/delivery-checks'] },
   ],
   Foreman: [
     { to: '/', label: 'Overview', glyph: 'OV' },
-    { to: '/tasks', label: 'My tasks', glyph: 'TK' },
-    { to: '/requisitions', label: 'Material requests', glyph: 'MR' },
-    { to: '/inventory', label: 'Materials with me', glyph: 'MI' },
-    { to: '/custody-close-out', label: 'Custody close-out', glyph: 'CU' },
+    { to: '/tasks', label: 'My work', glyph: 'TK' },
+    { to: '/requisitions', label: 'Requests', glyph: 'MR' },
+    { to: '/inventory', label: 'My materials', glyph: 'MI', activePaths: ['/custody-close-out'] },
   ],
   Storekeeper: [
     { to: '/', label: 'Overview', glyph: 'OV' },
-    { to: '/tasks', label: 'My tasks', glyph: 'TK' },
-    { to: '/purchase-orders', label: 'Issued orders', glyph: 'PO' },
-    { to: '/inventory', label: 'Receive & control stock', glyph: 'ST' },
-    { to: '/opening-positions', label: 'Opening positions', glyph: 'OP' },
-    { to: '/custody-close-out', label: 'Custody', glyph: 'CU' },
-    { to: '/period-close', label: 'Corrections', glyph: 'CR' },
+    { to: '/tasks', label: 'My work', glyph: 'TK' },
+    { to: '/inventory', label: 'Store', glyph: 'ST', activePaths: ['/purchase-orders', '/opening-positions', '/custody-close-out', '/period-close'] },
   ],
   'Procurement Officer': [
     { to: '/', label: 'Overview', glyph: 'OV' },
@@ -93,15 +80,11 @@ const roleNavigation: Record<ConstructionRole, readonly NavItem[]> = {
   ],
   'Finance Officer': [
     { to: '/', label: 'Overview', glyph: 'OV' },
-    { to: '/tasks', label: 'My tasks', glyph: 'TK' },
-    { to: '/projects', label: 'Project budgets', glyph: 'PR' },
-    { to: '/purchase-orders', label: 'Purchase orders', glyph: 'PO' },
-    { to: '/suppliers', label: 'Supplier approvals', glyph: 'SU' },
-    { to: '/finance', label: 'Invoices & payments', glyph: 'IN' },
-    { to: '/inventory', label: 'GRNs & stock', glyph: 'ST' },
-    { to: '/petty-cash', label: 'Petty cash control', glyph: 'PC' },
-    { to: '/opening-positions', label: 'Opening positions', glyph: 'OP' },
-    { to: '/period-close', label: 'Period closing', glyph: 'CL' },
+    { to: '/tasks', label: 'My work', glyph: 'TK' },
+    { to: '/suppliers', label: 'Suppliers', glyph: 'SU' },
+    { to: '/finance', label: 'Supplier payments', glyph: 'IN', activePaths: ['/purchase-orders', '/inventory'] },
+    { to: '/petty-cash', label: 'Petty cash', glyph: 'PC' },
+    { to: '/projects', label: 'Finance controls', glyph: 'PR', activePaths: ['/opening-positions', '/period-close'] },
   ],
   Auditor: [
     { to: '/', label: 'Overview', glyph: 'OV' },
@@ -132,12 +115,18 @@ const additionalRoleRoutes: Partial<Record<ConstructionRole, readonly string[]>>
     '/petty-cash',
     '/period-close',
   ],
+  Supervisor: ['/sourcing', '/purchase-orders', '/inventory', '/opening-positions', '/custody-close-out', '/period-close', '/petty-cash'],
+  Engineer: ['/delivery-checks'],
+  Foreman: ['/custody-close-out'],
+  Storekeeper: ['/purchase-orders', '/opening-positions', '/custody-close-out', '/period-close'],
+  'Finance Officer': ['/purchase-orders', '/inventory', '/opening-positions', '/period-close'],
 }
 
-type CeoContextLink = { to: string; label: string }
+type ContextLink = { to: string; label: string }
+type ContextSection = { paths: readonly string[]; label: string; links: readonly ContextLink[] }
 
-const ceoContextSections: Array<{ paths: readonly string[]; label: string; links: readonly CeoContextLink[] }> = [
-  {
+const roleContextSections: Partial<Record<ConstructionRole, readonly ContextSection[]>> = {
+  CEO: [{
     paths: ['/inventory', '/requisitions', '/sourcing', '/suppliers', '/purchase-orders', '/custody-close-out'],
     label: 'Materials',
     links: [
@@ -148,8 +137,7 @@ const ceoContextSections: Array<{ paths: readonly string[]; label: string; links
       { to: '/purchase-orders', label: 'Orders' },
       { to: '/custody-close-out', label: 'Custody' },
     ],
-  },
-  {
+  }, {
     paths: ['/finance', '/petty-cash'],
     label: 'Money',
     links: [
@@ -158,8 +146,7 @@ const ceoContextSections: Array<{ paths: readonly string[]; label: string; links
       { to: '/finance?section=executed', label: 'Executed payments' },
       { to: '/petty-cash', label: 'Petty cash' },
     ],
-  },
-  {
+  }, {
     paths: ['/tasks', '/opening-positions', '/period-close'],
     label: 'My decisions',
     links: [
@@ -167,8 +154,80 @@ const ceoContextSections: Array<{ paths: readonly string[]; label: string; links
       { to: '/opening-positions', label: 'Starting balances' },
       { to: '/period-close', label: 'Period closing' },
     ],
-  },
-]
+  }],
+  Supervisor: [{
+    paths: ['/requisitions', '/sourcing', '/purchase-orders', '/inventory', '/opening-positions', '/custody-close-out', '/period-close'],
+    label: 'Materials',
+    links: [
+      { to: '/requisitions', label: 'Requests' },
+      { to: '/sourcing', label: 'Buying' },
+      { to: '/purchase-orders', label: 'Orders' },
+      { to: '/inventory', label: 'Stock controls' },
+      { to: '/inventory?section=stock', label: 'Current stock' },
+      { to: '/inventory?section=movements', label: 'Movements' },
+      { to: '/opening-positions', label: 'Opening stock' },
+      { to: '/custody-close-out', label: 'Custody' },
+      { to: '/period-close', label: 'Period close' },
+    ],
+  }, {
+    paths: ['/finance', '/petty-cash'],
+    label: 'Money',
+    links: [
+      { to: '/finance', label: 'Payment approvals' },
+      { to: '/finance?section=executed', label: 'Executed payments' },
+      { to: '/petty-cash', label: 'Petty cash' },
+    ],
+  }],
+  Engineer: [{
+    paths: ['/requisitions', '/delivery-checks'],
+    label: 'Checks',
+    links: [
+      { to: '/requisitions', label: 'Material requests' },
+      { to: '/delivery-checks', label: 'Delivered materials' },
+    ],
+  }],
+  Foreman: [{
+    paths: ['/inventory', '/custody-close-out'],
+    label: 'My materials',
+    links: [
+      { to: '/inventory', label: 'With me' },
+      { to: '/custody-close-out', label: 'Returns and close-out' },
+    ],
+  }],
+  Storekeeper: [{
+    paths: ['/inventory', '/purchase-orders', '/opening-positions', '/custody-close-out', '/period-close'],
+    label: 'Store',
+    links: [
+      { to: '/inventory', label: 'Operations' },
+      { to: '/inventory?section=stock', label: 'Current stock' },
+      { to: '/inventory?section=movements', label: 'Movements' },
+      { to: '/purchase-orders', label: 'Expected deliveries' },
+      { to: '/opening-positions', label: 'Opening stock' },
+      { to: '/custody-close-out', label: 'Returns' },
+      { to: '/period-close', label: 'Corrections' },
+    ],
+  }],
+  'Finance Officer': [{
+    paths: ['/suppliers', '/finance', '/purchase-orders', '/inventory'],
+    label: 'Supplier payments',
+    links: [
+      { to: '/suppliers', label: 'Supplier approvals' },
+      { to: '/purchase-orders', label: 'Purchase orders' },
+      { to: '/inventory', label: 'Delivery records' },
+      { to: '/finance', label: 'Supplier invoices' },
+      { to: '/finance?section=authorized', label: 'Payments ready' },
+      { to: '/finance?section=executed', label: 'Payments paid' },
+    ],
+  }, {
+    paths: ['/projects', '/opening-positions', '/period-close'],
+    label: 'Finance controls',
+    links: [
+      { to: '/projects', label: 'Project budgets' },
+      { to: '/opening-positions', label: 'Opening cash' },
+      { to: '/period-close', label: 'Period closing' },
+    ],
+  }],
+}
 
 const destinationPaths: Record<LiveDestination, string> = {
   access: '/access', projects: '/projects', requisitions: '/requisitions', sourcing: '/sourcing',
@@ -227,11 +286,34 @@ function PasswordDialog({ onClose, onChanged }: { onClose: () => void; onChanged
   return <AccountDialog title="Change password" onClose={onClose}><form onSubmit={event => void submit(event)}><label><span>Current password</span><input type="password" autoComplete="current-password" required value={currentPassword} onChange={event => setCurrentPassword(event.currentTarget.value)}/></label><label><span>New password</span><input type="password" autoComplete="new-password" required minLength={12} maxLength={72} value={newPassword} onChange={event => setNewPassword(event.currentTarget.value)}/></label><label><span>Confirm new password</span><input type="password" autoComplete="new-password" required minLength={12} maxLength={72} value={confirmPassword} onChange={event => setConfirmPassword(event.currentTarget.value)}/></label>{error && <p role="alert">{error}</p>}<footer><button type="button" onClick={onClose}>Cancel</button><button disabled={busy}>{busy ? 'Changing…' : 'Change password'}</button></footer></form></AccountDialog>
 }
 
-function notificationMessage(item: AppNotification, role: ConstructionRole) {
-  if (role === 'CEO' && (item.taskType === 'OpeningPositionDecision' || item.taskType === 'ControlledCorrectionDecision')) {
+function notificationMessage(item: AppNotification) {
+  if (item.taskType === 'OpeningPositionDecision' || item.taskType === 'ControlledCorrectionDecision') {
     return item.message.split(' · ')[0]
   }
   return item.message
+}
+
+function notificationTarget(item: AppNotification, role: ConstructionRole) {
+  const path = item.targetPath && item.targetPath.startsWith('/') && !item.targetPath.startsWith('//')
+    ? item.targetPath
+    : null
+  if (!path) return null
+  if (role === 'CEO' && path === '/finance') return '/finance?section=invoices'
+  if (role === 'Finance Officer' && item.taskType === 'PaymentExecution' && path === '/finance') {
+    return '/finance?section=authorized'
+  }
+  if (role === 'Finance Officer' && item.taskType === 'InvoiceMatch' && path === '/finance') {
+    return '/finance?view=all'
+  }
+  if (role === 'Foreman' && item.taskType === 'RequisitionRevision' && path === '/requisitions') {
+    return '/requisitions?view=action'
+  }
+  if (role === 'Storekeeper' && path === '/inventory') {
+    if (item.taskType.includes('GoodsReceipt') || item.taskType.includes('Delivery')) return '/inventory?action=receive'
+    if (item.taskType.includes('MaterialIssue')) return '/inventory?action=issue'
+    if (item.taskType === 'StockTransferDispatch' || item.taskType === 'StockTransferReceipt') return '/inventory?action=transfers'
+  }
+  return path
 }
 
 function NotificationMenu({ role, onNavigate }: { role: ConstructionRole; onNavigate: (path: string) => void }) {
@@ -265,7 +347,7 @@ function NotificationMenu({ role, onNavigate }: { role: ConstructionRole; onNavi
         setItems(current => current.map(entry => entry.id === item.id ? { ...entry, isRead: true, readAt } : entry))
       } catch (cause) { setError(errorMessage(cause)); return }
     }
-    const target = item.targetPath && item.targetPath.startsWith('/') && !item.targetPath.startsWith('//') ? item.targetPath : null
+    const target = notificationTarget(item, role)
     setOpen(false)
     if (target) onNavigate(target)
   }
@@ -281,29 +363,31 @@ function NotificationMenu({ role, onNavigate }: { role: ConstructionRole; onNavi
 
   return <div className="notification-menu">
     <button className="notification-trigger" aria-label="Notifications" aria-expanded={open} onClick={() => { if (!open) setRefresh(value => value + 1); setOpen(value => !value) }}><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9ZM10 20h4"/></svg>{Boolean(unreadCount) && <b>{unreadCount > 99 ? '99+' : unreadCount}</b>}</button>
-    {open && <section className="notification-popover" role="dialog" aria-modal="false" aria-label="Notifications"><header><h2>Notifications</h2>{Boolean(unreadCount) && <button onClick={() => void readAll()}>Mark all read</button>}</header>{loading ? <div className="notification-state">Loading…</div> : error ? <div className="notification-state error"><span>{error}</span><button onClick={() => { setLoading(true); setRefresh(value => value + 1) }}>Try again</button></div> : items.length ? <div className="notification-list">{items.map(item => <button className={item.isRead ? '' : 'unread'} key={item.id} onClick={() => void openItem(item)}><span><b>{item.title}</b>{item.projectName && <small>{item.projectName}</small>}</span><p>{notificationMessage(item, role)}</p><time>{new Intl.DateTimeFormat('en-KE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(item.createdAt))}</time></button>)}</div> : <div className="notification-state">No notifications</div>}</section>}
+    {open && <section className="notification-popover" role="dialog" aria-modal="false" aria-label="Notifications"><header><h2>Notifications</h2>{Boolean(unreadCount) && <button onClick={() => void readAll()}>Mark all read</button>}</header>{loading ? <div className="notification-state">Loading…</div> : error ? <div className="notification-state error"><span>{error}</span><button onClick={() => { setLoading(true); setRefresh(value => value + 1) }}>Try again</button></div> : items.length ? <div className="notification-list">{items.map(item => <button className={item.isRead ? '' : 'unread'} key={item.id} onClick={() => void openItem(item)}><span><b>{item.title}</b>{item.projectName && <small>{item.projectName}</small>}</span><p>{notificationMessage(item)}</p><time>{new Intl.DateTimeFormat('en-KE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(item.createdAt))}</time></button>)}</div> : <div className="notification-state">No notifications</div>}</section>}
   </div>
 }
 
-function isCeoContextLinkActive(pathname: string, search: string, target: string) {
+function isContextLinkActive(pathname: string, search: string, target: string) {
   const [targetPath, targetQuery = ''] = target.split('?')
   if (pathname !== targetPath) return false
-  if (targetPath !== '/finance') return true
+  const currentParams = new URLSearchParams(search)
+  const targetParams = new URLSearchParams(targetQuery)
+  const targetSection = targetParams.get('section')
+  const currentSection = currentParams.get('section')
 
-  const requestedSection = new URLSearchParams(search).get('section')
-  const currentSection = requestedSection === 'invoices' || requestedSection === 'executed' ? requestedSection : 'summary'
-  const targetSection = new URLSearchParams(targetQuery).get('section') ?? 'summary'
-  return currentSection === targetSection
+  if (targetSection) return currentSection === targetSection
+  if (targetPath === '/finance' || targetPath === '/inventory') return currentSection === null
+  return true
 }
 
-function CeoContextNavigation({ pathname, search }: { pathname: string; search: string }) {
-  const section = ceoContextSections.find(item => item.paths.includes(pathname))
+function RoleContextNavigation({ role, pathname, search }: { role: ConstructionRole; pathname: string; search: string }) {
+  const section = roleContextSections[role]?.find(item => item.paths.includes(pathname))
   if (!section) return null
 
-  return <nav className="ceo-context-nav" aria-label={`${section.label} sections`}>
+  return <nav className="role-context-nav" aria-label={`${section.label} sections`}>
     {section.links.map(item => <Link
-      className={isCeoContextLinkActive(pathname, search, item.to) ? 'active' : ''}
-      aria-current={isCeoContextLinkActive(pathname, search, item.to) ? 'page' : undefined}
+      className={isContextLinkActive(pathname, search, item.to) ? 'active' : ''}
+      aria-current={isContextLinkActive(pathname, search, item.to) ? 'page' : undefined}
       key={item.to}
       to={item.to}
     >{item.label}</Link>)}
@@ -332,7 +416,9 @@ function Shell({ currentUser, onLogout, onRoleChanged, onCredentialsChanged }: {
 
   const canAccess = (path: string) => path === '/' || path === '/tasks' || allowed.has(path)
 
-  return <div className="live-shell">
+  const readableOperationalRole = ['Finance Officer', 'Foreman', 'Engineer', 'Supervisor', 'Storekeeper'].includes(currentUser.role)
+
+  return <div className={`live-shell${readableOperationalRole ? ' simplified-role-workspace' : ''}`}>
     <aside className={`live-sidebar ${navOpen ? 'open' : ''}`}>
       <header><div className="live-brand-mark" aria-hidden="true"><span/><span/><span/></div><div><strong>CONSTRUCT</strong><small>CONTROL SYSTEM</small></div><button aria-label="Close navigation" onClick={() => setNavOpen(false)}>×</button></header>
       <nav aria-label={`${currentUser.role} workspace`}><span>WORKSPACE</span>{nav.map(item => {
@@ -344,7 +430,7 @@ function Shell({ currentUser, onLogout, onRoleChanged, onCredentialsChanged }: {
     {navOpen && <button className="live-sidebar-scrim" aria-label="Close navigation" onClick={() => setNavOpen(false)}/>}
     <main className="live-main">
       <header className="live-topbar"><button className="live-menu-button" aria-label="Open navigation" onClick={() => setNavOpen(true)}>☰</button><span className="live-mobile-brand">CONSTRUCT</span><div className="live-top-actions"><NotificationMenu role={currentUser.role} onNavigate={path => navigate(currentUser.role === 'CEO' && path === '/finance' ? '/finance?section=invoices' : path)}/><div className="live-account"><button className="live-profile" aria-expanded={accountOpen} onClick={() => setAccountOpen(value => !value)}><span>{initials(currentUser.fullName)}</span><div><strong>{currentUser.fullName}</strong><small>{currentUser.role}</small></div><i aria-hidden="true">⌄</i></button>{accountOpen && <section className="live-account-menu"><header><span>@{currentUser.username}</span><button aria-label="Close account menu" onClick={() => setAccountOpen(false)}>×</button></header>{currentUser.canSwitchRoles && <div className="live-role-list"><strong>Verification role</strong>{currentUser.availableRoles.map(role => <button className={role === currentUser.role ? 'active' : ''} disabled={switchingRole !== null} key={role} onClick={() => void switchRole(role)}><span>{role}</span>{switchingRole === role ? <small>Opening…</small> : role === currentUser.role && <small>Current</small>}</button>)}</div>}{accountError && <p role="alert">{accountError}</p>}<button onClick={() => { setAccountOpen(false); setUsernameOpen(true) }}>Change username</button><button onClick={() => { setAccountOpen(false); setPasswordOpen(true) }}>Change password</button><button className="sign-out" onClick={onLogout}>Sign out</button></section>}</div></div></header>
-      {currentUser.role === 'CEO' && <CeoContextNavigation pathname={location.pathname} search={location.search}/>}
+      <RoleContextNavigation role={currentUser.role} pathname={location.pathname} search={location.search}/>
       <div className="live-content"><Routes>
         <Route path="/" element={<LiveDashboardView currentUser={currentUser} onNavigate={destination => navigate(destinationPaths[destination])}/>}/>
         <Route path="/tasks" element={<MyTasksView currentUser={currentUser}/>}/>

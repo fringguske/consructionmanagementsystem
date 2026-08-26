@@ -87,6 +87,7 @@ function Loading({ children }: { children: ReactNode }) {
 }
 
 export function LiveInventoryView({ currentUser }: { currentUser: CurrentUser }) {
+  const [searchParams] = useSearchParams()
   const [balances, setBalances] = useState<StockBalance[]>([])
   const [ledger, setLedger] = useState<StockLedgerEntry[]>([])
   const [issues, setIssues] = useState<MaterialIssue[]>([])
@@ -102,10 +103,30 @@ export function LiveInventoryView({ currentUser }: { currentUser: CurrentUser })
   const [notice, setNotice] = useState<string | null>(null)
   const [refresh, setRefresh] = useState(0)
   const role = currentUser.role
+  const sectionedRole = role === 'Storekeeper' || role === 'Supervisor'
+  const requestedSection = searchParams.get('section')
+  const inventorySection = requestedSection === 'stock' || requestedSection === 'movements' ? requestedSection : 'work'
 
   useEffect(() => {
     const controller = new AbortController()
-    const completeRegister = role === 'CEO' || role === 'Auditor'
+
+    if (role === 'Foreman') {
+      void everyPage<MaterialIssue>(page => inventoryApi.issues(controller.signal, { page, pageSize: 100 }))
+        .then(items => { setIssues(items); setBalances([]); setLedger([]); setTransfers([]); setCounts([]); setReceipts([]); setError(null) })
+        .catch(error => { if (!(error instanceof DOMException && error.name === 'AbortError')) setError(messageOf(error)) })
+        .finally(() => { if (!controller.signal.aborted) setLoading(false) })
+      return () => controller.abort()
+    }
+
+    if (role === 'Finance Officer') {
+      void everyPage<GoodsReceipt>(page => inventoryApi.receipts(controller.signal, { page, pageSize: 100 }))
+        .then(items => { setReceipts(items); setBalances([]); setLedger([]); setIssues([]); setTransfers([]); setCounts([]); setError(null) })
+        .catch(error => { if (!(error instanceof DOMException && error.name === 'AbortError')) setError(messageOf(error)) })
+        .finally(() => { if (!controller.signal.aborted) setLoading(false) })
+      return () => controller.abort()
+    }
+
+    const completeRegister = ['CEO', 'Auditor', 'Storekeeper', 'Supervisor', 'Finance Officer', 'Foreman'].includes(role)
     const tasks: Promise<unknown>[] = [
       completeRegister
         ? everyPage<StockBalance>(page => inventoryApi.balances(controller.signal, { page, pageSize: 100 })).then(items => ({ items }))
@@ -135,12 +156,12 @@ export function LiveInventoryView({ currentUser }: { currentUser: CurrentUser })
         : inventoryApi.receipts(controller.signal))
     }
     if (role === 'Storekeeper') {
-      tasks.push(purchaseOrdersApi.list({ page: 1, pageSize: 100, status: 'Issued' }, controller.signal))
-      tasks.push(requisitionsApi.list({ page: 1, pageSize: 100, status: 'Approved' }, controller.signal))
-      tasks.push(materialsApi.list({ page: 1, pageSize: 100 }, controller.signal))
+      tasks.push(everyPage<PurchaseOrder>(page => purchaseOrdersApi.list({ page, pageSize: 100, status: 'Issued' }, controller.signal)).then(items => ({ items })))
+      tasks.push(everyPage<Requisition>(page => requisitionsApi.list({ page, pageSize: 100, status: 'Approved' }, controller.signal)).then(items => ({ items })))
+      tasks.push(everyPage<Material>(page => materialsApi.list({ page, pageSize: 100 }, controller.signal)).then(items => ({ items })))
       tasks.push(Promise.all(currentUser.projects.map(project => projectsApi.getSummary(project.id, controller.signal))))
     }
-    if (role === 'Supervisor') tasks.push(materialsApi.list({ page: 1, pageSize: 100 }, controller.signal))
+    if (role === 'Supervisor') tasks.push(everyPage<Material>(page => materialsApi.list({ page, pageSize: 100 }, controller.signal)).then(items => ({ items })))
 
     Promise.all(tasks).then(results => {
       let index = 0
@@ -173,30 +194,38 @@ export function LiveInventoryView({ currentUser }: { currentUser: CurrentUser })
   const changed = (text: string) => { setNotice(text); setRefresh(value => value + 1) }
 
   if (loading) return <Loading>Loading stock records…</Loading>
+  const pageHeading = role === 'Foreman'
+    ? currentUser.canSwitchRoles ? 'Foreman material handovers' : 'Materials with me'
+    : role === 'Storekeeper'
+      ? inventorySection === 'stock' ? 'Current stock' : inventorySection === 'movements' ? 'Store movements' : 'Store operations'
+      : role === 'Supervisor'
+        ? inventorySection === 'stock' ? 'Current stock' : inventorySection === 'movements' ? 'Material movements' : 'Stock controls'
+        : role === 'Finance Officer' ? 'Delivery records' : null
   return <div className="lav-view ops-view">
-    {role === 'Foreman' && <header className="lav-page-head"><div><h1>{currentUser.canSwitchRoles ? 'Foreman material handovers' : 'Materials issued to me'}</h1></div></header>}
+    {pageHeading && <header className="lav-page-head"><div><h1>{pageHeading}</h1></div></header>}
     {error && <Notice tone="error">{error}</Notice>}{notice && <Notice tone="success">{notice}</Notice>}
-    {role === 'Storekeeper' && <StorekeeperActions currentUser={currentUser} projectSummaries={projectSummaries} orders={orders} receipts={receipts} requisitions={requisitions} balances={balances} materials={materials} issues={issues} transfers={transfers} counts={counts} onChanged={changed}/>}
-    {role === 'Supervisor' && <SupervisorInventoryActions currentUser={currentUser} balances={balances} materials={materials} transfers={transfers} counts={counts} onChanged={changed}/>}
+    {role === 'Storekeeper' && inventorySection === 'work' && <StorekeeperActions currentUser={currentUser} projectSummaries={projectSummaries} orders={orders} receipts={receipts} requisitions={requisitions} balances={balances} materials={materials} issues={issues} transfers={transfers} counts={counts} onChanged={changed}/>}
+    {role === 'Supervisor' && inventorySection === 'work' && <SupervisorInventoryActions currentUser={currentUser} balances={balances} materials={materials} transfers={transfers} counts={counts} onChanged={changed}/>}
     {role === 'Foreman' && <ForemanIssueActions currentUser={currentUser} issues={issues} onChanged={changed}/>}
-    {role !== 'CEO' && <InventoryEvidenceRegister currentUser={currentUser} receipts={receipts} issues={issues}/>}
+    {role !== 'CEO' && (!sectionedRole || inventorySection === 'movements') && <InventoryEvidenceRegister currentUser={currentUser} receipts={receipts} issues={issues}/>}
+    {role === 'Finance Officer' && !error && receipts.length === 0 && <section className="lav-panel ops-panel"><Empty>No received delivery recorded.</Empty></section>}
     {role === 'CEO'
       ? <CeoMaterialsInventory currentUser={currentUser} balances={balances} ledger={ledger} issues={issues} transfers={transfers} counts={counts} receipts={receipts}/>
       : <>
-        <StockCards balances={balances}/>
-        {role !== 'Foreman' && <section className="lav-panel ops-panel">
+        {!['Foreman', 'Finance Officer'].includes(role) && (!sectionedRole || inventorySection === 'stock') && <StockCards balances={balances}/>}
+        {!['Foreman', 'Finance Officer'].includes(role) && (!sectionedRole || inventorySection === 'movements') && <section className="lav-panel ops-panel">
           {ledger.length ? <div className="ops-table"><div className="ops-row head"><span>Material</span><span>Movement</span><span>Quantity</span><span>Balance</span><span>Recorded by</span></div>{ledger.slice(0, 12).map(item => <div className="ops-row movement" key={item.id}><span data-label="Material"><b>{item.materialName}</b><small>{item.projectName}</small></span><span data-label="Movement">{item.movementType === 'TechnicalAcceptance' ? 'Engineer accepted' : item.movementType}</span><span data-label="Quantity" className={item.quantityDelta < 0 ? 'negative' : 'positive'}>{item.quantityDelta > 0 ? '+' : ''}{item.quantityDelta} {item.unit}</span><span data-label="Balance">{item.balanceAfter} {item.unit}</span><span data-label="Recorded by"><b>{item.actorName}</b><small>{when(item.occurredAt)}</small></span></div>)}</div> : <Empty>No receipts, issues, transfers or count adjustments yet.</Empty>}
         </section>}
-        {['Auditor', 'Storekeeper', 'Supervisor'].includes(role) && <MovementSummary issues={issues} transfers={transfers} counts={counts}/>}
+        {(role === 'Auditor' || (sectionedRole && inventorySection === 'movements')) && <MovementSummary issues={issues} transfers={transfers} counts={counts}/>}
       </>}
   </div>
 }
 
 function InventoryEvidenceRegister({ currentUser, receipts, issues }: { currentUser: CurrentUser; receipts: GoodsReceipt[]; issues: MaterialIssue[] }) {
-  const usageRecords = issues.flatMap(issue => issue.usage.map(usage => ({ issue, usage })))
+  const usageRecords = currentUser.role === 'Finance Officer' ? [] : issues.flatMap(issue => issue.usage.map(usage => ({ issue, usage })))
   if (!receipts.length && !usageRecords.length) return null
-  return <details className="record-evidence-register lav-panel">
-    <summary>Evidence files <span>{receipts.length + usageRecords.length} records</span></summary>
+  return <details className="record-evidence-register lav-panel" open={currentUser.role === 'Finance Officer'}>
+    <summary>{currentUser.role === 'Finance Officer' ? 'Received deliveries' : 'Evidence files'} <span>{receipts.length + usageRecords.length} records</span></summary>
     <div className="record-evidence-list">
       {receipts.map(receipt => <article key={`receipt-${receipt.id}`}>
         <div><strong>{receipt.materialName}</strong><small>{receipt.projectName} · received {when(receipt.receivedAt)} by {receipt.receivedByName}</small></div>
@@ -212,13 +241,10 @@ function InventoryEvidenceRegister({ currentUser, receipts, issues }: { currentU
 
 export function LiveTechnicalAcceptanceView({ currentUser }: { currentUser: CurrentUser }) {
   const [items, setItems] = useState<TechnicalAcceptanceWorkItem[]>([])
-  const [page, setPage] = useState(1)
-  const [totalCount, setTotalCount] = useState(0)
   const [activeList, setActiveList] = useState<'pending' | 'reviewed'>('pending')
   const [selectedReceiptId, setSelectedReceiptId] = useState<number | null>(null)
   const [form, setForm] = useState<{ outcome: '' | TechnicalAcceptanceOutcome; notes: string; evidenceReference: string }>({ outcome: '', notes: '', evidenceReference: '' })
   const [loading, setLoading] = useState(true)
-  const [loadingMore, setLoadingMore] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [reviewError, setReviewError] = useState<string | null>(null)
@@ -227,18 +253,15 @@ export function LiveTechnicalAcceptanceView({ currentUser }: { currentUser: Curr
 
   useEffect(() => {
     const controller = new AbortController()
-    inventoryApi.technicalAcceptances({ page }, controller.signal)
+    everyPage<TechnicalAcceptanceWorkItem>(page => inventoryApi.technicalAcceptances({ page, pageSize: 100 }, controller.signal))
       .then(result => {
-        setItems(current => page === 1
-          ? result.items
-          : [...new Map([...current, ...result.items].map(item => [item.goodsReceiptId, item])).values()])
-        setTotalCount(result.totalCount)
+        setItems(result)
         setError(null)
       })
       .catch(error => { if (!(error instanceof DOMException && error.name === 'AbortError')) setError(messageOf(error)) })
-      .finally(() => { if (!controller.signal.aborted) { setLoading(false); setLoadingMore(false) } })
+      .finally(() => { if (!controller.signal.aborted) setLoading(false) })
     return () => controller.abort()
-  }, [page, refresh])
+  }, [refresh])
 
   useEffect(() => {
     if (selectedReceiptId === null) return
@@ -275,7 +298,6 @@ export function LiveTechnicalAcceptanceView({ currentUser }: { currentUser: Curr
       })
       setNotice(`${selected.materialName} marked ${outcome.toLowerCase()}.`)
       setSelectedReceiptId(null)
-      setPage(1)
       setRefresh(value => value + 1)
     } catch (error) {
       setReviewError(messageOf(error))
@@ -287,9 +309,9 @@ export function LiveTechnicalAcceptanceView({ currentUser }: { currentUser: Curr
   if (currentUser.role !== 'Engineer') return <Notice tone="error">Only an Engineer can record technical acceptance.</Notice>
   if (loading) return <Loading>Loading delivery checks…</Loading>
   return <div className="lav-view ops-view technical-acceptance-view">
-    {error && <Notice tone="error">{error}</Notice>}
+    {error && <Notice tone="error">{error} <button type="button" onClick={() => { setError(null); setLoading(true); setRefresh(value => value + 1) }}>Try again</button></Notice>}
     {notice && <Notice tone="success">{notice}</Notice>}
-    <section className="lav-panel technical-acceptance-panel">
+    {!error && <section className="lav-panel technical-acceptance-panel">
       <header className="technical-acceptance-toolbar">
         <div>
           <h2>Received materials</h2>
@@ -316,8 +338,7 @@ export function LiveTechnicalAcceptanceView({ currentUser }: { currentUser: Curr
           ? <footer><div className="technical-review-result"><span>Reviewed by <b>{item.reviewedByName}</b>{item.reviewedAt ? ` · ${when(item.reviewedAt)}` : ''}</span>{item.notes && <p>{item.notes}</p>}{item.technicalAcceptanceId && <EvidenceFiles sourceType="GoodsReceiptTechnicalAcceptance" sourceId={item.technicalAcceptanceId} kind="Inspection" label="Inspection files" canUpload={item.reviewedByUserId === currentUser.id}/>}</div>{item.outcome === 'Rejected' && <button type="button" className="lav-button secondary" onClick={() => openReview(item)}>Review again</button>}</footer>
           : <footer><span>Confirm the material and specification.</span><button type="button" className="lav-button primary" onClick={() => openReview(item)}>Review delivery</button></footer>}
       </article>)}</div> : <Empty>{activeList === 'pending' ? 'No delivery needs an Engineer decision.' : 'No delivery has been reviewed.'}</Empty>}
-      {items.length < totalCount && <footer className="technical-load-more"><button type="button" className="lav-button secondary" disabled={loadingMore} onClick={() => { setLoadingMore(true); setPage(current => current + 1) }}>{loadingMore ? 'Loading…' : 'Load more deliveries'}</button><span>{items.length} of {totalCount}</span></footer>}
-    </section>
+    </section>}
     {selected && <div className="ops-modal-wrap" role="presentation">
       <button type="button" className="ops-modal-backdrop" aria-label="Close technical acceptance" onClick={closeReview}/>
       <form className="lav-panel ops-form ops-modal technical-acceptance-modal" role="dialog" aria-modal="true" aria-labelledby="technical-acceptance-title" onSubmit={event => { event.preventDefault(); void submitReview() }}>
@@ -345,7 +366,9 @@ function StockCards({ balances }: { balances: StockBalance[] }) {
 }
 
 function StorekeeperActions({ currentUser, projectSummaries, orders, receipts, requisitions, balances, materials, issues, transfers, counts, onChanged }: { currentUser: CurrentUser; projectSummaries: ProjectSummary[]; orders: PurchaseOrder[]; receipts: GoodsReceipt[]; requisitions: Requisition[]; balances: StockBalance[]; materials: Material[]; issues: MaterialIssue[]; transfers: StockTransfer[]; counts: StockCount[]; onChanged: (text: string) => void }) {
-  const [activeAction, setActiveAction] = useState<'restock' | 'receive' | 'issue' | 'count'>('restock')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const requestedAction = searchParams.get('action')
+  const activeAction: 'restock' | 'receive' | 'issue' | 'count' | 'transfers' = requestedAction === 'receive' || requestedAction === 'issue' || requestedAction === 'count' || requestedAction === 'transfers' ? requestedAction : 'restock'
   const [receiving, setReceiving] = useState({ purchaseOrderId: '', delivered: '', accepted: '', condition: 'Good', deliveryNote: '', evidence: '', notes: '' })
   const [issuing, setIssuing] = useState({ requisitionId: '', quantity: '', notes: '' })
   const [count, setCount] = useState({ projectId: '', materialId: '', quantity: '', notes: '' })
@@ -354,7 +377,12 @@ function StorekeeperActions({ currentUser, projectSummaries, orders, receipts, r
   const [error, setError] = useState<string | null>(null)
   const [receiptTransferId, setReceiptTransferId] = useState<number | null>(null)
   const [transferReceipt, setTransferReceipt] = useState({ quantity: '', notes: '' })
-  const availableReqs = requisitions.filter(requisition => requisition.requestType === 'SiteUse' && !issues.some(issue => issue.requisitionId === requisition.id))
+  const pendingIssueReqs = requisitions.filter(requisition => requisition.requestType === 'SiteUse' && !issues.some(issue => issue.requisitionId === requisition.id))
+  const availableReqs = pendingIssueReqs.filter(requisition => {
+    const balance = balances.find(item => item.projectId === requisition.projectId && item.materialId === requisition.materialId)
+    return (balance?.quantityOnHand ?? 0) >= requisition.quantity
+  })
+  const waitingForStock = pendingIssueReqs.length - availableReqs.length
   const selectedReq = requisitions.find(item => item.id === Number(issuing.requisitionId))
   const selectedOrder = orders.find(item => item.id === Number(receiving.purchaseOrderId))
   const selectedOrderLine = selectedOrder?.lines[0]
@@ -374,15 +402,25 @@ function StorekeeperActions({ currentUser, projectSummaries, orders, receipts, r
     balances.some(balance => balance.projectId === Number(count.projectId) && balance.materialId === material.id)
     && !counts.some(stockCount => stockCount.projectId === Number(count.projectId) && stockCount.materialId === material.id && stockCount.status === 'AwaitingReview'))
   const submit = async (work: () => Promise<unknown>, success: string) => { setBusy(true); setError(null); try { await work(); onChanged(success); return true } catch (error) { setError(messageOf(error)); return false } finally { setBusy(false) } }
+  const selectAction = (action: 'restock' | 'receive' | 'issue' | 'count' | 'transfers') => {
+    const next = new URLSearchParams(searchParams)
+    next.delete('section')
+    if (action === 'restock') next.delete('action')
+    else next.set('action', action)
+    setSearchParams(next, { replace: true })
+    setReceiptTransferId(null)
+    setError(null)
+  }
   return <section className="ops-storekeeper-workspace">
     <nav className="ops-action-nav" aria-label="Storekeeper stock actions">
-      <button type="button" className={activeAction === 'restock' ? 'active' : ''} aria-current={activeAction === 'restock' ? 'page' : undefined} onClick={() => { setActiveAction('restock'); setError(null) }}>Restock</button>
-      <button type="button" className={activeAction === 'receive' ? 'active' : ''} aria-current={activeAction === 'receive' ? 'page' : undefined} onClick={() => { setActiveAction('receive'); setError(null) }}>Receive delivery</button>
-      <button type="button" className={activeAction === 'issue' ? 'active' : ''} aria-current={activeAction === 'issue' ? 'page' : undefined} onClick={() => { setActiveAction('issue'); setError(null) }}>Create issue voucher</button>
-      <button type="button" className={activeAction === 'count' ? 'active' : ''} aria-current={activeAction === 'count' ? 'page' : undefined} onClick={() => { setActiveAction('count'); setError(null) }}>Submit count</button>
+      <button type="button" className={activeAction === 'restock' ? 'active' : ''} aria-current={activeAction === 'restock' ? 'page' : undefined} onClick={() => selectAction('restock')}>Restock</button>
+      <button type="button" className={activeAction === 'receive' ? 'active' : ''} aria-current={activeAction === 'receive' ? 'page' : undefined} onClick={() => selectAction('receive')}>Receive delivery</button>
+      <button type="button" className={activeAction === 'issue' ? 'active' : ''} aria-current={activeAction === 'issue' ? 'page' : undefined} onClick={() => selectAction('issue')}>Create issue voucher</button>
+      <button type="button" className={activeAction === 'count' ? 'active' : ''} aria-current={activeAction === 'count' ? 'page' : undefined} onClick={() => selectAction('count')}>Submit count</button>
+      <button type="button" className={activeAction === 'transfers' ? 'active' : ''} aria-current={activeAction === 'transfers' ? 'page' : undefined} onClick={() => selectAction('transfers')}>Transfers</button>
     </nav>
     {error && <Notice tone="error">{error}</Notice>}
-    <div className="ops-action-panel">
+    {activeAction !== 'transfers' && <div className="ops-action-panel">
     {activeAction === 'restock' && <form className="lav-panel ops-form ops-replenishment" onSubmit={event => { event.preventDefault(); void submit(() => requisitionsApi.createStockReplenishment({ projectId: Number(replenishment.projectId), materialId: Number(replenishment.materialId), costCodeId: Number(replenishment.costCodeId), quantity: Number(replenishment.quantity), neededByDate: replenishment.neededByDate, reason: replenishment.reason, notes: replenishment.notes.trim() || null }), 'Store replenishment request submitted.').then(saved => { if (saved) setReplenishment({ projectId: '', costCodeId: '', materialId: '', quantity: '', neededByDate: '', reason: '', notes: '' }) }) }}>
       <h2>Restock</h2>
       <div className="ops-fields"><label><span>Project store</span><select required value={replenishment.projectId} onChange={event => setReplenishment({ ...replenishment, projectId: event.target.value, costCodeId: '' })}><option value="">Choose project</option>{projectSummaries.map(item => <option key={item.project.id} value={item.project.id}>{item.project.name}</option>)}</select></label><label><span>Budget area</span><select required disabled={!replenishmentProject} value={replenishment.costCodeId} onChange={event => setReplenishment({ ...replenishment, costCodeId: event.target.value })}><option value="">Choose budget area</option>{replenishmentProject?.costCodes.filter(item => item.isActive).map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label></div>
@@ -399,6 +437,7 @@ function StorekeeperActions({ currentUser, projectSummaries, orders, receipts, r
     </form>}
     {activeAction === 'issue' && <form className="lav-panel ops-form" onSubmit={event => { event.preventDefault(); void submit(() => inventoryApi.issue({ requisitionId: Number(issuing.requisitionId), quantity: Number(issuing.quantity), notes: issuing.notes || null }), selectedReq?.requestedByUserName ? `Issue voucher created for ${selectedReq.requestedByUserName}.` : 'Material issue saved.').then(saved => { if (saved) setIssuing({ requisitionId: '', quantity: '', notes: '' }) }) }}>
       <h2>Create issue voucher</h2>
+      {waitingForStock > 0 && <Notice>{waitingForStock} approved {waitingForStock === 1 ? 'request is' : 'requests are'} waiting for enough store stock.</Notice>}
       <label><span>Approved request</span><select required value={issuing.requisitionId} onChange={e => { const req = requisitions.find(item => item.id === Number(e.target.value)); setIssuing({ ...issuing, requisitionId: e.target.value, quantity: req ? String(req.quantity) : '' }) }}><option value="">Choose request</option>{availableReqs.map(req => <option value={req.id} key={req.id}>{req.materialName} · {req.projectName} · {req.quantity} {req.materialUnit} · for {req.requestedByUserName ?? 'requester'}</option>)}</select></label>
       {selectedReq && <label><span>Receiving Foreman</span><input readOnly value={selectedReq.requestedByUserName ?? 'Requester not available'}/></label>}
       <div className="ops-fields"><label><span>Approved quantity</span><input type="number" min="0.001" step="0.001" required readOnly value={issuing.quantity}/></label><label><span>Unit</span><select disabled value={selectedReq?.materialUnit ?? ''}><option>{selectedReq?.materialUnit || 'Select material'}</option></select></label></div>
@@ -411,8 +450,8 @@ function StorekeeperActions({ currentUser, projectSummaries, orders, receipts, r
       {selectedBalance && <small>System shows {selectedBalance.quantityOnHand} {selectedBalance.unit}</small>}
       <label><span>Physical quantity counted</span><input type="number" min="0" step="0.001" required value={count.quantity} onChange={e => setCount({ ...count, quantity: e.target.value })}/></label><label><span>Count note</span><input minLength={3} required value={count.notes} onChange={e => setCount({ ...count, notes: e.target.value })}/></label><button className="lav-button primary" disabled={busy}>Submit count</button>
     </form>}
-    </div>
-    <div className="lav-panel ops-form"><h2>Transfers awaiting Stores</h2>{actionableTransfers.map(item => <article className="ops-action-item" key={item.id}><b>{item.materialName}</b><span>{item.quantity} {item.materialUnit} · {item.fromProjectName} → {item.toProjectName}</span>{item.status === 'PendingDispatch' ? <button type="button" className="lav-button secondary" onClick={() => void submit(() => inventoryApi.dispatchTransfer(item.id), 'Transfer dispatched.')}>Dispatch</button> : <button type="button" className="lav-button secondary" onClick={() => { setReceiptTransferId(item.id); setTransferReceipt({ quantity: String(item.quantity), notes: '' }) }}>Confirm receipt</button>}</article>)}{actionableTransfers.length === 0 && <Empty>No transfer handoff requires action for this account.</Empty>}</div>
+    </div>}
+    {activeAction === 'transfers' && <div className="lav-panel ops-form"><h2>Transfers awaiting Stores</h2>{actionableTransfers.map(item => <article className="ops-action-item" key={item.id}><b>{item.materialName}</b><span>{item.quantity} {item.materialUnit} · {item.fromProjectName} → {item.toProjectName}</span>{item.status === 'PendingDispatch' ? <button type="button" className="lav-button secondary" onClick={() => void submit(() => inventoryApi.dispatchTransfer(item.id), 'Transfer dispatched.')}>Dispatch</button> : <button type="button" className="lav-button secondary" onClick={() => { setReceiptTransferId(item.id); setTransferReceipt({ quantity: String(item.quantity), notes: '' }) }}>Confirm receipt</button>}</article>)}{actionableTransfers.length === 0 && <Empty>No transfer handoff requires action for this account.</Empty>}</div>}
     {receiptTransfer && <div className="ops-modal-wrap" role="presentation"><button type="button" className="ops-modal-backdrop" aria-label="Close transfer form" onClick={() => setReceiptTransferId(null)}/><form className="lav-panel ops-form ops-modal" onSubmit={event => { event.preventDefault(); void submit(() => inventoryApi.receiveTransfer(receiptTransfer.id, { receivedQuantity: Number(transferReceipt.quantity), notes: transferReceipt.notes.trim() || null }), 'Destination receipt recorded and the movement trail updated.').then(saved => { if (saved) setReceiptTransferId(null) }) }}><header><div><span className="lav-kicker">DESTINATION CHECK</span><h2>Confirm transfer receipt</h2><p>{receiptTransfer.fromProjectName} → {receiptTransfer.toProjectName}</p></div><button type="button" className="ops-modal-close" onClick={() => setReceiptTransferId(null)}>×</button></header><label><span>Material</span><input value={receiptTransfer.materialName} disabled/></label><div className="ops-fields"><label><span>Quantity received</span><input type="number" min="0" step="0.001" required value={transferReceipt.quantity} onChange={event => setTransferReceipt({ ...transferReceipt, quantity: event.target.value })}/></label><label><span>Unit</span><select disabled value={receiptTransfer.materialUnit}><option>{receiptTransfer.materialUnit}</option></select></label></div><label><span>Receipt note {Number(transferReceipt.quantity) === receiptTransfer.quantity ? '(optional)' : '(explain the difference)'}</span><textarea required={Number(transferReceipt.quantity) !== receiptTransfer.quantity} minLength={3} rows={3} value={transferReceipt.notes} onChange={event => setTransferReceipt({ ...transferReceipt, notes: event.target.value })}/></label><div className="ops-buttons"><button type="button" className="lav-button secondary" onClick={() => setReceiptTransferId(null)}>Cancel</button><button className="lav-button primary" disabled={busy}>Save destination receipt</button></div></form></div>}
   </section>
 }
@@ -425,7 +464,7 @@ function ForemanIssueActions({ currentUser, issues, onChanged }: { currentUser: 
   const work = async (action: () => Promise<unknown>, text: string) => { setError(null); try { await action(); onChanged(text); return true } catch (error) { setError(messageOf(error)); return false } }
   const activeIssue = issues.find(issue => issue.id === active?.issueId)
   return <section className="lav-panel ops-panel"><header className="lav-panel-head"><div><span className="lav-kicker">{currentUser.canSwitchRoles ? 'HANDOVERS' : 'MY CUSTODY'}</span><h2>{currentUser.canSwitchRoles ? 'Material issued to Foremen' : 'Confirm and account for material'}</h2></div></header>{error && <Notice tone="error">{error}</Notice>}
-    <div className="ops-issue-grid">{issues.map(issue => { const assignedToCurrentUser = issue.issuedToUserId === currentUser.id; return <article key={issue.id}><div><span>{issue.projectName}</span><b>{issue.materialName}</b><strong>{issue.quantityIssued} {issue.materialUnit}</strong></div><p>Issued to {issue.issuedToName} · by {issue.issuedByName}</p>{issue.status === 'AwaitingConfirmation' && assignedToCurrentUser && <button type="button" className="lav-button primary" onClick={() => { setActive({ issueId: issue.id, mode: 'confirm' }); setConfirmation({ quantity: String(issue.quantityIssued), notes: '' }) }}>Confirm receipt</button>}{issue.status === 'AwaitingConfirmation' && !assignedToCurrentUser && <span className="ops-status awaitingconfirmation">Awaiting {issue.issuedToName}</span>}{issue.status === 'Confirmed' && <><div className="ops-account"><span>Used <b>{issue.usedQuantity}</b></span><span>Wasted <b>{issue.wastedQuantity}</b></span><span>Still with team <b>{issue.unaccountedQuantity}</b></span></div>{assignedToCurrentUser && <button type="button" className="lav-button secondary" onClick={() => { setActive({ issueId: issue.id, mode: 'usage' }); setUsage({ type: 'Used', quantity: '', reason: '', evidence: '' }) }}>Record use or wastage</button>}</>}{issue.status === 'Disputed' && <Notice tone="error">Receipt difference recorded: {issue.confirmedQuantity} of {issue.quantityIssued} {issue.materialUnit}.</Notice>}</article> })}{issues.length === 0 && <Empty>No material issue has been handed to this Foreman.</Empty>}</div>
+    <div className="ops-issue-grid">{issues.map(issue => { const assignedToCurrentUser = issue.issuedToUserId === currentUser.id; return <article key={issue.id}><div><span>{issue.projectName}</span><b>{issue.materialName}</b><strong>{issue.quantityIssued} {issue.materialUnit}</strong></div><p>Issued to {issue.issuedToName} · by {issue.issuedByName}</p>{issue.status === 'AwaitingConfirmation' && assignedToCurrentUser && <button type="button" className="lav-button primary" onClick={() => { setActive({ issueId: issue.id, mode: 'confirm' }); setConfirmation({ quantity: String(issue.quantityIssued), notes: '' }) }}>Confirm receipt</button>}{issue.status === 'AwaitingConfirmation' && !assignedToCurrentUser && <span className="ops-status awaitingconfirmation">Awaiting {issue.issuedToName}</span>}{issue.status === 'Confirmed' && <><div className="ops-account"><span>Used <b>{issue.usedQuantity}</b></span><span>Wasted <b>{issue.wastedQuantity}</b></span><span>Still with team <b>{issue.unaccountedQuantity}</b></span></div>{assignedToCurrentUser && issue.unaccountedQuantity > 0 && <button type="button" className="lav-button secondary" onClick={() => { setActive({ issueId: issue.id, mode: 'usage' }); setUsage({ type: 'Used', quantity: '', reason: '', evidence: '' }) }}>Record use or wastage</button>}</>}{issue.status === 'Disputed' && <Notice tone="error">Receipt difference recorded: {issue.confirmedQuantity} of {issue.quantityIssued} {issue.materialUnit}.</Notice>}</article> })}{issues.length === 0 && <Empty>No material issue has been handed to this Foreman.</Empty>}</div>
     {active && activeIssue && <div className="ops-modal-wrap" role="presentation"><button type="button" className="ops-modal-backdrop" aria-label="Close material form" onClick={() => setActive(null)}/><form className="lav-panel ops-form ops-modal" onSubmit={event => { event.preventDefault(); if (active.mode === 'confirm') void work(() => inventoryApi.confirmIssue(activeIssue.id, { receivedQuantity: Number(confirmation.quantity), notes: confirmation.notes.trim() || null }), 'Receipt confirmation recorded.').then(saved => { if (saved) setActive(null) }); else void work(() => inventoryApi.recordUsage(activeIssue.id, { usageType: usage.type, quantity: Number(usage.quantity), purposeOrReason: usage.reason, evidenceReference: usage.evidence.trim() || null }), `${usage.type} record saved.`).then(saved => { if (saved) setActive(null) }) }}><header><div><span className="lav-kicker">{activeIssue.projectName}</span><h2>{active.mode === 'confirm' ? 'Confirm physical receipt' : 'Account for material'}</h2><p>{activeIssue.materialName}</p></div><button type="button" className="ops-modal-close" onClick={() => setActive(null)}>×</button></header>{active.mode === 'confirm' ? <><div className="ops-fields"><label><span>Quantity physically received</span><input type="number" min="0" max={activeIssue.quantityIssued} step="0.001" required value={confirmation.quantity} onChange={event => setConfirmation({ ...confirmation, quantity: event.target.value })}/></label><label><span>Unit</span><select disabled value={activeIssue.materialUnit}><option>{activeIssue.materialUnit}</option></select></label></div><label><span>Note {Number(confirmation.quantity) === activeIssue.quantityIssued ? '(optional)' : '(explain the difference)'}</span><textarea rows={3} minLength={3} required={Number(confirmation.quantity) !== activeIssue.quantityIssued} value={confirmation.notes} onChange={event => setConfirmation({ ...confirmation, notes: event.target.value })}/></label></> : <><label><span>Record type</span><select value={usage.type} onChange={event => setUsage({ ...usage, type: event.target.value as 'Used' | 'Wastage' })}><option value="Used">Used on construction</option><option value="Wastage">Wasted or damaged</option></select></label><div className="ops-fields"><label><span>Quantity</span><input type="number" min="0.001" max={activeIssue.unaccountedQuantity} step="0.001" required value={usage.quantity} onChange={event => setUsage({ ...usage, quantity: event.target.value })}/></label><label><span>Unit</span><select disabled value={activeIssue.materialUnit}><option>{activeIssue.materialUnit}</option></select></label></div><label><span>{usage.type === 'Used' ? 'Work area or purpose' : 'Reason for wastage'}</span><textarea minLength={3} maxLength={500} rows={3} required value={usage.reason} onChange={event => setUsage({ ...usage, reason: event.target.value })}/></label><label><span>Evidence reference (optional)</span><input maxLength={500} value={usage.evidence} onChange={event => setUsage({ ...usage, evidence: event.target.value })}/></label></>}<div className="ops-buttons"><button type="button" className="lav-button secondary" onClick={() => setActive(null)}>Cancel</button><button className="lav-button primary">{active.mode === 'confirm' ? 'Save receipt check' : 'Save material record'}</button></div></form></div>}
   </section>
 }
@@ -460,20 +499,26 @@ export function LiveFinanceView({ currentUser }: { currentUser: CurrentUser }) {
   const [loadWarning, setLoadWarning] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const [showAllInvoices, setShowAllInvoices] = useState(false)
   const [refresh, setRefresh] = useState(0)
   const role = currentUser.role
   const requestedSection = searchParams.get('section')
   const financeSection: FinanceDeskSection = role === 'CEO'
     ? requestedSection === 'invoices' || requestedSection === 'executed' ? requestedSection : 'summary'
-    : requestedSection === 'authorized' || requestedSection === 'executed' ? requestedSection : 'invoices'
-  const dataSection: FinanceDeskSection | 'all' = role === 'CEO' ? financeSection : 'all'
-  const showInvoices = role === 'Finance Officer' || role === 'CEO' ? financeSection === 'invoices' : true
-  const showExecutedPayments = role === 'Finance Officer' || role === 'CEO' ? financeSection === 'executed' : role !== 'Procurement Officer'
+    : role === 'Finance Officer'
+      ? requestedSection === 'authorized' || requestedSection === 'executed' ? requestedSection : 'invoices'
+      : role === 'Supervisor'
+        ? requestedSection === 'executed' ? 'executed' : 'invoices'
+        : 'invoices'
+  const dataSection: FinanceDeskSection | 'all' = role === 'CEO' || role === 'Finance Officer' ? financeSection : 'all'
+  const showInvoices = role === 'Finance Officer' || role === 'CEO' || role === 'Supervisor' ? financeSection === 'invoices' : true
+  const showExecutedPayments = role === 'Finance Officer' || role === 'CEO' || role === 'Supervisor' ? financeSection === 'executed' : role !== 'Procurement Officer'
   const loading = loadedRequest?.role !== role || loadedRequest.refresh !== refresh || loadedRequest.section !== dataSection
   const cashBookRequestIsCurrent = cashBookRequest?.role === role && cashBookRequest.refresh === refresh
   const cashBookLoading = role === 'CEO' && financeSection === 'summary' && !cashBookRequestIsCurrent
   const cashBook = cashBookRequestIsCurrent ? cashBookRequest.data : null
   const cashBookError = cashBookRequestIsCurrent ? cashBookRequest.error : null
+  const showAllInvoiceRecords = showAllInvoices || (role === 'Finance Officer' && searchParams.get('view') === 'all')
   useEffect(() => {
     const controller = new AbortController()
     async function loadSection() {
@@ -497,8 +542,28 @@ export function LiveFinanceView({ currentUser }: { currentUser: CurrentUser }) {
         return null
       }
 
+      if (role === 'Finance Officer') {
+        if (financeSection === 'invoices') {
+          setInvoices(await everyPage<SupplierInvoice>(page => financeApi.invoices(controller.signal, { page, pageSize: 100 })))
+          try {
+            setTechnicalAcceptances(await everyPage<TechnicalAcceptanceWorkItem>(page => inventoryApi.technicalAcceptances({ page, pageSize: 100 }, controller.signal)))
+            return null
+          } catch (error) {
+            if (error instanceof DOMException && error.name === 'AbortError') throw error
+            setTechnicalAcceptances([])
+            return 'Technical inspection details are unavailable.'
+          }
+        }
+        if (financeSection === 'authorized') {
+          setAuthorizations(await everyPage<PaymentAuthorization>(page => financeApi.authorizations(true, controller.signal, { page, pageSize: 100 })))
+          return null
+        }
+        setPayments(await everyPage<Payment>(page => financeApi.payments(controller.signal, { page, pageSize: 100 })))
+        return null
+      }
+
       const tasks: Promise<unknown>[] = [financeApi.invoices(controller.signal)]
-      if (role !== 'Procurement Officer') tasks.push(financeApi.authorizations(role === 'Finance Officer', controller.signal), financeApi.payments(controller.signal))
+      if (role !== 'Procurement Officer') tasks.push(financeApi.authorizations(false, controller.signal), financeApi.payments(controller.signal))
       if (role === 'Procurement Officer') tasks.push(purchaseOrdersApi.list({ page: 1, pageSize: 100, status: 'Issued' }, controller.signal), inventoryApi.receipts(controller.signal))
       if (['Finance Officer', 'Auditor'].includes(role)) tasks.push(inventoryApi.technicalAcceptances({ pageSize: 100 }, controller.signal))
       const results = await Promise.all(tasks)
@@ -531,6 +596,13 @@ export function LiveFinanceView({ currentUser }: { currentUser: CurrentUser }) {
       .catch(error => { if (!(error instanceof DOMException && error.name === 'AbortError')) setCashBookRequest({ role, refresh, data: null, error: messageOf(error) }) })
     return () => controller.abort()
   }, [dataSection, financeSection, refresh, role])
+  const financeReadyInvoices = invoices.filter(invoice => invoice.status === 'PendingReview'
+    && (!invoice.requiresTechnicalAcceptance || invoice.technicalAcceptanceStatus === 'Accepted'))
+  const invoiceRecords = role === 'Supervisor'
+    ? invoices.filter(invoice => invoice.status === 'ReadyForAuthorization')
+    : role === 'Finance Officer' && !showAllInvoiceRecords
+      ? financeReadyInvoices
+      : invoices
   const run = async (action: () => Promise<unknown>, text: string) => { try { await action(); setNotice(text); setError(null); setRefresh(v => v + 1); return true } catch (error) { setError(messageOf(error)); return false } }
   return <div className="lav-view ops-view"><header className="lav-page-head"><div><h1>{role === 'CEO' ? 'Money' : role === 'Procurement Officer' ? 'Supplier invoices' : 'Invoices and payments'}</h1></div></header>{loadError && <Notice tone="error">{loadError} <button type="button" onClick={() => { setLoadError(null); setRefresh(value => value + 1) }}>Try again</button></Notice>}{error && <Notice tone="error">{error}</Notice>}{notice && <Notice tone="success">{notice}</Notice>}{!loading && loadWarning && <Notice>{loadWarning}</Notice>}
     {loading ? <Loading>Loading finance records…</Loading> : loadError ? null : <>
@@ -539,8 +611,12 @@ export function LiveFinanceView({ currentUser }: { currentUser: CurrentUser }) {
       <button type="button" className={financeSection === 'authorized' ? 'active' : ''} aria-current={financeSection === 'authorized' ? 'page' : undefined} onClick={() => setSearchParams({ section: 'authorized' }, { replace: true })}>Authorized payments</button>
       <button type="button" className={financeSection === 'executed' ? 'active' : ''} aria-current={financeSection === 'executed' ? 'page' : undefined} onClick={() => setSearchParams({ section: 'executed' }, { replace: true })}>Executed payments</button>
     </nav>}
+    {role === 'Supervisor' && <nav className="ops-action-nav finance-section-nav supervisor-finance-nav" aria-label="Supplier payment sections">
+      <button type="button" className={financeSection === 'invoices' ? 'active' : ''} aria-current={financeSection === 'invoices' ? 'page' : undefined} onClick={() => setSearchParams({}, { replace: true })}>Waiting approval</button>
+      <button type="button" className={financeSection === 'executed' ? 'active' : ''} aria-current={financeSection === 'executed' ? 'page' : undefined} onClick={() => setSearchParams({ section: 'executed' }, { replace: true })}>Executed payments</button>
+    </nav>}
     {role === 'Procurement Officer' && <InvoiceCapture orders={orders} receipts={receipts} invoices={invoices} onRun={run}/>}
-    {showInvoices && <section className="lav-panel ops-panel"><header className="lav-panel-head"><div><span className="lav-kicker">THREE-WAY MATCH</span><h2>Supplier invoices</h2></div><strong>{invoices.length} records</strong></header>{invoices.length ? <div className="ops-invoice-grid">{invoices.map(invoice => <InvoiceCard key={invoice.id} invoice={invoice} technicalAcceptances={technicalAcceptances.filter(item => item.purchaseOrderId === invoice.purchaseOrderId && item.technicalAcceptanceId !== null)} currentUser={currentUser} run={run}/>)}</div> : <Empty>Invoices appear only after an issued PO has an accepted GRN.</Empty>}</section>}
+    {showInvoices && <section className="lav-panel ops-panel"><header className="lav-panel-head"><div><h2>{role === 'Supervisor' ? 'Waiting approval' : role === 'Finance Officer' && !showAllInvoiceRecords ? 'Invoices to match' : 'Supplier invoices'}</h2></div>{role === 'Finance Officer' ? <button type="button" className="ops-text-action" onClick={() => { if (showAllInvoiceRecords) { const next = new URLSearchParams(searchParams); next.delete('view'); setSearchParams(next, { replace: true }); setShowAllInvoices(false) } else setShowAllInvoices(true) }}>{showAllInvoiceRecords ? 'Show invoices to match' : 'View all invoices'}</button> : <strong>{invoiceRecords.length} records</strong>}</header>{invoiceRecords.length ? <div className="ops-invoice-grid">{invoiceRecords.map(invoice => <InvoiceCard key={invoice.id} invoice={invoice} technicalAcceptances={technicalAcceptances.filter(item => item.purchaseOrderId === invoice.purchaseOrderId && item.technicalAcceptanceId !== null)} currentUser={currentUser} run={run}/>)}</div> : <Empty>{role === 'Supervisor' ? 'No supplier payment needs approval.' : role === 'Finance Officer' && !showAllInvoiceRecords ? 'No invoice needs matching.' : 'No supplier invoice recorded.'}</Empty>}</section>}
     {role === 'CEO' && financeSection === 'summary' && cashBookLoading && <section className="lav-panel ops-panel"><Loading>Loading cash book…</Loading></section>}
     {role === 'CEO' && financeSection === 'summary' && cashBookError && <section className="lav-panel ops-panel"><Notice tone="error">{cashBookError}</Notice></section>}
     {role === 'CEO' && financeSection === 'summary' && cashBook && <CeoCashBook cashBook={cashBook}/>}
@@ -627,8 +703,8 @@ function InvoiceCard({ invoice, technicalAcceptances, currentUser, run }: { invo
   const action = () => {
     if (role === 'Finance Officer' && invoice.status === 'PendingReview' && technicalStatus === 'Pending') return <span className="ops-status technical-wait">Waiting for Engineer</span>
     if (role === 'Finance Officer' && invoice.status === 'PendingReview' && technicalStatus === 'Rejected') return <span className="ops-status rejected">Delivery rejected</span>
-    if (role === 'Finance Officer' && invoice.status === 'PendingReview') return <button className="lav-button primary" onClick={() => void run(() => financeApi.reviewInvoice(invoice.id, 'PO, accepted GRN and invoice compared by Finance'), 'Three-way match completed.')}>Run match</button>
-    if (role === 'Supervisor' && invoice.status === 'ReadyForAuthorization' && invoice.reviewedByUserId !== currentUser.id) return <button className="lav-button primary" onClick={() => void run(() => financeApi.authorize(invoice.id, 'Approved for payment'), 'Payment authorized.')}>Authorize payment</button>
+    if (role === 'Finance Officer' && invoice.status === 'PendingReview') return <button className="lav-button primary" onClick={() => void run(() => financeApi.reviewInvoice(invoice.id), 'Three-way match completed.')}>Run match</button>
+    if (role === 'Supervisor' && invoice.status === 'ReadyForAuthorization' && invoice.reviewedByUserId !== currentUser.id) return <button className="lav-button primary" onClick={() => void run(() => financeApi.authorize(invoice.id), 'Payment authorized.')}>Authorize payment</button>
     if (role === 'CEO' && invoice.status === 'AwaitingCeoApproval') return <div className="ops-buttons"><button className="lav-button primary" onClick={() => void run(() => financeApi.ceoDecision(invoice.id, true, 'High-value exception approved after reviewing the complete evidence chain'), 'Exception approved.')}>Approve exception</button><button className="lav-button secondary" onClick={() => void run(() => financeApi.ceoDecision(invoice.id, false, 'High-value exception rejected by CEO'), 'Exception rejected.')}>Reject</button></div>
     return null
   }
@@ -708,23 +784,28 @@ function FinancePaymentActions({ currentUser, authorizations, run }: { currentUs
 }
 
 export function LivePettyCashView({ currentUser }: { currentUser: CurrentUser }) {
+  const [searchParams, setSearchParams] = useSearchParams()
   const [items, setItems] = useState<PettyCashRequest[]>([])
   const [projectSummaries, setProjectSummaries] = useState<ProjectSummary[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [refresh, setRefresh] = useState(0)
+  const [requestOpen, setRequestOpen] = useState(searchParams.get('new') === '1')
   const role = currentUser.role
+  const sectionedPettyCash = role === 'Finance Officer' || role === 'Supervisor'
+  const requestedView = searchParams.get('view')
+  const view = requestedView === 'waiting' || requestedView === 'closed' ? requestedView : 'action'
 
   useEffect(() => {
     const controller = new AbortController()
     Promise.all([
-      pettyCashApi.list(controller.signal),
+      everyPage<PettyCashRequest>(page => pettyCashApi.list(controller.signal, { page, pageSize: 100 })),
       role === 'Supervisor'
         ? Promise.all(currentUser.projects.map(project => projectsApi.getSummary(project.id, controller.signal)))
         : Promise.resolve([]),
     ]).then(([result, summaries]) => {
-      setItems(result.items)
+      setItems(result)
       setProjectSummaries(summaries)
       setError(null)
     }).catch(requestError => {
@@ -738,21 +819,38 @@ export function LivePettyCashView({ currentUser }: { currentUser: CurrentUser })
     catch (requestError) { setError(messageOf(requestError)); return false }
   }
 
+  const canAct = (item: PettyCashRequest) => {
+    if (role === 'Finance Officer') return item.status === 'PendingFinanceApproval' || item.status === 'Approved' || item.status === 'ReconciliationSubmitted'
+    if (role !== 'Supervisor' || item.requestedByUserId !== currentUser.id || item.status !== 'Disbursed') return false
+    return true
+  }
+  const visibleItems = sectionedPettyCash ? items.filter(item => {
+    const closed = item.status === 'Rejected' || item.status === 'Reconciled'
+    if (view === 'action') return canAct(item)
+    if (view === 'closed') return closed
+    return !closed && !canAct(item)
+  }) : items
+
   if (loading) return <Loading>Loading petty cash records…</Loading>
   return <div className="lav-view ops-view petty-cash-view">
-    <header className="lav-page-head"><div><span className="lav-kicker">SMALL SITE EXPENSES</span><h1>Petty cash</h1></div></header>
+    <header className="lav-page-head"><div><h1>Petty cash</h1></div>{role === 'Supervisor' && <button type="button" className="lav-button secondary" onClick={() => setRequestOpen(value => !value)}>{requestOpen ? 'Close form' : 'New request'}</button>}</header>
     {error && <Notice tone="error">{error}</Notice>}{notice && <Notice tone="success">{notice}</Notice>}
-    {role === 'Supervisor' && <PettyCashRequestForm summaries={projectSummaries} run={run}/>}
-    <section className="lav-panel ops-panel"><header className="lav-panel-head"><div><span className="lav-kicker">ACCOUNTABILITY QUEUE</span><h2>Petty cash records</h2></div><strong>{items.length} records</strong></header>
-      {items.length ? <div className="petty-cash-list">{items.map(item => <PettyCashCard key={item.id} item={item} currentUser={currentUser} run={run}/>)}</div> : <Empty>No petty cash has been requested.</Empty>}
+    {role === 'Supervisor' && requestOpen && <PettyCashRequestForm summaries={projectSummaries} run={run} onSaved={() => setRequestOpen(false)}/>}
+    {sectionedPettyCash && <nav className="ops-action-nav petty-cash-section-nav" aria-label="Petty cash sections">
+      <button type="button" className={view === 'action' ? 'active' : ''} aria-current={view === 'action' ? 'page' : undefined} onClick={() => setSearchParams({}, { replace: true })}>Needs action</button>
+      <button type="button" className={view === 'waiting' ? 'active' : ''} aria-current={view === 'waiting' ? 'page' : undefined} onClick={() => setSearchParams({ view: 'waiting' }, { replace: true })}>Waiting</button>
+      <button type="button" className={view === 'closed' ? 'active' : ''} aria-current={view === 'closed' ? 'page' : undefined} onClick={() => setSearchParams({ view: 'closed' }, { replace: true })}>Closed</button>
+    </nav>}
+    <section className="lav-panel ops-panel"><header className="lav-panel-head"><div><h2>{sectionedPettyCash ? view === 'action' ? 'Needs action' : view === 'waiting' ? 'Waiting' : 'Closed records' : 'Petty cash records'}</h2></div><strong>{visibleItems.length} records</strong></header>
+      {visibleItems.length ? <div className="petty-cash-list">{visibleItems.map(item => <PettyCashCard key={item.id} item={item} currentUser={currentUser} run={run}/>)}</div> : <Empty>No petty cash record in this section.</Empty>}
     </section>
   </div>
 }
 
-function PettyCashRequestForm({ summaries, run }: { summaries: ProjectSummary[]; run: (action: () => Promise<unknown>, text: string) => Promise<boolean> }) {
+function PettyCashRequestForm({ summaries, run, onSaved }: { summaries: ProjectSummary[]; run: (action: () => Promise<unknown>, text: string) => Promise<boolean>; onSaved: () => void }) {
   const [form, setForm] = useState({ projectId: '', costCodeId: '', purpose: '', amount: '', neededByDate: '' })
   const selected = summaries.find(item => item.project.id === Number(form.projectId))
-  return <form className="lav-panel ops-form" onSubmit={event => { event.preventDefault(); void run(() => pettyCashApi.create({ projectId: Number(form.projectId), costCodeId: Number(form.costCodeId), purpose: form.purpose, amount: Number(form.amount), neededByDate: form.neededByDate }), 'Petty-cash request submitted.').then(saved => { if (saved) setForm({ projectId: '', costCodeId: '', purpose: '', amount: '', neededByDate: '' }) }) }}>
+  return <form className="lav-panel ops-form" onSubmit={event => { event.preventDefault(); void run(() => pettyCashApi.create({ projectId: Number(form.projectId), costCodeId: Number(form.costCodeId), purpose: form.purpose, amount: Number(form.amount), neededByDate: form.neededByDate }), 'Petty-cash request submitted.').then(saved => { if (saved) { setForm({ projectId: '', costCodeId: '', purpose: '', amount: '', neededByDate: '' }); onSaved() } }) }}>
     <h2>Request petty cash</h2><p>Maximum KES 100,000</p>
     <div className="ops-fields"><label><span>Project</span><select required value={form.projectId} onChange={event => setForm({ ...form, projectId: event.target.value, costCodeId: '' })}><option value="">Choose project</option>{summaries.map(item => <option key={item.project.id} value={item.project.id}>{item.project.name}</option>)}</select></label><label><span>Budget area</span><select required disabled={!selected} value={form.costCodeId} onChange={event => setForm({ ...form, costCodeId: event.target.value })}><option value="">Choose budget area</option>{selected?.costCodes.filter(item => item.isActive).map(item => <option key={item.id} value={item.id}>{item.code} · {item.name}</option>)}</select></label></div>
     <div className="ops-fields"><label><span>Amount</span><input type="number" min="1" max="100000" step="0.01" required value={form.amount} onChange={event => setForm({ ...form, amount: event.target.value })}/></label><label><span>Needed by</span><input type="date" required value={form.neededByDate} onChange={event => setForm({ ...form, neededByDate: event.target.value })}/></label></div>

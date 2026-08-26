@@ -845,8 +845,8 @@ export const financeApi = {
     request<SupplierInvoice>(`/finance/invoices/${id}/ceo-decision`, { method: 'POST', body: { approve, notes }, signal }),
   authorize: (id: number, notes?: string, signal?: AbortSignal) =>
     request<SupplierInvoice>(`/finance/invoices/${id}/authorize`, { method: 'POST', body: { notes: notes || null }, signal }),
-  authorizations: (unpaidOnly = false, signal?: AbortSignal) =>
-    request<PaginatedResult<PaymentAuthorization>>('/finance/authorizations', { signal }, { page: 1, pageSize: 100, unpaidOnly }),
+  authorizations: (unpaidOnly = false, signal?: AbortSignal, query: PageQuery = {}) =>
+    request<PaginatedResult<PaymentAuthorization>>('/finance/authorizations', { signal }, { ...pageQuery({ page: 1, pageSize: 100, ...query }), unpaidOnly }),
   pay: (id: number, body: { method: string; externalReference: string; evidenceReference?: string | null; cashAccountId?: number | null }, signal?: AbortSignal) =>
     request<Payment>(`/finance/authorizations/${id}/pay`, { method: 'POST', body, signal }),
   payments: (signal?: AbortSignal, query: PageQuery = {}) => request<PaginatedResult<Payment>>('/finance/payments', { signal }, pageQuery({ page: 1, pageSize: 100, ...query })),
@@ -858,7 +858,7 @@ export const financeApi = {
 }
 
 export const pettyCashApi = {
-  list: (signal?: AbortSignal) => request<PaginatedResult<PettyCashRequest>>('/finance/petty-cash', { signal }, { page: 1, pageSize: 100 }),
+  list: (signal?: AbortSignal, query: PageQuery = {}) => request<PaginatedResult<PettyCashRequest>>('/finance/petty-cash', { signal }, pageQuery({ page: 1, pageSize: 100, ...query })),
   create: (body: { projectId: number; costCodeId: number; purpose: string; amount: number; neededByDate: string }, signal?: AbortSignal) =>
     request<PettyCashRequest>('/finance/petty-cash', { method: 'POST', body, signal }),
   decide: (id: number, body: { approve: boolean; amountApproved?: number | null; notes: string }, signal?: AbortSignal) =>

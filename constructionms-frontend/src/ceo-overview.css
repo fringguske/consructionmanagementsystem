@@ -413,3 +413,69 @@
   gap: 0.8rem;
   padding: 1rem;
 }
+
+.requisition-section-nav {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border: 1px solid #cbd4db;
+  background: #fff;
+}
+
+.requisition-section-nav button {
+  min-height: 46px;
+  border: 0;
+  border-right: 1px solid #cbd4db;
+  background: #fff;
+  padding: 0.7rem 0.8rem;
+  color: #425261;
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.requisition-section-nav button:last-child {
+  border-right: 0;
+}
+
+.requisition-section-nav button.active {
+  background: #183e37;
+  color: #fff;
+}
+
+.lav-progress-entry {
+  border-top: 1px solid #dce3e0;
+  background: #fff;
+}
+
+.lav-progress-entry > summary {
+  min-height: 48px;
+  padding: 0.8rem 1rem;
+  color: #28584d;
+  cursor: pointer;
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.lav-progress-entry[open] > summary {
+  border-bottom: 1px solid #dce3e0;
+}
+
+.lav-progress-entry .lav-inline-form {
+  border: 0;
+}
+
+@media (max-width: 560px) {
+  .requisition-section-nav {
+    grid-template-columns: 1fr;
+  }
+
+  .requisition-section-nav button {
+    border-right: 0;
+    border-bottom: 1px solid #cbd4db;
+  }
+
+  .requisition-section-nav button:last-child {
+    border-bottom: 0;
+  }
+}

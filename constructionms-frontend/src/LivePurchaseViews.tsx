@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
+import { useSearchParams } from 'react-router'
 import {
   ApiError,
   purchaseOrdersApi,
@@ -22,6 +23,16 @@ export interface LiveProcurementViewProps {
 
 export interface LivePurchaseOrdersViewProps {
   currentUser: CurrentUser
+}
+
+async function everyPage<T>(load: (page: number) => Promise<{ items: T[]; totalPages: number }>) {
+  const first = await load(1)
+  const items = [...first.items]
+  for (let page = 2; page <= first.totalPages; page += 1) {
+    const next = await load(page)
+    items.push(...next.items)
+  }
+  return items
 }
 
 interface NoticeProps {
@@ -175,6 +186,7 @@ function projectOptionsFrom(
 }
 
 export function LiveProcurementView({ currentUser }: LiveProcurementViewProps) {
+  const [searchParams, setSearchParams] = useSearchParams()
   const allowed = ['Procurement Officer', 'Supervisor', 'CEO', 'Auditor'].includes(
     currentUser.role,
   )
@@ -187,6 +199,7 @@ export function LiveProcurementView({ currentUser }: LiveProcurementViewProps) {
   const [notice, setNotice] = useState<string | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
   const [projectFilter, setProjectFilter] = useState('')
+  const supervisorHistory = currentUser.role === 'Supervisor' && searchParams.get('view') === 'history'
 
   useEffect(() => {
     if (!allowed) return
@@ -195,16 +208,13 @@ export function LiveProcurementView({ currentUser }: LiveProcurementViewProps) {
 
     const procurement = currentUser.role === 'Procurement Officer'
     Promise.all([
-      sourcingRoundsApi.list({ page: 1, pageSize: 100 }, controller.signal),
-      purchaseOrdersApi.list({ page: 1, pageSize: 100 }, controller.signal),
+      everyPage<SourcingRound>(page => sourcingRoundsApi.list({ page, pageSize: 100 }, controller.signal)).then(items => ({ items })),
+      everyPage<PurchaseOrder>(page => purchaseOrdersApi.list({ page, pageSize: 100 }, controller.signal)).then(items => ({ items })),
       procurement
-        ? requisitionsApi.list(
-            { page: 1, pageSize: 100, status: 'Approved' },
-            controller.signal,
-          )
+        ? everyPage<Requisition>(page => requisitionsApi.list({ page, pageSize: 100, status: 'Approved' }, controller.signal)).then(items => ({ items }))
         : Promise.resolve(null),
       procurement
-        ? suppliersApi.list({ page: 1, pageSize: 100 }, controller.signal)
+        ? everyPage<SupplierSummary>(page => suppliersApi.list({ page, pageSize: 100 }, controller.signal)).then(items => ({ items }))
         : Promise.resolve(null),
     ])
       .then(([roundResult, orderResult, requisitionResult, supplierResult]) => {
@@ -240,10 +250,15 @@ export function LiveProcurementView({ currentUser }: LiveProcurementViewProps) {
   const filteredRounds = useMemo(
     () =>
       rounds.filter(
-        (round) =>
-          (!projectFilter || round.projectId === Number(projectFilter)),
+        (round) => {
+          if (projectFilter && round.projectId !== Number(projectFilter)) return false
+          if (currentUser.role !== 'Supervisor') return true
+          const liveOrder = orders.some(order => order.requisitionId === round.requisitionId && liveOrderStatuses.includes(order.status))
+          const actionable = (round.status === 'Open' && !liveOrder) || round.status === 'Cancelled'
+          return supervisorHistory ? !actionable : actionable
+        },
       ),
-    [projectFilter, rounds],
+    [currentUser.role, orders, projectFilter, rounds, supervisorHistory],
   )
 
   const projects = useMemo(
@@ -331,6 +346,11 @@ export function LiveProcurementView({ currentUser }: LiveProcurementViewProps) {
         </Notice>
       )}
 
+      {currentUser.role === 'Supervisor' && <nav className="lav-po-section-nav" aria-label="Sourcing exception sections">
+        <button type="button" className={!supervisorHistory ? 'active' : ''} aria-current={!supervisorHistory ? 'page' : undefined} onClick={() => setSearchParams({}, { replace: true })}>Needs action</button>
+        <button type="button" className={supervisorHistory ? 'active' : ''} aria-current={supervisorHistory ? 'page' : undefined} onClick={() => setSearchParams({ view: 'history' }, { replace: true })}>History</button>
+      </nav>}
+
       {loading ? (
         <LoadingBlock label="Loading supplier sourcing…" />
       ) : (
@@ -345,8 +365,7 @@ export function LiveProcurementView({ currentUser }: LiveProcurementViewProps) {
           <section className="lav-panel">
             <header className="lav-panel-head lav-request-toolbar">
               <div>
-                <span className="lav-kicker">Quote comparisons</span>
-                <h2>Sourcing record</h2>
+                <h2>{currentUser.role === 'Supervisor' ? supervisorHistory ? 'Sourcing history' : 'Sourcing exceptions' : 'Sourcing record'}</h2>
               </div>
               <div className="lav-filter-row">
                 <label>
@@ -983,7 +1002,6 @@ function RoundActionForm({
         )}
       </div>
       <div className="lav-form-actions">
-        <span>Your reason is kept in the permanent sourcing history.</span>
         <button className={`lav-button ${action === 'cancel' ? 'danger' : 'primary'}`} type="submit" disabled={busy}>
           {busy ? 'Saving…' : 'Confirm action'}
         </button>
@@ -993,6 +1011,7 @@ function RoundActionForm({
 }
 
 export function LivePurchaseOrdersView({ currentUser }: LivePurchaseOrdersViewProps) {
+  const [searchParams, setSearchParams] = useSearchParams()
   const allowed = [
     'Procurement Officer',
     'Supervisor',
@@ -1007,14 +1026,15 @@ export function LivePurchaseOrdersView({ currentUser }: LivePurchaseOrdersViewPr
   const [notice, setNotice] = useState<string | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
   const [projectFilter, setProjectFilter] = useState('')
+  const simplifiedOrderRole = currentUser.role === 'Supervisor' || currentUser.role === 'Storekeeper' || currentUser.role === 'Finance Officer'
+  const showHistory = searchParams.get('view') === 'history'
 
   useEffect(() => {
     if (!allowed) return
     const controller = new AbortController()
-    purchaseOrdersApi
-      .list({ page: 1, pageSize: 100 }, controller.signal)
+    everyPage<PurchaseOrder>(page => purchaseOrdersApi.list({ page, pageSize: 100 }, controller.signal))
       .then((result) => {
-        setOrders(result.items)
+        setOrders(result)
         setError(null)
       })
       .catch((requestError: unknown) => {
@@ -1034,10 +1054,18 @@ export function LivePurchaseOrdersView({ currentUser }: LivePurchaseOrdersViewPr
   )
   const filteredOrders = useMemo(() => {
     return orders.filter(
-      (order) =>
-        (!projectFilter || order.projectId === Number(projectFilter)),
+      (order) => {
+        if (projectFilter && order.projectId !== Number(projectFilter)) return false
+        if (!simplifiedOrderRole) return true
+        const current = currentUser.role === 'Storekeeper'
+          ? order.status === 'Issued'
+          : currentUser.role === 'Supervisor'
+            ? order.status === 'Submitted'
+            : order.status !== 'Rejected' && order.status !== 'Cancelled'
+        return showHistory ? !current : current
+      },
     )
-  }, [orders, projectFilter])
+  }, [currentUser.role, orders, projectFilter, showHistory, simplifiedOrderRole])
 
   function replaceOrder(updated: PurchaseOrder, message: string) {
     setOrders((current) => current.map((order) => (order.id === updated.id ? updated : order)))
@@ -1088,13 +1116,18 @@ export function LivePurchaseOrdersView({ currentUser }: LivePurchaseOrdersViewPr
         </Notice>
       )}
 
+      {simplifiedOrderRole && <nav className="lav-po-section-nav" aria-label="Purchase order sections">
+        <button type="button" className={!showHistory ? 'active' : ''} aria-current={!showHistory ? 'page' : undefined} onClick={() => setSearchParams({}, { replace: true })}>{currentUser.role === 'Storekeeper' ? 'Expected deliveries' : currentUser.role === 'Supervisor' ? 'Needs review' : 'Current orders'}</button>
+        <button type="button" className={showHistory ? 'active' : ''} aria-current={showHistory ? 'page' : undefined} onClick={() => setSearchParams({ view: 'history' }, { replace: true })}>History</button>
+      </nav>}
+
       {loading ? (
         <LoadingBlock label="Loading purchase orders…" />
       ) : (
         <section className="lav-panel">
           <header className="lav-panel-head lav-request-toolbar">
             <div>
-              <h2>Orders</h2>
+              <h2>{simplifiedOrderRole ? showHistory ? 'Order history' : currentUser.role === 'Storekeeper' ? 'Expected deliveries' : currentUser.role === 'Supervisor' ? 'Orders to review' : 'Current orders' : 'Orders'}</h2>
             </div>
             <div className="lav-filter-row">
               <label>
