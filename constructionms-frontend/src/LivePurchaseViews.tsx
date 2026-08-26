@@ -1260,18 +1260,18 @@ function PurchaseOrderCard({
 
 function OrderMilestones({ order }: { order: PurchaseOrder }) {
   const milestones = [
-    { label: 'Prepared', at: order.createdAt, by: order.createdByUserName },
-    { label: 'Submitted', at: order.submittedAt },
-    { label: 'Approved', at: order.approvedAt, by: order.approvedByUserName },
-    { label: 'Sent to supplier', at: order.issuedAt, by: order.issuedByUserName },
+    { label: 'Prepared', at: order.createdAt, by: order.createdByUserName, reached: true },
+    { label: 'Submitted', at: order.submittedAt, reached: ['Submitted', 'Approved', 'Issued', 'Rejected'].includes(order.status) },
+    { label: 'Approved', at: order.approvedAt, by: order.approvedByUserName, reached: order.status === 'Approved' || order.status === 'Issued' },
+    { label: 'Sent to supplier', at: order.issuedAt, by: order.issuedByUserName, reached: order.status === 'Issued' },
   ]
   return (
     <ol className="lav-order-milestones" aria-label="Purchase order progress">
       {milestones.map((milestone) => (
-        <li key={milestone.label} className={milestone.at ? 'done' : ''}>
+        <li key={milestone.label} className={milestone.at || milestone.reached ? 'done' : ''}>
           <i aria-hidden="true" />
           <span>{milestone.label}</span>
-          <small>{milestone.at ? `${formatDateTime(milestone.at)}${milestone.by ? ` · ${milestone.by}` : ''}` : 'Not reached'}</small>
+          <small>{milestone.at ? `${formatDateTime(milestone.at)}${milestone.by ? ` · ${milestone.by}` : ''}` : milestone.reached ? 'Completed' : 'Not reached'}</small>
         </li>
       ))}
     </ol>
