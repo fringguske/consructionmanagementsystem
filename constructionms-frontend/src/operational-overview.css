@@ -132,7 +132,7 @@
 
 .operational-facts {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   margin: 0;
 }
 
@@ -167,7 +167,7 @@
 
 .operational-shortcuts {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
 }
 
 .operational-shortcuts a {

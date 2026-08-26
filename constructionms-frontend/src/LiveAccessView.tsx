@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router'
 import {
   ApiError,
   accessRequestsApi,
@@ -61,6 +62,8 @@ async function collectPages<T>(
 }
 
 export function LiveAccessView({ currentUser }: LiveAccessViewProps) {
+  const [searchParams, setSearchParams] = useSearchParams()
+  const section = searchParams.get('section') === 'accounts' ? 'accounts' : 'requests'
   const [users, setUsers] = useState<UserAccount[]>([])
   const [pendingRequests, setPendingRequests] = useState<AccessRequest[]>([])
   const [roles, setRoles] = useState<RoleRecord[]>([])
@@ -76,7 +79,11 @@ export function LiveAccessView({ currentUser }: LiveAccessViewProps) {
   const [error, setError] = useState<string | null>(null)
   const [assignmentError, setAssignmentError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
+  const [requestsLoadError, setRequestsLoadError] = useState<string | null>(null)
+  const [projectsLoadError, setProjectsLoadError] = useState<string | null>(null)
+  const [accountsLoadError, setAccountsLoadError] = useState<string | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
+  const [selectedRequestId, setSelectedRequestId] = useState<number | null>(null)
   const [reviewingRequestId, setReviewingRequestId] = useState<number | null>(null)
   const [approvalRoleId, setApprovalRoleId] = useState<number | null>(null)
   const [approvalProjectIds, setApprovalProjectIds] = useState<number[]>([])
@@ -92,6 +99,13 @@ export function LiveAccessView({ currentUser }: LiveAccessViewProps) {
     selectedUser?.isActive && !selectedHasPortfolioAccess && !assignmentsLoading,
   )
   const assignmentsChanged = !sameIds(savedProjectIds, draftProjectIds)
+  const selectedRequest = pendingRequests.find((request) => request.id === selectedRequestId) ?? null
+  const approvalRole = roles.find((role) => role.id === approvalRoleId) ?? null
+  const approvalHasPortfolioAccess = approvalRole
+    ? PORTFOLIO_ROLES.has(approvalRole.roleName)
+    : false
+  const requestSectionError = requestsLoadError
+    ?? (pendingRequests.length > 0 && !approvalHasPortfolioAccess ? projectsLoadError : null)
 
   const visibleUsers = users
 
@@ -102,39 +116,67 @@ export function LiveAccessView({ currentUser }: LiveAccessViewProps) {
 
     const controller = new AbortController()
 
-    Promise.all([
+    Promise.allSettled([
       collectPages((page) => usersApi.list({ page, pageSize: 100 }, controller.signal)),
       collectPages((page) => projectsApi.list({ page, pageSize: 100 }, controller.signal)),
       accessRequestsApi.list('Pending', controller.signal),
       rolesApi.list(controller.signal),
     ])
-      .then(([loadedUsers, loadedProjects, loadedRequests, loadedRoles]) => {
-        const sortedUsers = [...loadedUsers].sort((left, right) =>
-          left.fullName.localeCompare(right.fullName),
-        )
-        const preferredUser =
-          sortedUsers.find(
-            (user) => user.isActive && !PORTFOLIO_ROLES.has(user.roleName),
-          ) ??
-          sortedUsers.find((user) => user.id !== currentUser.id) ??
-          sortedUsers[0]
+      .then(([usersResult, projectsResult, requestsResult, rolesResult]) => {
+        if (controller.signal.aborted) return
 
-        setUsers(sortedUsers)
-        setProjects(
-          [...loadedProjects].sort((left, right) => left.name.localeCompare(right.name)),
-        )
-        setPendingRequests(loadedRequests.items)
-        setRoles(loadedRoles.items.filter(role => role.roleName !== 'Administrator'))
-        setApprovalRoleId(current => current ?? loadedRoles.items.find(role => role.roleName === 'Foreman')?.id ?? null)
-        setSelectedUserId((current) => {
-          if (current && sortedUsers.some((user) => user.id === current)) return current
-          return preferredUser?.id ?? null
-        })
-      })
-      .catch((requestError: unknown) => {
-        if (!(requestError instanceof DOMException && requestError.name === 'AbortError')) {
-          setError(errorMessage(requestError))
+        const requestProblems: string[] = []
+        const accountProblems: string[] = []
+
+        if (usersResult.status === 'fulfilled') {
+          const sortedUsers = [...usersResult.value].sort((left, right) =>
+            left.fullName.localeCompare(right.fullName),
+          )
+          const preferredUser =
+            sortedUsers.find(
+              (user) => user.isActive && !PORTFOLIO_ROLES.has(user.roleName),
+            ) ??
+            sortedUsers.find((user) => user.id !== currentUser.id) ??
+            sortedUsers[0]
+
+          setUsers(sortedUsers)
+          setSelectedUserId((current) => {
+            if (current && sortedUsers.some((user) => user.id === current)) return current
+            return preferredUser?.id ?? null
+          })
+        } else if (!(usersResult.reason instanceof DOMException && usersResult.reason.name === 'AbortError')) {
+          accountProblems.push(errorMessage(usersResult.reason))
         }
+
+        if (projectsResult.status === 'fulfilled') {
+          setProjects(
+            [...projectsResult.value].sort((left, right) => left.name.localeCompare(right.name)),
+          )
+          setProjectsLoadError(null)
+        } else if (!(projectsResult.reason instanceof DOMException && projectsResult.reason.name === 'AbortError')) {
+          const problem = errorMessage(projectsResult.reason)
+          setProjectsLoadError(problem)
+          accountProblems.push(problem)
+        }
+
+        if (requestsResult.status === 'fulfilled') {
+          setPendingRequests(requestsResult.value.items)
+          setSelectedRequestId(requestsResult.value.items[0]?.id ?? null)
+          setApprovalProjectIds([])
+        } else if (!(requestsResult.reason instanceof DOMException && requestsResult.reason.name === 'AbortError')) {
+          requestProblems.push(errorMessage(requestsResult.reason))
+        }
+
+        if (rolesResult.status === 'fulfilled') {
+          const availableRoles = rolesResult.value.items.filter((role) => role.roleName !== 'Administrator')
+          setRoles(availableRoles)
+          setApprovalRoleId(availableRoles.find((role) => role.roleName === 'Foreman')?.id ?? availableRoles[0]?.id ?? null)
+        } else if (!(rolesResult.reason instanceof DOMException && rolesResult.reason.name === 'AbortError')) {
+          requestProblems.push(errorMessage(rolesResult.reason))
+        }
+
+        setRequestsLoadError(requestProblems.join(' ') || null)
+        setAccountsLoadError(accountProblems.join(' ') || null)
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false)
@@ -228,13 +270,13 @@ export function LiveAccessView({ currentUser }: LiveAccessViewProps) {
   }
 
   async function approveRequest(request: AccessRequest) {
-    if (!approvalRoleId) return
+    if (!approvalRoleId || (!approvalHasPortfolioAccess && approvalProjectIds.length === 0)) return
     setReviewingRequestId(request.id)
     setError(null)
     try {
       await accessRequestsApi.approve(request.id, {
         roleId: approvalRoleId,
-        projectIds: approvalProjectIds,
+        projectIds: approvalHasPortfolioAccess ? [] : approvalProjectIds,
       })
       setMessage(`${request.username} approved.`)
       setApprovalProjectIds([])
@@ -277,13 +319,35 @@ export function LiveAccessView({ currentUser }: LiveAccessViewProps) {
       <header className="lav-page-head">
         <div>
           <span className="lav-kicker">Administrator workspace</span>
-          <h1>Access requests</h1>
-          <p>Approve new people, choose their role and limit them to the correct projects.</p>
+          <h1>Access</h1>
         </div>
         <span className="lav-count-chip">
-          {users.filter((user) => user.isActive).length} active
+          {section === 'requests'
+            ? `${pendingRequests.length} waiting`
+            : `${users.filter((user) => user.isActive).length} active`}
         </span>
       </header>
+
+      <nav className="lav-access-section-nav" aria-label="Administrator access sections">
+        <button
+          type="button"
+          className={section === 'requests' ? 'active' : ''}
+          aria-current={section === 'requests' ? 'page' : undefined}
+          onClick={() => setSearchParams({}, { replace: true })}
+        >
+          Join requests
+          {pendingRequests.length > 0 && <span>{pendingRequests.length}</span>}
+        </button>
+        <button
+          type="button"
+          className={section === 'accounts' ? 'active' : ''}
+          aria-current={section === 'accounts' ? 'page' : undefined}
+          onClick={() => setSearchParams({ section: 'accounts' }, { replace: true })}
+        >
+          Team accounts
+          <span>{users.length}</span>
+        </button>
+      </nav>
 
       {error && (
         <div className="lav-notice error" role="alert">
@@ -307,19 +371,95 @@ export function LiveAccessView({ currentUser }: LiveAccessViewProps) {
         </div>
       )}
 
-      {!loading && <section className="lav-panel lav-access-requests">
+      {!loading && section === 'requests' && <section className="lav-panel lav-access-requests">
         <header className="lav-panel-head">
-          <div><span className="lav-kicker">Waiting for you</span><h2>New join requests</h2></div>
-          <span className="lav-count-chip attention">{pendingRequests.length}</span>
+          <div><h2>Join requests</h2></div>
+          <span className={`lav-count-chip ${pendingRequests.length ? 'attention' : ''}`}>{pendingRequests.length}</span>
         </header>
-        {pendingRequests.length === 0 ? <div className="lav-access-auto"><strong>No requests waiting</strong><p>New sign-ups will appear here.</p></div> : <div className="lav-request-list">
-          {pendingRequests.map(request => <article key={request.id}>
-            <div><strong>@{request.username}</strong><span>{request.email}</span><small>{new Date(request.requestedAt).toLocaleString()}</small></div>
-            <label><span>Role</span><select value={approvalRoleId ?? ''} onChange={event => setApprovalRoleId(Number(event.target.value))}>{roles.map(role => <option key={role.id} value={role.id}>{role.roleName}</option>)}</select></label>
-            <div className="lav-request-projects">{projects.map(project => <label key={project.id}><input type="checkbox" checked={approvalProjectIds.includes(project.id)} onChange={() => setApprovalProjectIds(ids => ids.includes(project.id) ? ids.filter(id => id !== project.id) : [...ids, project.id])}/><span>{project.name}</span></label>)}</div>
-            <div className="lav-request-actions"><button className="lav-button secondary" disabled={reviewingRequestId !== null} onClick={() => void rejectRequest(request)}>Decline</button><button className="lav-button primary" disabled={!approvalRoleId || reviewingRequestId !== null} onClick={() => void approveRequest(request)}>{reviewingRequestId === request.id ? 'Saving…' : 'Approve'}</button></div>
-          </article>)}
-        </div>}
+
+        {requestSectionError && (
+          <div className="lav-notice error" role="alert">
+            {requestSectionError}{' '}
+            <button type="button" onClick={() => {
+              setLoading(true)
+              setRequestsLoadError(null)
+              setProjectsLoadError(null)
+              setRefreshKey((value) => value + 1)
+            }}>Try again</button>
+          </div>
+        )}
+
+        {pendingRequests.length === 0 ? (
+          !requestsLoadError && <div className="lav-access-auto"><strong>No requests waiting</strong></div>
+        ) : selectedRequest && (
+          <>
+            <div className="lav-request-picker">
+              <label>
+                <span>Request</span>
+                <select
+                  value={selectedRequest.id}
+                  onChange={(event) => {
+                    setSelectedRequestId(Number(event.currentTarget.value))
+                    setApprovalRoleId(roles.find((role) => role.roleName === 'Foreman')?.id ?? roles[0]?.id ?? null)
+                    setApprovalProjectIds([])
+                    setError(null)
+                  }}
+                >
+                  {pendingRequests.map((request) => (
+                    <option key={request.id} value={request.id}>@{request.username} · {request.email}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            <div className="lav-request-list">
+              <article key={selectedRequest.id}>
+                <div>
+                  <strong>@{selectedRequest.username}</strong>
+                  <span>{selectedRequest.email}</span>
+                  <small>{new Date(selectedRequest.requestedAt).toLocaleString()}</small>
+                </div>
+                <label>
+                  <span>Role</span>
+                  <select
+                    value={approvalRoleId ?? ''}
+                    onChange={(event) => {
+                      const nextRoleId = Number(event.currentTarget.value)
+                      setApprovalRoleId(nextRoleId)
+                      if (PORTFOLIO_ROLES.has(roles.find((role) => role.id === nextRoleId)?.roleName ?? '')) {
+                        setApprovalProjectIds([])
+                      }
+                    }}
+                  >
+                    {roles.map((role) => <option key={role.id} value={role.id}>{role.roleName}</option>)}
+                  </select>
+                </label>
+                {approvalHasPortfolioAccess ? (
+                  <div className="lav-request-portfolio">
+                    <strong>Project access</strong>
+                    <span>All projects</span>
+                  </div>
+                ) : (
+                  <div className="lav-request-projects">
+                    {projects.map((project) => <label key={project.id}>
+                      <input
+                        type="checkbox"
+                        checked={approvalProjectIds.includes(project.id)}
+                        onChange={() => setApprovalProjectIds((ids) => ids.includes(project.id) ? ids.filter((id) => id !== project.id) : [...ids, project.id])}
+                      />
+                      <span>{project.name}</span>
+                    </label>)}
+                    {projects.length > 0 && approvalProjectIds.length === 0 && <span className="lav-request-project-required">Select at least one project.</span>}
+                  </div>
+                )}
+                <div className="lav-request-actions">
+                  <button className="lav-button secondary" disabled={reviewingRequestId !== null} onClick={() => void rejectRequest(selectedRequest)}>Decline</button>
+                  <button className="lav-button primary" disabled={!approvalRoleId || reviewingRequestId !== null || Boolean(requestsLoadError) || (!approvalHasPortfolioAccess && (Boolean(projectsLoadError) || approvalProjectIds.length === 0))} onClick={() => void approveRequest(selectedRequest)}>{reviewingRequestId === selectedRequest.id ? 'Saving…' : 'Approve'}</button>
+                </div>
+              </article>
+            </div>
+          </>
+        )}
       </section>}
 
       {loading ? (
@@ -327,14 +467,24 @@ export function LiveAccessView({ currentUser }: LiveAccessViewProps) {
           <span aria-hidden="true" />
           <p>Loading team access…</p>
         </div>
-      ) : users.length === 0 ? (
-        <div className="lav-empty">
-          <span aria-hidden="true">0</span>
-          <h3>No user accounts found</h3>
-          <p>User creation is handled separately. Accounts will appear here once created.</p>
-        </div>
-      ) : (
-        <div className="lav-access-layout">
+      ) : section === 'accounts' && (
+        <>
+          {accountsLoadError && (
+            <div className="lav-notice error" role="alert">
+              {accountsLoadError}{' '}
+              <button type="button" onClick={() => {
+                setLoading(true)
+                setAccountsLoadError(null)
+                setRefreshKey((value) => value + 1)
+              }}>Try again</button>
+            </div>
+          )}
+          {users.length === 0 ? (
+            !accountsLoadError && <div className="lav-empty">
+              <span aria-hidden="true">0</span>
+              <h3>No user accounts found</h3>
+            </div>
+          ) : <div className="lav-access-layout">
           <section className="lav-panel lav-access-users" aria-labelledby="access-users-title">
             <header className="lav-panel-head lav-access-users-head">
               <div>
@@ -549,7 +699,8 @@ export function LiveAccessView({ currentUser }: LiveAccessViewProps) {
               </div>
             </section>
           )}
-        </div>
+          </div>}
+        </>
       )}
     </div>
   )

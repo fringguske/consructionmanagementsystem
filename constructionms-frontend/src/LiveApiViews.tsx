@@ -486,7 +486,7 @@ export function LiveLoginView({ onAuthenticated }: LiveLoginViewProps) {
 
 export function LiveDashboardView(props: LiveDashboardViewProps) {
   if (props.currentUser.role === 'CEO') return <CeoOverview currentUser={props.currentUser}/>
-  if (['Finance Officer', 'Foreman', 'Engineer', 'Supervisor', 'Storekeeper'].includes(props.currentUser.role)) {
+  if (['Administrator', 'Finance Officer', 'Foreman', 'Engineer', 'Supervisor', 'Storekeeper', 'Procurement Officer', 'Auditor'].includes(props.currentUser.role)) {
     return <OperationalOverview key={`${props.currentUser.id}-${props.currentUser.role}`} currentUser={props.currentUser}/>
   }
   return <RoleDashboardView {...props}/>

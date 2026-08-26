@@ -35,8 +35,8 @@ type NavItem = { to: string; label: string; glyph: string; activePaths?: readonl
 const roleNavigation: Record<ConstructionRole, readonly NavItem[]> = {
   Administrator: [
     { to: '/', label: 'Overview', glyph: 'OV' },
-    { to: '/tasks', label: 'My tasks', glyph: 'TK' },
-    { to: '/access', label: 'Requests & access', glyph: 'AC' },
+    { to: '/tasks', label: 'My work', glyph: 'TK' },
+    { to: '/access', label: 'Team access', glyph: 'AC' },
   ],
   CEO: [
     { to: '/', label: 'Overview', glyph: 'OV' },
@@ -72,10 +72,8 @@ const roleNavigation: Record<ConstructionRole, readonly NavItem[]> = {
   ],
   'Procurement Officer': [
     { to: '/', label: 'Overview', glyph: 'OV' },
-    { to: '/tasks', label: 'My tasks', glyph: 'TK' },
-    { to: '/sourcing', label: 'Sourcing', glyph: 'SO' },
-    { to: '/purchase-orders', label: 'Purchase orders', glyph: 'PO' },
-    { to: '/suppliers', label: 'Supplier onboarding', glyph: 'SU' },
+    { to: '/tasks', label: 'My work', glyph: 'TK' },
+    { to: '/sourcing', label: 'Buying', glyph: 'SO', activePaths: ['/purchase-orders', '/suppliers'] },
     { to: '/finance', label: 'Supplier invoices', glyph: 'IN' },
   ],
   'Finance Officer': [
@@ -88,23 +86,15 @@ const roleNavigation: Record<ConstructionRole, readonly NavItem[]> = {
   ],
   Auditor: [
     { to: '/', label: 'Overview', glyph: 'OV' },
-    { to: '/tasks', label: 'My tasks', glyph: 'TK' },
     { to: '/projects', label: 'Projects', glyph: 'PR' },
-    { to: '/requisitions', label: 'Request trail', glyph: 'MR' },
-    { to: '/sourcing', label: 'Sourcing trail', glyph: 'SO' },
-    { to: '/suppliers', label: 'Supplier register', glyph: 'SU' },
-    { to: '/purchase-orders', label: 'Order trail', glyph: 'PO' },
-    { to: '/inventory', label: 'Material trail', glyph: 'MI' },
-    { to: '/opening-positions', label: 'Opening positions', glyph: 'OP' },
-    { to: '/custody-close-out', label: 'Custody trail', glyph: 'CU' },
-    { to: '/finance', label: 'Payment trail', glyph: 'MO' },
-    { to: '/petty-cash', label: 'Petty cash trail', glyph: 'PC' },
-    { to: '/period-close', label: 'Period closing', glyph: 'CL' },
-    { to: '/audit', label: 'Complete chain', glyph: 'AU' },
+    { to: '/inventory', label: 'Materials', glyph: 'MI', activePaths: ['/requisitions', '/sourcing', '/suppliers', '/purchase-orders', '/custody-close-out'] },
+    { to: '/finance', label: 'Money', glyph: 'MO', activePaths: ['/petty-cash'] },
+    { to: '/audit', label: 'Records', glyph: 'AU', activePaths: ['/opening-positions', '/period-close'] },
   ],
 }
 
 const additionalRoleRoutes: Partial<Record<ConstructionRole, readonly string[]>> = {
+  'Procurement Officer': ['/purchase-orders', '/suppliers'],
   CEO: [
     '/requisitions',
     '/sourcing',
@@ -120,6 +110,16 @@ const additionalRoleRoutes: Partial<Record<ConstructionRole, readonly string[]>>
   Foreman: ['/custody-close-out'],
   Storekeeper: ['/purchase-orders', '/opening-positions', '/custody-close-out', '/period-close'],
   'Finance Officer': ['/purchase-orders', '/inventory', '/opening-positions', '/period-close'],
+  Auditor: [
+    '/requisitions',
+    '/sourcing',
+    '/suppliers',
+    '/purchase-orders',
+    '/opening-positions',
+    '/custody-close-out',
+    '/petty-cash',
+    '/period-close',
+  ],
 }
 
 type ContextLink = { to: string; label: string }
@@ -227,6 +227,44 @@ const roleContextSections: Partial<Record<ConstructionRole, readonly ContextSect
       { to: '/period-close', label: 'Period closing' },
     ],
   }],
+  'Procurement Officer': [{
+    paths: ['/sourcing', '/purchase-orders', '/suppliers'],
+    label: 'Buying',
+    links: [
+      { to: '/sourcing', label: 'Ready requests' },
+      { to: '/sourcing?section=open', label: 'Sourcing' },
+      { to: '/purchase-orders', label: 'Purchase orders' },
+      { to: '/suppliers', label: 'Suppliers' },
+    ],
+  }],
+  Auditor: [{
+    paths: ['/inventory', '/requisitions', '/sourcing', '/suppliers', '/purchase-orders', '/custody-close-out'],
+    label: 'Materials',
+    links: [
+      { to: '/inventory', label: 'Stock' },
+      { to: '/requisitions', label: 'Requests' },
+      { to: '/sourcing', label: 'Sourcing' },
+      { to: '/suppliers', label: 'Suppliers' },
+      { to: '/purchase-orders', label: 'Orders' },
+      { to: '/custody-close-out', label: 'Custody' },
+    ],
+  }, {
+    paths: ['/finance', '/petty-cash'],
+    label: 'Money',
+    links: [
+      { to: '/finance', label: 'Supplier payments' },
+      { to: '/finance?section=executed', label: 'Executed payments' },
+      { to: '/petty-cash', label: 'Petty cash' },
+    ],
+  }, {
+    paths: ['/audit', '/opening-positions', '/period-close'],
+    label: 'Records',
+    links: [
+      { to: '/audit', label: 'Complete chain' },
+      { to: '/opening-positions', label: 'Opening positions' },
+      { to: '/period-close', label: 'Period closing' },
+    ],
+  }],
 }
 
 const destinationPaths: Record<LiveDestination, string> = {
@@ -308,6 +346,13 @@ function notificationTarget(item: AppNotification, role: ConstructionRole) {
   if (role === 'Foreman' && item.taskType === 'RequisitionRevision' && path === '/requisitions') {
     return '/requisitions?view=action'
   }
+  if (role === 'Procurement Officer') {
+    if (item.taskType === 'OpenSourcing' && path === '/sourcing') return '/sourcing'
+    if (item.taskType === 'CompleteSourcing' && path === '/sourcing') return '/sourcing?section=open'
+    if ((item.taskType === 'SubmitPurchaseOrder' || item.taskType === 'IssuePurchaseOrder') && path === '/purchase-orders') {
+      return '/purchase-orders'
+    }
+  }
   if (role === 'Storekeeper' && path === '/inventory') {
     if (item.taskType.includes('GoodsReceipt') || item.taskType.includes('Delivery')) return '/inventory?action=receive'
     if (item.taskType.includes('MaterialIssue')) return '/inventory?action=issue'
@@ -375,8 +420,11 @@ function isContextLinkActive(pathname: string, search: string, target: string) {
   const targetSection = targetParams.get('section')
   const currentSection = currentParams.get('section')
 
-  if (targetSection) return currentSection === targetSection
-  if (targetPath === '/finance' || targetPath === '/inventory') return currentSection === null
+  if (targetSection) {
+    if (targetPath === '/sourcing' && targetSection === 'open') return currentSection === 'open' || currentSection === 'history'
+    return currentSection === targetSection
+  }
+  if (targetPath === '/finance' || targetPath === '/inventory' || targetPath === '/sourcing') return currentSection === null
   return true
 }
 
@@ -416,7 +464,7 @@ function Shell({ currentUser, onLogout, onRoleChanged, onCredentialsChanged }: {
 
   const canAccess = (path: string) => path === '/' || path === '/tasks' || allowed.has(path)
 
-  const readableOperationalRole = ['Finance Officer', 'Foreman', 'Engineer', 'Supervisor', 'Storekeeper'].includes(currentUser.role)
+  const readableOperationalRole = ['Administrator', 'Finance Officer', 'Foreman', 'Engineer', 'Supervisor', 'Storekeeper', 'Procurement Officer', 'Auditor'].includes(currentUser.role)
 
   return <div className={`live-shell${readableOperationalRole ? ' simplified-role-workspace' : ''}`}>
     <aside className={`live-sidebar ${navOpen ? 'open' : ''}`}>

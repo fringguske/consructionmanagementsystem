@@ -87,7 +87,7 @@ function Loading({ children }: { children: ReactNode }) {
 }
 
 export function LiveInventoryView({ currentUser }: { currentUser: CurrentUser }) {
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [balances, setBalances] = useState<StockBalance[]>([])
   const [ledger, setLedger] = useState<StockLedgerEntry[]>([])
   const [issues, setIssues] = useState<MaterialIssue[]>([])
@@ -103,9 +103,11 @@ export function LiveInventoryView({ currentUser }: { currentUser: CurrentUser })
   const [notice, setNotice] = useState<string | null>(null)
   const [refresh, setRefresh] = useState(0)
   const role = currentUser.role
-  const sectionedRole = role === 'Storekeeper' || role === 'Supervisor'
+  const sectionedRole = role === 'Storekeeper' || role === 'Supervisor' || role === 'Auditor'
   const requestedSection = searchParams.get('section')
-  const inventorySection = requestedSection === 'stock' || requestedSection === 'movements' ? requestedSection : 'work'
+  const inventorySection = role === 'Auditor'
+    ? requestedSection === 'movements' || requestedSection === 'evidence' ? requestedSection : 'stock'
+    : requestedSection === 'stock' || requestedSection === 'movements' ? requestedSection : 'work'
 
   useEffect(() => {
     const controller = new AbortController()
@@ -200,14 +202,23 @@ export function LiveInventoryView({ currentUser }: { currentUser: CurrentUser })
       ? inventorySection === 'stock' ? 'Current stock' : inventorySection === 'movements' ? 'Store movements' : 'Store operations'
       : role === 'Supervisor'
         ? inventorySection === 'stock' ? 'Current stock' : inventorySection === 'movements' ? 'Material movements' : 'Stock controls'
-        : role === 'Finance Officer' ? 'Delivery records' : null
+        : role === 'Finance Officer'
+          ? 'Delivery records'
+          : role === 'Auditor'
+            ? inventorySection === 'stock' ? 'Current stock' : inventorySection === 'movements' ? 'Material movements' : 'Material evidence'
+            : null
   return <div className="lav-view ops-view">
     {pageHeading && <header className="lav-page-head"><div><h1>{pageHeading}</h1></div></header>}
     {error && <Notice tone="error">{error}</Notice>}{notice && <Notice tone="success">{notice}</Notice>}
+    {role === 'Auditor' && <nav className="ops-action-nav auditor-inventory-nav" aria-label="Auditor material record sections">
+      <button type="button" className={inventorySection === 'stock' ? 'active' : ''} aria-current={inventorySection === 'stock' ? 'page' : undefined} onClick={() => setSearchParams({}, { replace: true })}>Current stock</button>
+      <button type="button" className={inventorySection === 'movements' ? 'active' : ''} aria-current={inventorySection === 'movements' ? 'page' : undefined} onClick={() => setSearchParams({ section: 'movements' }, { replace: true })}>Movements</button>
+      <button type="button" className={inventorySection === 'evidence' ? 'active' : ''} aria-current={inventorySection === 'evidence' ? 'page' : undefined} onClick={() => setSearchParams({ section: 'evidence' }, { replace: true })}>Evidence</button>
+    </nav>}
     {role === 'Storekeeper' && inventorySection === 'work' && <StorekeeperActions currentUser={currentUser} projectSummaries={projectSummaries} orders={orders} receipts={receipts} requisitions={requisitions} balances={balances} materials={materials} issues={issues} transfers={transfers} counts={counts} onChanged={changed}/>}
     {role === 'Supervisor' && inventorySection === 'work' && <SupervisorInventoryActions currentUser={currentUser} balances={balances} materials={materials} transfers={transfers} counts={counts} onChanged={changed}/>}
     {role === 'Foreman' && <ForemanIssueActions currentUser={currentUser} issues={issues} onChanged={changed}/>}
-    {role !== 'CEO' && (!sectionedRole || inventorySection === 'movements') && <InventoryEvidenceRegister currentUser={currentUser} receipts={receipts} issues={issues}/>}
+    {role !== 'CEO' && (role === 'Auditor' ? inventorySection === 'evidence' : !sectionedRole || inventorySection === 'movements') && <InventoryEvidenceRegister currentUser={currentUser} receipts={receipts} issues={issues}/>}
     {role === 'Finance Officer' && !error && receipts.length === 0 && <section className="lav-panel ops-panel"><Empty>No received delivery recorded.</Empty></section>}
     {role === 'CEO'
       ? <CeoMaterialsInventory currentUser={currentUser} balances={balances} ledger={ledger} issues={issues} transfers={transfers} counts={counts} receipts={receipts}/>
@@ -216,7 +227,7 @@ export function LiveInventoryView({ currentUser }: { currentUser: CurrentUser })
         {!['Foreman', 'Finance Officer'].includes(role) && (!sectionedRole || inventorySection === 'movements') && <section className="lav-panel ops-panel">
           {ledger.length ? <div className="ops-table"><div className="ops-row head"><span>Material</span><span>Movement</span><span>Quantity</span><span>Balance</span><span>Recorded by</span></div>{ledger.slice(0, 12).map(item => <div className="ops-row movement" key={item.id}><span data-label="Material"><b>{item.materialName}</b><small>{item.projectName}</small></span><span data-label="Movement">{item.movementType === 'TechnicalAcceptance' ? 'Engineer accepted' : item.movementType}</span><span data-label="Quantity" className={item.quantityDelta < 0 ? 'negative' : 'positive'}>{item.quantityDelta > 0 ? '+' : ''}{item.quantityDelta} {item.unit}</span><span data-label="Balance">{item.balanceAfter} {item.unit}</span><span data-label="Recorded by"><b>{item.actorName}</b><small>{when(item.occurredAt)}</small></span></div>)}</div> : <Empty>No receipts, issues, transfers or count adjustments yet.</Empty>}
         </section>}
-        {(role === 'Auditor' || (sectionedRole && inventorySection === 'movements')) && <MovementSummary issues={issues} transfers={transfers} counts={counts}/>}
+        {sectionedRole && inventorySection === 'movements' && <MovementSummary issues={issues} transfers={transfers} counts={counts}/>}
       </>}
   </div>
 }
@@ -503,16 +514,23 @@ export function LiveFinanceView({ currentUser }: { currentUser: CurrentUser }) {
   const [refresh, setRefresh] = useState(0)
   const role = currentUser.role
   const requestedSection = searchParams.get('section')
+  const procurementInvoiceSection = requestedSection === 'history' ? 'history' : 'capture'
   const financeSection: FinanceDeskSection = role === 'CEO'
     ? requestedSection === 'invoices' || requestedSection === 'executed' ? requestedSection : 'summary'
     : role === 'Finance Officer'
       ? requestedSection === 'authorized' || requestedSection === 'executed' ? requestedSection : 'invoices'
       : role === 'Supervisor'
         ? requestedSection === 'executed' ? 'executed' : 'invoices'
+        : role === 'Auditor'
+          ? requestedSection === 'executed' ? 'executed' : 'invoices'
         : 'invoices'
-  const dataSection: FinanceDeskSection | 'all' = role === 'CEO' || role === 'Finance Officer' ? financeSection : 'all'
-  const showInvoices = role === 'Finance Officer' || role === 'CEO' || role === 'Supervisor' ? financeSection === 'invoices' : true
-  const showExecutedPayments = role === 'Finance Officer' || role === 'CEO' || role === 'Supervisor' ? financeSection === 'executed' : role !== 'Procurement Officer'
+  const dataSection: FinanceDeskSection | 'all' = role === 'CEO' || role === 'Finance Officer' || role === 'Auditor' ? financeSection : 'all'
+  const showInvoices = role === 'Procurement Officer'
+    ? procurementInvoiceSection === 'history'
+    : role === 'Finance Officer' || role === 'CEO' || role === 'Supervisor' || role === 'Auditor'
+      ? financeSection === 'invoices'
+      : true
+  const showExecutedPayments = role === 'Finance Officer' || role === 'CEO' || role === 'Supervisor' || role === 'Auditor' ? financeSection === 'executed' : role !== 'Procurement Officer'
   const loading = loadedRequest?.role !== role || loadedRequest.refresh !== refresh || loadedRequest.section !== dataSection
   const cashBookRequestIsCurrent = cashBookRequest?.role === role && cashBookRequest.refresh === refresh
   const cashBookLoading = role === 'CEO' && financeSection === 'summary' && !cashBookRequestIsCurrent
@@ -562,10 +580,34 @@ export function LiveFinanceView({ currentUser }: { currentUser: CurrentUser }) {
         return null
       }
 
-      const tasks: Promise<unknown>[] = [financeApi.invoices(controller.signal)]
-      if (role !== 'Procurement Officer') tasks.push(financeApi.authorizations(false, controller.signal), financeApi.payments(controller.signal))
-      if (role === 'Procurement Officer') tasks.push(purchaseOrdersApi.list({ page: 1, pageSize: 100, status: 'Issued' }, controller.signal), inventoryApi.receipts(controller.signal))
-      if (['Finance Officer', 'Auditor'].includes(role)) tasks.push(inventoryApi.technicalAcceptances({ pageSize: 100 }, controller.signal))
+      if (role === 'Auditor') {
+        if (financeSection === 'invoices') {
+          setInvoices(await everyPage<SupplierInvoice>(page => financeApi.invoices(controller.signal, { page, pageSize: 100 })))
+          try {
+            setTechnicalAcceptances(await everyPage<TechnicalAcceptanceWorkItem>(page => inventoryApi.technicalAcceptances({ page, pageSize: 100 }, controller.signal)))
+            return null
+          } catch (error) {
+            if (error instanceof DOMException && error.name === 'AbortError') throw error
+            setTechnicalAcceptances([])
+            return 'Technical inspection details are unavailable.'
+          }
+        }
+        setPayments(await everyPage<Payment>(page => financeApi.payments(controller.signal, { page, pageSize: 100 })))
+        return null
+      }
+
+      const tasks: Promise<unknown>[] = [everyPage<SupplierInvoice>(page => financeApi.invoices(controller.signal, { page, pageSize: 100 })).then(items => ({ items }))]
+      if (role !== 'Procurement Officer') tasks.push(
+        everyPage<PaymentAuthorization>(page => financeApi.authorizations(false, controller.signal, { page, pageSize: 100 })).then(items => ({ items })),
+        everyPage<Payment>(page => financeApi.payments(controller.signal, { page, pageSize: 100 })).then(items => ({ items })),
+      )
+      if (role === 'Procurement Officer') tasks.push(
+        everyPage<PurchaseOrder>(page => purchaseOrdersApi.list({ page, pageSize: 100, status: 'Issued' }, controller.signal)).then(items => ({ items })),
+        everyPage<GoodsReceipt>(page => inventoryApi.receipts(controller.signal, { page, pageSize: 100 })).then(items => ({ items })),
+      )
+      if (['Finance Officer', 'Auditor'].includes(role)) tasks.push(
+        everyPage<TechnicalAcceptanceWorkItem>(page => inventoryApi.technicalAcceptances({ page, pageSize: 100 }, controller.signal)).then(items => ({ items })),
+      )
       const results = await Promise.all(tasks)
       let index = 0
       setInvoices((results[index++] as { items: SupplierInvoice[] }).items)
@@ -604,7 +646,7 @@ export function LiveFinanceView({ currentUser }: { currentUser: CurrentUser }) {
       ? financeReadyInvoices
       : invoices
   const run = async (action: () => Promise<unknown>, text: string) => { try { await action(); setNotice(text); setError(null); setRefresh(v => v + 1); return true } catch (error) { setError(messageOf(error)); return false } }
-  return <div className="lav-view ops-view"><header className="lav-page-head"><div><h1>{role === 'CEO' ? 'Money' : role === 'Procurement Officer' ? 'Supplier invoices' : 'Invoices and payments'}</h1></div></header>{loadError && <Notice tone="error">{loadError} <button type="button" onClick={() => { setLoadError(null); setRefresh(value => value + 1) }}>Try again</button></Notice>}{error && <Notice tone="error">{error}</Notice>}{notice && <Notice tone="success">{notice}</Notice>}{!loading && loadWarning && <Notice>{loadWarning}</Notice>}
+  return <div className="lav-view ops-view"><header className="lav-page-head"><div><h1>{role === 'CEO' ? 'Money' : role === 'Procurement Officer' ? 'Supplier invoices' : role === 'Auditor' ? 'Money records' : 'Invoices and payments'}</h1></div></header>{loadError && <Notice tone="error">{loadError} <button type="button" onClick={() => { setLoadError(null); setRefresh(value => value + 1) }}>Try again</button></Notice>}{error && <Notice tone="error">{error}</Notice>}{notice && <Notice tone="success">{notice}</Notice>}{!loading && loadWarning && <Notice>{loadWarning}</Notice>}
     {loading ? <Loading>Loading finance records…</Loading> : loadError ? null : <>
     {role === 'Finance Officer' && <nav className="ops-action-nav finance-section-nav" aria-label="Invoices and payments sections">
       <button type="button" className={financeSection === 'invoices' ? 'active' : ''} aria-current={financeSection === 'invoices' ? 'page' : undefined} onClick={() => setSearchParams({}, { replace: true })}>Supplier invoices</button>
@@ -615,7 +657,15 @@ export function LiveFinanceView({ currentUser }: { currentUser: CurrentUser }) {
       <button type="button" className={financeSection === 'invoices' ? 'active' : ''} aria-current={financeSection === 'invoices' ? 'page' : undefined} onClick={() => setSearchParams({}, { replace: true })}>Waiting approval</button>
       <button type="button" className={financeSection === 'executed' ? 'active' : ''} aria-current={financeSection === 'executed' ? 'page' : undefined} onClick={() => setSearchParams({ section: 'executed' }, { replace: true })}>Executed payments</button>
     </nav>}
-    {role === 'Procurement Officer' && <InvoiceCapture orders={orders} receipts={receipts} invoices={invoices} onRun={run}/>}
+    {role === 'Auditor' && <nav className="ops-action-nav finance-section-nav supervisor-finance-nav" aria-label="Money record sections">
+      <button type="button" className={financeSection === 'invoices' ? 'active' : ''} aria-current={financeSection === 'invoices' ? 'page' : undefined} onClick={() => setSearchParams({}, { replace: true })}>Supplier invoices</button>
+      <button type="button" className={financeSection === 'executed' ? 'active' : ''} aria-current={financeSection === 'executed' ? 'page' : undefined} onClick={() => setSearchParams({ section: 'executed' }, { replace: true })}>Executed payments</button>
+    </nav>}
+    {role === 'Procurement Officer' && <nav className="ops-action-nav finance-section-nav supervisor-finance-nav" aria-label="Supplier invoice sections">
+      <button type="button" className={procurementInvoiceSection === 'capture' ? 'active' : ''} aria-current={procurementInvoiceSection === 'capture' ? 'page' : undefined} onClick={() => setSearchParams({}, { replace: true })}>Capture invoice</button>
+      <button type="button" className={procurementInvoiceSection === 'history' ? 'active' : ''} aria-current={procurementInvoiceSection === 'history' ? 'page' : undefined} onClick={() => setSearchParams({ section: 'history' }, { replace: true })}>Invoice history</button>
+    </nav>}
+    {role === 'Procurement Officer' && procurementInvoiceSection === 'capture' && <InvoiceCapture orders={orders} receipts={receipts} invoices={invoices} onRun={run}/>}
     {showInvoices && <section className="lav-panel ops-panel"><header className="lav-panel-head"><div><h2>{role === 'Supervisor' ? 'Waiting approval' : role === 'Finance Officer' && !showAllInvoiceRecords ? 'Invoices to match' : 'Supplier invoices'}</h2></div>{role === 'Finance Officer' ? <button type="button" className="ops-text-action" onClick={() => { if (showAllInvoiceRecords) { const next = new URLSearchParams(searchParams); next.delete('view'); setSearchParams(next, { replace: true }); setShowAllInvoices(false) } else setShowAllInvoices(true) }}>{showAllInvoiceRecords ? 'Show invoices to match' : 'View all invoices'}</button> : <strong>{invoiceRecords.length} records</strong>}</header>{invoiceRecords.length ? <div className="ops-invoice-grid">{invoiceRecords.map(invoice => <InvoiceCard key={invoice.id} invoice={invoice} technicalAcceptances={technicalAcceptances.filter(item => item.purchaseOrderId === invoice.purchaseOrderId && item.technicalAcceptanceId !== null)} currentUser={currentUser} run={run}/>)}</div> : <Empty>{role === 'Supervisor' ? 'No supplier payment needs approval.' : role === 'Finance Officer' && !showAllInvoiceRecords ? 'No invoice needs matching.' : 'No supplier invoice recorded.'}</Empty>}</section>}
     {role === 'CEO' && financeSection === 'summary' && cashBookLoading && <section className="lav-panel ops-panel"><Loading>Loading cash book…</Loading></section>}
     {role === 'CEO' && financeSection === 'summary' && cashBookError && <section className="lav-panel ops-panel"><Notice tone="error">{cashBookError}</Notice></section>}
@@ -1055,43 +1105,92 @@ export function LiveAuditView() {
   const [events, setEvents] = useState<ControlEvent[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [projectFilter, setProjectFilter] = useState('')
+  const [selectedChainKey, setSelectedChainKey] = useState<string | null>(null)
   useEffect(() => {
     const controller = new AbortController()
-    financeApi.controlEvents({}, controller.signal)
-      .then(result => { setEvents(result.items); setError(null) })
+    everyPage<ControlEvent>(page => financeApi.controlEvents({ page, pageSize: 100 }, controller.signal))
+      .then(result => { setEvents(result); setError(null) })
       .catch(error => {
         if (!(error instanceof DOMException && error.name === 'AbortError')) setError(messageOf(error))
       })
       .finally(() => { if (!controller.signal.aborted) setLoading(false) })
     return () => controller.abort()
   }, [])
+  useEffect(() => {
+    if (selectedChainKey === null) return
+    const previousOverflow = document.body.style.overflow
+    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === 'Escape') setSelectedChainKey(null) }
+    document.body.style.overflow = 'hidden'
+    document.addEventListener('keydown', closeOnEscape)
+    return () => {
+      document.body.style.overflow = previousOverflow
+      document.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [selectedChainKey])
+
+  const projects = useMemo(() => {
+    const options = new Map<number, string>()
+    events.forEach(event => options.set(event.projectId, event.projectName))
+    return [...options.entries()]
+      .map(([id, name]) => ({ id, name }))
+      .sort((left, right) => left.name.localeCompare(right.name))
+  }, [events])
   const chains = useMemo(() => {
     const grouped = new Map<string, ControlEvent[]>()
-    events.forEach(event => grouped.set(event.chainKey, [...(grouped.get(event.chainKey) ?? []), event]))
+    events
+      .filter(event => !projectFilter || event.projectId === Number(projectFilter))
+      .forEach(event => grouped.set(event.chainKey, [...(grouped.get(event.chainKey) ?? []), event]))
     return [...grouped.entries()]
-  }, [events])
+      .map(([key, items]) => {
+        const ordered = [...items].sort((left, right) => new Date(left.occurredAt).getTime() - new Date(right.occurredAt).getTime())
+        return { key, ordered, first: ordered[0], latest: ordered[ordered.length - 1] }
+      })
+      .sort((left, right) => new Date(right.latest.occurredAt).getTime() - new Date(left.latest.occurredAt).getTime())
+  }, [events, projectFilter])
+  const selectedChain = chains.find(chain => chain.key === selectedChainKey)
 
   return <div className="lav-view ops-view">
-    <header className="lav-page-head"><div><h1>Records &amp; audit</h1></div></header>
+    <header className="lav-page-head"><div><h1>Complete chain</h1></div>{!loading && <span className="lav-count-chip">{chains.length} records</span>}</header>
     {error && <Notice tone="error">{error}</Notice>}
-    {loading ? <Loading>Loading complete control chain…</Loading> : <div className="ops-chain-list">
-      {chains.map(([key, items]) => {
-        const ordered = [...items].sort((left, right) => new Date(left.occurredAt).getTime() - new Date(right.occurredAt).getTime())
-        const first = ordered[0]
-        const latest = ordered[ordered.length - 1]
-        const material = ordered.map(controlEventMaterial).find(Boolean)
-        const milestones = keyControlMilestones(ordered)
-        return <section className="lav-panel ops-panel ops-record-card" key={key}>
-          <header className="ops-record-summary">
+    {loading ? <Loading>Loading control records…</Loading> : <>
+      <div className="audit-record-toolbar">
+        <label><span>Project</span><select value={projectFilter} onChange={event => setProjectFilter(event.currentTarget.value)}><option value="">All projects</option>{projects.map(project => <option key={project.id} value={project.id}>{project.name}</option>)}</select></label>
+      </div>
+      <section className="lav-panel audit-chain-register" aria-label="Control records">
+        <div className="audit-chain-row head" aria-hidden="true"><span>Record</span><span>Project</span><span>Current stage</span><span>Last activity</span></div>
+        {chains.map(chain => {
+          const material = chain.ordered.map(controlEventMaterial).find(Boolean)
+          return <button className="audit-chain-row" type="button" key={chain.key} onClick={() => setSelectedChainKey(chain.key)}>
+            <span data-label="Record"><strong>{controlRecordTitle(chain.first)}</strong><small>{material ?? `${chain.ordered.length} recorded events`}</small></span>
+            <span data-label="Project"><strong>{chain.first.projectName}</strong></span>
+            <span data-label="Current stage"><strong>{controlEventLabel(chain.latest)}</strong></span>
+            <span data-label="Last activity"><time>{when(chain.latest.occurredAt)}</time><i aria-hidden="true">Open →</i></span>
+          </button>
+        })}
+        {!chains.length && !error && <Empty>No records found.</Empty>}
+      </section>
+    </>}
+
+    {selectedChain && (() => {
+      const material = selectedChain.ordered.map(controlEventMaterial).find(Boolean)
+      const milestones = keyControlMilestones(selectedChain.ordered)
+      return <div className="ops-modal-wrap" role="presentation">
+        <button type="button" className="ops-modal-backdrop" aria-label="Close record" onClick={() => setSelectedChainKey(null)}/>
+        <section className="lav-panel ops-panel ops-record-card audit-chain-modal" role="dialog" aria-modal="true" aria-labelledby="audit-chain-title">
+          <header className="ops-record-summary audit-chain-modal-head">
             <div>
-              <span>{first.projectName}</span>
-              <h2>{controlRecordTitle(first)}</h2>
+              <span>{selectedChain.first.projectName}</span>
+              <h2 id="audit-chain-title">{controlRecordTitle(selectedChain.first)}</h2>
               {material && <p>{material}</p>}
             </div>
-            <div className="ops-record-status">
-              <span>Current stage</span>
-              <strong>{controlEventLabel(latest)}</strong>
-              <small>{when(latest.occurredAt)}</small>
+            <div className="audit-chain-modal-controls">
+              <div className="ops-record-status">
+                <span>Current stage</span>
+                <strong>{controlEventLabel(selectedChain.latest)}</strong>
+                <small>{when(selectedChain.latest.occurredAt)}</small>
+              </div>
+              <button type="button" onClick={() => setSelectedChainKey(null)}>Close</button>
             </div>
           </header>
 
@@ -1109,9 +1208,9 @@ export function LiveAuditView() {
           </section>
 
           <details className="ops-audit-details">
-            <summary><span>Full audit history</span><strong>{ordered.length} events</strong></summary>
+            <summary><span>Full audit history</span><strong>{selectedChain.ordered.length} events</strong></summary>
             <div className="ops-timeline">
-              {ordered.map((item, index) => {
+              {selectedChain.ordered.map((item, index) => {
                 const eventMaterial = controlEventMaterial(item)
                 const evidence = controlEventEvidence(item)
                 return <article key={`${item.entityType}-${item.entityId}-${item.sequenceNumber}`}>
@@ -1127,8 +1226,7 @@ export function LiveAuditView() {
             </div>
           </details>
         </section>
-      })}
-      {!chains.length && !error && <Empty>The trace will appear as controlled transactions are recorded.</Empty>}
-    </div>}
+      </div>
+    })()}
   </div>
 }

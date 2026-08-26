@@ -80,6 +80,12 @@ function safeTarget(task: MyTask, role: CurrentUser['role']) {
   if (role === 'Finance Officer' && task.taskType === 'PaymentExecution' && path === '/finance') return '/finance?section=authorized'
   if (role === 'Finance Officer' && task.taskType === 'InvoiceMatch' && path === '/finance') return '/finance?view=all'
   if (role === 'Foreman' && task.taskType === 'RequisitionRevision' && path === '/requisitions') return '/requisitions?view=action'
+  if (role === 'Procurement Officer') {
+    if (task.taskType === 'CompleteSourcing' && path === '/sourcing') return '/sourcing?section=open'
+    if ((task.taskType === 'SubmitPurchaseOrder' || task.taskType === 'IssuePurchaseOrder') && path === '/purchase-orders') {
+      return '/purchase-orders'
+    }
+  }
   if (role === 'Storekeeper' && path === '/inventory') {
     if (task.taskType.includes('GoodsReceipt') || task.taskType.includes('Delivery')) return '/inventory?action=receive'
     if (task.taskType.includes('MaterialIssue')) return '/inventory?action=issue'
@@ -116,7 +122,7 @@ export function MyTasksView({ currentUser }: { currentUser: CurrentUser }) {
     return () => controller.abort()
   }, [overdueOnly, projectId, refresh])
 
-  const simpleWorkRoles: CurrentUser['role'][] = ['Finance Officer', 'Foreman', 'Engineer', 'Supervisor', 'Storekeeper']
+  const simpleWorkRoles: CurrentUser['role'][] = ['Administrator', 'Finance Officer', 'Foreman', 'Engineer', 'Supervisor', 'Storekeeper', 'Procurement Officer']
   const heading = currentUser.role === 'CEO' ? 'My decisions' : simpleWorkRoles.includes(currentUser.role) ? 'My work' : 'My tasks'
   return <div className="lav-view governance-view ceo-readable">
     <header className="lav-page-head"><div><span className="lav-kicker">{currentUser.role}</span><h1>{heading}</h1></div>{result && <span className={`lav-count-chip ${result.totalCount ? 'attention' : ''}`}>{result.totalCount} open</span>}</header>

@@ -3023,3 +3023,133 @@
 .lav-login-tabs{display:grid;grid-template-columns:1fr 1fr;gap:5px;padding:4px;border-radius: 0;background:#eef2ef}.lav-login-tabs button{min-height:36px;border:0;border-radius: 0;background:transparent;color:#66736e;font-size:11px;font-weight:700}.lav-login-tabs button.active{background:#fff;color:#285f50;box-shadow: none}
 .lav-access-requests{margin-bottom:16px}.lav-access-requests .lav-request-list>article{display:grid;grid-template-columns:minmax(180px,1fr) 180px minmax(260px,1.3fr) auto;gap:14px;align-items:center;padding:14px 16px;border-top:1px solid #e2e7e3}.lav-access-requests .lav-request-list strong,.lav-access-requests .lav-request-list span,.lav-access-requests .lav-request-list small{display:block}.lav-access-requests .lav-request-list strong{font-size:13px}.lav-access-requests .lav-request-list span,.lav-access-requests .lav-request-list small{font-size:10.5px;color:#6f7c76;margin-top:3px}.lav-access-requests .lav-request-list article>label>span{font-weight:700;margin-bottom:5px}.lav-access-requests .lav-request-list select{width:100%;min-height:38px;border:1px solid #d6ddd8;border-radius: 0;background:#fff;padding:0 9px}.lav-request-projects{display:flex;flex-wrap:wrap;gap:6px}.lav-request-projects label{display:flex;align-items:center;gap:5px;padding:6px 8px;border:1px solid #dce2de;border-radius: 0;background:#f8faf8}.lav-request-projects label span{margin:0;color:#405049}.lav-request-actions{display:flex;gap:7px}@media(max-width:1000px){.lav-access-requests .lav-request-list>article{grid-template-columns:1fr 1fr}.lav-request-projects{grid-column:1/-1}.lav-request-actions{justify-content:flex-end}}@media(max-width:600px){.lav-access-requests .lav-request-list>article{grid-template-columns:1fr}.lav-request-projects,.lav-request-actions{grid-column:1}.lav-request-actions{justify-content:flex-start}}
 .lav-po-section-nav{display:grid;grid-template-columns:1fr 1fr;border:1px solid #cbd4db;background:#fff}.lav-po-section-nav button{min-height:46px;border:0;border-right:1px solid #cbd4db;background:#fff;padding:.7rem .8rem;color:#425261;font:inherit;font-size:.86rem;font-weight:750;cursor:pointer}.lav-po-section-nav button:last-child{border-right:0}.lav-po-section-nav button.active{background:#183e37;color:#fff}
+.lav-po-section-nav.procurement-sourcing-nav{grid-template-columns:repeat(3,minmax(0,1fr))}
+.lav-po-section-nav.procurement-order-nav{grid-template-columns:repeat(4,minmax(0,1fr))}
+
+@media(max-width:700px){
+  .lav-po-section-nav.procurement-sourcing-nav,
+  .lav-po-section-nav.procurement-order-nav{grid-template-columns:1fr 1fr}
+  .lav-po-section-nav.procurement-sourcing-nav button,
+  .lav-po-section-nav.procurement-order-nav button{border-bottom:1px solid #cbd4db}
+  .lav-po-section-nav.procurement-sourcing-nav button:nth-child(2n),
+  .lav-po-section-nav.procurement-order-nav button:nth-child(2n){border-right:0}
+  .lav-po-section-nav.procurement-sourcing-nav button:last-child,
+  .lav-po-section-nav.procurement-order-nav button:nth-last-child(-n+2){border-bottom:0}
+}
+
+.lav-access-section-nav {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border: 1px solid #cbd4db;
+  background: #fff;
+}
+
+.lav-access-section-nav button {
+  display: flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  border: 0;
+  border-right: 1px solid #cbd4db;
+  background: #fff;
+  padding: 0.7rem 0.9rem;
+  color: #425261;
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.lav-access-section-nav button:last-child {
+  border-right: 0;
+}
+
+.lav-access-section-nav button.active {
+  background: #183e37;
+  color: #fff;
+}
+
+.lav-access-section-nav button > span {
+  min-width: 25px;
+  border: 1px solid currentColor;
+  padding: 2px 6px;
+  font-size: 0.72rem;
+  line-height: 1.2;
+  text-align: center;
+}
+
+.lav-request-picker {
+  border-top: 1px solid #e2e7e3;
+  padding: 14px 16px;
+  background: #f7f9f8;
+}
+
+.lav-request-picker label {
+  display: grid;
+  max-width: 520px;
+  gap: 6px;
+}
+
+.lav-request-picker label > span,
+.lav-request-portfolio > strong {
+  color: #405049;
+  font-size: 0.78rem;
+  font-weight: 750;
+}
+
+.lav-request-picker select {
+  width: 100%;
+  min-height: 40px;
+  border: 1px solid #cbd4db;
+  border-radius: 0;
+  background: #fff;
+  padding: 0 10px;
+  color: #243a34;
+  font: inherit;
+  font-size: 0.86rem;
+}
+
+.lav-request-portfolio {
+  display: grid;
+  gap: 4px;
+  border-left: 3px solid #2f6a5d;
+  padding: 8px 10px;
+  background: #f3f7f5;
+}
+
+.lav-request-portfolio > span {
+  color: #2d4b43;
+  font-size: 0.86rem;
+}
+
+.lav-access-requests {
+  margin-bottom: 0;
+}
+
+.lav-access-requests > .lav-notice {
+  margin: 12px 16px 0;
+}
+
+.lav-access-requests .lav-request-list strong {
+  font-size: 0.88rem;
+}
+
+.lav-access-requests .lav-request-list span,
+.lav-access-requests .lav-request-list small {
+  font-size: 0.78rem;
+}
+
+.lav-access-requests .lav-request-list .lav-request-project-required {
+  flex-basis: 100%;
+  color: #91463b;
+  font-weight: 750;
+}
+
+@media (max-width: 600px) {
+  .lav-access-section-nav button {
+    min-height: 52px;
+    padding: 0.6rem;
+    font-size: 0.82rem;
+  }
+}

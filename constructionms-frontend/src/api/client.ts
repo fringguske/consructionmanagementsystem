@@ -852,9 +852,9 @@ export const financeApi = {
   payments: (signal?: AbortSignal, query: PageQuery = {}) => request<PaginatedResult<Payment>>('/finance/payments', { signal }, pageQuery({ page: 1, pageSize: 100, ...query })),
   cashBook: (signal?: AbortSignal) => request<CashBook>('/finance/cash-book', { signal }),
   controlEvents: (
-    query: { projectId?: number; requisitionId?: number; chainKey?: string } = {},
+    query: PageQuery & { projectId?: number; requisitionId?: number; chainKey?: string } = {},
     signal?: AbortSignal,
-  ) => request<PaginatedResult<ControlEvent>>('/finance/control-events', { signal }, { page: 1, pageSize: 100, ...query }),
+  ) => request<PaginatedResult<ControlEvent>>('/finance/control-events', { signal }, pageQuery({ page: 1, pageSize: 100, ...query })),
 }
 
 export const pettyCashApi = {

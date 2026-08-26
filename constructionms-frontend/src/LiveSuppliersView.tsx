@@ -113,14 +113,19 @@ export function LiveSuppliersView({ currentUser }: LiveSuppliersViewProps) {
   }, [refreshKey])
 
   const pendingCount = requests.filter(request => request.status === 'Pending').length
-  const financeSection = searchParams.get('section')
-  const selectedFinanceSection: SupplierOnboardingStatus | 'Register' = financeSection === 'approved'
+  const sectionParam = searchParams.get('section')
+  const selectedFinanceSection: SupplierOnboardingStatus | 'Register' = sectionParam === 'approved'
     ? 'Approved'
-    : financeSection === 'rejected'
+    : sectionParam === 'rejected'
       ? 'Rejected'
-      : financeSection === 'register'
+      : sectionParam === 'register'
         ? 'Register'
         : 'Pending'
+  const selectedProcurementSection = sectionParam === 'new'
+    ? 'New'
+    : sectionParam === 'register'
+      ? 'Register'
+      : 'Applications'
   const requestGroups: Array<{ status: SupplierOnboardingStatus; title: string; items: SupplierOnboardingRequest[] }> = [
     { status: 'Pending', title: 'Awaiting review', items: requests.filter(request => request.status === 'Pending') },
     { status: 'Approved', title: 'Approved applications', items: requests.filter(request => request.status === 'Approved') },
@@ -129,6 +134,16 @@ export function LiveSuppliersView({ currentUser }: LiveSuppliersViewProps) {
   const visibleRequestCount = currentUser.role === 'Finance Officer'
     ? requestGroups.find(group => group.status === selectedFinanceSection)?.items.length ?? 0
     : requests.length
+  const showApplications = currentUser.role === 'Finance Officer'
+    ? selectedFinanceSection !== 'Register'
+    : currentUser.role === 'Procurement Officer'
+      ? selectedProcurementSection === 'Applications'
+      : true
+  const showRegister = currentUser.role === 'Finance Officer'
+    ? selectedFinanceSection === 'Register'
+    : currentUser.role === 'Procurement Officer'
+      ? selectedProcurementSection === 'Register'
+      : true
 
   async function toggleBlacklist(supplier: SupplierSummary) {
     setBlacklistBusyId(supplier.id)
@@ -160,11 +175,19 @@ export function LiveSuppliersView({ currentUser }: LiveSuppliersViewProps) {
       {error && <div className="supplier-notice error" role="alert">{error}</div>}
       {message && <div className="supplier-notice success">{message}</div>}
 
-      {canSubmit && (
+      {currentUser.role === 'Procurement Officer' && <nav className="ops-action-nav supplier-control-nav procurement-supplier-nav" aria-label="Supplier onboarding sections">
+        <button type="button" className={selectedProcurementSection === 'New' ? 'active' : ''} aria-current={selectedProcurementSection === 'New' ? 'page' : undefined} onClick={() => setSearchParams({ section: 'new' }, { replace: true })}>New supplier</button>
+        <button type="button" className={selectedProcurementSection === 'Applications' ? 'active' : ''} aria-current={selectedProcurementSection === 'Applications' ? 'page' : undefined} onClick={() => setSearchParams({}, { replace: true })}>Applications</button>
+        <button type="button" className={selectedProcurementSection === 'Register' ? 'active' : ''} aria-current={selectedProcurementSection === 'Register' ? 'page' : undefined} onClick={() => setSearchParams({ section: 'register' }, { replace: true })}>Supplier register</button>
+      </nav>}
+
+      {canSubmit && selectedProcurementSection === 'New' && (
         <SupplierApplicationForm
+          initiallyOpen
           onSubmitted={request => {
             setRequests(current => [request, ...current])
             setMessage('Supplier application submitted.')
+            setSearchParams({}, { replace: true })
           }}
         />
       )}
@@ -176,7 +199,7 @@ export function LiveSuppliersView({ currentUser }: LiveSuppliersViewProps) {
         <button type="button" className={selectedFinanceSection === 'Register' ? 'active' : ''} aria-current={selectedFinanceSection === 'Register' ? 'page' : undefined} onClick={() => setSearchParams({ section: 'register' }, { replace: true })}>Supplier register</button>
       </nav>}
 
-      {(currentUser.role !== 'Finance Officer' || selectedFinanceSection !== 'Register') && <section className="supplier-panel">
+      {showApplications && <section className="supplier-panel">
         <header className="supplier-section-head">
           <div>
             {currentUser.role !== 'Finance Officer' && <span>APPLICATIONS</span>}
@@ -216,7 +239,7 @@ export function LiveSuppliersView({ currentUser }: LiveSuppliersViewProps) {
         )}
       </section>}
 
-      {(currentUser.role !== 'Finance Officer' || selectedFinanceSection === 'Register') && <section className="supplier-panel">
+      {showRegister && <section className="supplier-panel">
         <header className="supplier-section-head">
           <div>
             <span>APPROVED REGISTER</span>
@@ -262,10 +285,12 @@ export function LiveSuppliersView({ currentUser }: LiveSuppliersViewProps) {
 
 function SupplierApplicationForm({
   onSubmitted,
+  initiallyOpen = false,
 }: {
   onSubmitted: (request: SupplierOnboardingRequest) => void
+  initiallyOpen?: boolean
 }) {
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(initiallyOpen)
   const [form, setForm] = useState({
     name: '', contactPerson: '', phoneNumber: '', email: '', kraPin: '', mpesaNumber: '', category: '',
   })

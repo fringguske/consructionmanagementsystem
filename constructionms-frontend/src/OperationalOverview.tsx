@@ -12,7 +12,7 @@ import {
 } from './api'
 import './operational-overview.css'
 
-type SimplifiedRole = Extract<ConstructionRole, 'Finance Officer' | 'Foreman' | 'Engineer' | 'Supervisor' | 'Storekeeper'>
+type SimplifiedRole = Exclude<ConstructionRole, 'CEO'>
 
 type WorkspaceLink = {
   label: string
@@ -28,9 +28,26 @@ type WorkspaceMetric = {
 type WorkspaceConfig = {
   links: readonly WorkspaceLink[]
   metrics: readonly WorkspaceMetric[]
+  showWork?: boolean
+  factsTitle?: string
+  linksTitle?: string
+  scopeText?: string
+  scopeBadge?: string
 }
 
 const workspaceConfig: Record<SimplifiedRole, WorkspaceConfig> = {
+  Administrator: {
+    links: [
+      { label: 'Join requests', to: '/access' },
+      { label: 'Team accounts', to: '/access?section=accounts' },
+    ],
+    metrics: [
+      { label: 'Join requests', value: dashboard => dashboard.pendingAccessRequestCount, attention: value => value > 0 },
+      { label: 'Overdue reviews', value: (_dashboard, tasks) => tasks.overdueCount, attention: value => value > 0 },
+    ],
+    scopeText: 'User accounts and access',
+    scopeBadge: 'Company-wide',
+  },
   'Finance Officer': {
     links: [
       { label: 'Supplier approvals', to: '/suppliers' },
@@ -101,6 +118,38 @@ const workspaceConfig: Record<SimplifiedRole, WorkspaceConfig> = {
       { label: 'Assigned stores', value: dashboard => dashboard.visibleProjectCount },
     ],
   },
+  'Procurement Officer': {
+    links: [
+      { label: 'Ready requests', to: '/sourcing' },
+      { label: 'Open sourcing', to: '/sourcing?section=open' },
+      { label: 'Purchase orders', to: '/purchase-orders' },
+      { label: 'Suppliers', to: '/suppliers' },
+      { label: 'Supplier invoices', to: '/finance' },
+    ],
+    metrics: [
+      { label: 'Ready to source', value: (_dashboard, tasks) => tasks.items.filter(task => task.taskType === 'OpenSourcing').length, attention: value => value > 0 },
+      { label: 'Sourcing open', value: (_dashboard, tasks) => tasks.items.filter(task => task.taskType === 'CompleteSourcing').length, attention: value => value > 0 },
+      { label: 'Orders to finish', value: (_dashboard, tasks) => tasks.items.filter(task => task.taskType === 'SubmitPurchaseOrder' || task.taskType === 'IssuePurchaseOrder').length, attention: value => value > 0 },
+      { label: 'Invoices ready', value: (_dashboard, tasks) => tasks.items.filter(task => task.taskType === 'CaptureSupplierInvoice').length, attention: value => value > 0 },
+    ],
+  },
+  Auditor: {
+    links: [
+      { label: 'Complete chain', to: '/audit' },
+      { label: 'Materials', to: '/inventory' },
+      { label: 'Supplier payments', to: '/finance' },
+      { label: 'Period records', to: '/period-close' },
+    ],
+    metrics: [
+      { label: 'Projects visible', value: dashboard => dashboard.visibleProjectCount },
+      { label: 'Requests in progress', value: dashboard => dashboard.pendingRequisitionCount, attention: value => value > 0 },
+      { label: 'Count reviews waiting', value: dashboard => dashboard.pendingStockCountReviewCount, attention: value => value > 0 },
+      { label: 'Payments recorded', value: dashboard => dashboard.completedPaymentCount },
+    ],
+    showWork: false,
+    factsTitle: 'Record summary',
+    linksTitle: 'Open records',
+  },
 }
 
 function messageOf(error: unknown) {
@@ -117,6 +166,12 @@ function taskTarget(task: MyTask, role: SimplifiedRole) {
   }
   if (role === 'Foreman' && task.taskType === 'RequisitionRevision' && task.targetPath === '/requisitions') {
     return '/requisitions?view=action'
+  }
+  if (role === 'Procurement Officer') {
+    if (task.taskType === 'CompleteSourcing' && task.targetPath === '/sourcing') return '/sourcing?section=open'
+    if ((task.taskType === 'SubmitPurchaseOrder' || task.taskType === 'IssuePurchaseOrder') && task.targetPath === '/purchase-orders') {
+      return '/purchase-orders'
+    }
   }
   if (role === 'Storekeeper' && task.targetPath === '/inventory') {
     if (task.taskType.includes('GoodsReceipt') || task.taskType.includes('Delivery')) return '/inventory?action=receive'
@@ -154,7 +209,10 @@ export function OperationalOverview({ currentUser }: { currentUser: CurrentUser 
 
   useEffect(() => {
     const controller = new AbortController()
-    Promise.allSettled([dashboardApi.get(controller.signal), tasksApi.list({}, controller.signal)])
+    const taskRequest = role === 'Auditor'
+      ? Promise.resolve<MyTasksResponse>({ generatedAt: new Date().toISOString(), actualRole: role, totalCount: 0, overdueCount: 0, items: [] })
+      : tasksApi.list({}, controller.signal)
+    Promise.allSettled([dashboardApi.get(controller.signal), taskRequest])
       .then(([dashboardResult, taskResult]) => {
         if (dashboardResult.status === 'fulfilled') {
           setDashboard(dashboardResult.value)
@@ -173,7 +231,7 @@ export function OperationalOverview({ currentUser }: { currentUser: CurrentUser 
       })
       .finally(() => { if (!controller.signal.aborted) setLoading(false) })
     return () => controller.abort()
-  }, [currentUser.id, currentUser.role, refresh])
+  }, [currentUser.id, currentUser.role, refresh, role])
 
   const orderedTasks = useMemo(() => [...(tasks?.items ?? [])].sort((left, right) => {
     if (left.isOverdue !== right.isOverdue) return left.isOverdue ? -1 : 1
@@ -181,18 +239,20 @@ export function OperationalOverview({ currentUser }: { currentUser: CurrentUser 
   }), [tasks])
 
   const projectNames = currentUser.projects.map(project => project.name).join(', ')
+  const scopeText = config.scopeText ?? (projectNames || 'No project assigned')
+  const scopeBadge = config.scopeBadge ?? `${currentUser.projects.length} assigned`
 
   return <div className="lav-view operational-overview">
     <header className="lav-page-head operational-overview-head">
       <div>
         <h1>Overview</h1>
-        <p>{projectNames || 'No project assigned'}</p>
+        <p>{scopeText}</p>
       </div>
-      <span className="lav-count-chip">{currentUser.projects.length} assigned</span>
+      <span className="lav-count-chip">{scopeBadge}</span>
     </header>
 
     {loading ? <div className="operational-overview-state" role="status">Loading workspace…</div> : <>
-      <section className="operational-overview-panel operational-work-list">
+      {config.showWork !== false && <section className="operational-overview-panel operational-work-list">
         <header>
           <h2>Work waiting</h2>
           {tasks && <Link to="/tasks">View all</Link>}
@@ -208,10 +268,10 @@ export function OperationalOverview({ currentUser }: { currentUser: CurrentUser 
             <b className={task.isOverdue ? 'overdue' : ''}>{task.isOverdue ? 'Overdue' : 'Open'}</b>
           </Link>)}
         </div> : <div className="operational-overview-state clear">No work waiting</div>}
-      </section>
+      </section>}
 
       <section className="operational-overview-panel">
-        <header><h2>At a glance</h2></header>
+        <header><h2>{config.factsTitle ?? 'At a glance'}</h2></header>
         {dashboardError || taskError || !dashboard || !tasks
           ? <div className="operational-overview-state error"><span>{dashboardError ?? taskError ?? 'Summary unavailable'}</span><button type="button" onClick={() => { setDashboardError(null); setTaskError(null); setLoading(true); setRefresh(value => value + 1) }}>Try again</button></div>
           : <dl className="operational-facts">
@@ -226,7 +286,7 @@ export function OperationalOverview({ currentUser }: { currentUser: CurrentUser 
       </section>
 
       <section className="operational-overview-panel">
-        <header><h2>Open workspace</h2></header>
+        <header><h2>{config.linksTitle ?? 'Open workspace'}</h2></header>
         <nav className="operational-shortcuts" aria-label={`${currentUser.role} work areas`}>
           {config.links.map(link => <Link key={link.to} to={link.to}><span>{link.label}</span><b aria-hidden="true">→</b></Link>)}
         </nav>

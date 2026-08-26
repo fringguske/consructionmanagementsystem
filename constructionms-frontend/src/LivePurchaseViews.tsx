@@ -199,6 +199,11 @@ export function LiveProcurementView({ currentUser }: LiveProcurementViewProps) {
   const [notice, setNotice] = useState<string | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
   const [projectFilter, setProjectFilter] = useState('')
+  const procurement = currentUser.role === 'Procurement Officer'
+  const requestedProcurementSection = searchParams.get('section')
+  const procurementSection = requestedProcurementSection === 'open' || requestedProcurementSection === 'history'
+    ? requestedProcurementSection
+    : 'ready'
   const supervisorHistory = currentUser.role === 'Supervisor' && searchParams.get('view') === 'history'
 
   useEffect(() => {
@@ -206,7 +211,6 @@ export function LiveProcurementView({ currentUser }: LiveProcurementViewProps) {
 
     const controller = new AbortController()
 
-    const procurement = currentUser.role === 'Procurement Officer'
     Promise.all([
       everyPage<SourcingRound>(page => sourcingRoundsApi.list({ page, pageSize: 100 }, controller.signal)).then(items => ({ items })),
       everyPage<PurchaseOrder>(page => purchaseOrdersApi.list({ page, pageSize: 100 }, controller.signal)).then(items => ({ items })),
@@ -234,7 +238,7 @@ export function LiveProcurementView({ currentUser }: LiveProcurementViewProps) {
       })
 
     return () => controller.abort()
-  }, [allowed, currentUser.role, refreshKey])
+  }, [allowed, currentUser.role, procurement, refreshKey])
 
   const availableRequisitions = useMemo(() => {
     const blockedRequisitions = new Set<number>()
@@ -247,24 +251,44 @@ export function LiveProcurementView({ currentUser }: LiveProcurementViewProps) {
     return approvedRequisitions.filter((item) => !blockedRequisitions.has(item.id))
   }, [approvedRequisitions, orders, rounds])
 
+  const visibleReadyRequisitions = useMemo(
+    () => availableRequisitions.filter((request) => !projectFilter || request.projectId === Number(projectFilter)),
+    [availableRequisitions, projectFilter],
+  )
+
   const filteredRounds = useMemo(
     () =>
       rounds.filter(
         (round) => {
           if (projectFilter && round.projectId !== Number(projectFilter)) return false
+          if (procurement) {
+            return procurementSection === 'open'
+              ? round.status === 'Open'
+              : procurementSection === 'history' && round.status !== 'Open'
+          }
           if (currentUser.role !== 'Supervisor') return true
           const liveOrder = orders.some(order => order.requisitionId === round.requisitionId && liveOrderStatuses.includes(order.status))
           const actionable = (round.status === 'Open' && !liveOrder) || round.status === 'Cancelled'
           return supervisorHistory ? !actionable : actionable
         },
       ),
-    [currentUser.role, orders, projectFilter, rounds, supervisorHistory],
+    [currentUser.role, orders, procurement, procurementSection, projectFilter, rounds, supervisorHistory],
   )
 
   const projects = useMemo(
     () => projectOptionsFrom(currentUser, rounds),
     [currentUser, rounds],
   )
+  const sourcingCount = procurement && procurementSection === 'ready'
+    ? visibleReadyRequisitions.length
+    : procurement
+      ? filteredRounds.length
+      : rounds.length
+  const sourcingCountLabel = procurement && procurementSection === 'ready'
+    ? 'ready'
+    : procurement && procurementSection === 'open'
+      ? 'open'
+      : procurement ? 'records' : 'rounds'
 
   function replaceRound(updated: SourcingRound, message: string) {
     setRounds((current) => current.map((round) => (round.id === updated.id ? updated : round)))
@@ -274,6 +298,7 @@ export function LiveProcurementView({ currentUser }: LiveProcurementViewProps) {
   function addRound(created: SourcingRound) {
     setRounds((current) => [created, ...current])
     setNotice('Sourcing opened.')
+    if (procurement) setSearchParams({ section: 'open' }, { replace: true })
   }
 
   function addQuote(roundId: number, quote: SupplierQuote) {
@@ -319,7 +344,7 @@ export function LiveProcurementView({ currentUser }: LiveProcurementViewProps) {
         <div>
           <h1>Supplier sourcing</h1>
         </div>
-        <span className="lav-count-chip">{rounds.length} rounds</span>
+        <span className="lav-count-chip">{sourcingCount} {sourcingCountLabel}</span>
       </header>
 
       {error && (
@@ -351,21 +376,38 @@ export function LiveProcurementView({ currentUser }: LiveProcurementViewProps) {
         <button type="button" className={supervisorHistory ? 'active' : ''} aria-current={supervisorHistory ? 'page' : undefined} onClick={() => setSearchParams({ view: 'history' }, { replace: true })}>History</button>
       </nav>}
 
+      {procurement && <nav className="lav-po-section-nav procurement-sourcing-nav" aria-label="Supplier sourcing sections">
+        <button type="button" className={procurementSection === 'ready' ? 'active' : ''} aria-current={procurementSection === 'ready' ? 'page' : undefined} onClick={() => setSearchParams({}, { replace: true })}>Ready requests</button>
+        <button type="button" className={procurementSection === 'open' ? 'active' : ''} aria-current={procurementSection === 'open' ? 'page' : undefined} onClick={() => setSearchParams({ section: 'open' }, { replace: true })}>Open sourcing</button>
+        <button type="button" className={procurementSection === 'history' ? 'active' : ''} aria-current={procurementSection === 'history' ? 'page' : undefined} onClick={() => setSearchParams({ section: 'history' }, { replace: true })}>History</button>
+      </nav>}
+
       {loading ? (
         <LoadingBlock label="Loading supplier sourcing…" />
       ) : (
         <>
-          {currentUser.role === 'Procurement Officer' && (
-            <CreateSourcingRoundForm
-              requisitions={availableRequisitions}
-              onCreated={addRound}
-            />
-          )}
+          {procurement && procurementSection === 'ready' && <section className="lav-panel">
+            <header className="lav-panel-head lav-request-toolbar">
+              <div><h2>Ready requests</h2></div>
+              <div className="lav-filter-row">
+                <label>
+                  <span className="lav-visually-hidden">Filter by project</span>
+                  <select value={projectFilter} onChange={(event) => setProjectFilter(event.currentTarget.value)}>
+                    <option value="">All projects</option>
+                    {projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
+                  </select>
+                </label>
+              </div>
+            </header>
+            <CreateSourcingRoundForm requisitions={visibleReadyRequisitions} onCreated={addRound}/>
+          </section>}
 
-          <section className="lav-panel">
+          {(!procurement || procurementSection !== 'ready') && <section className="lav-panel">
             <header className="lav-panel-head lav-request-toolbar">
               <div>
-                <h2>{currentUser.role === 'Supervisor' ? supervisorHistory ? 'Sourcing history' : 'Sourcing exceptions' : 'Sourcing record'}</h2>
+                <h2>{procurement
+                  ? procurementSection === 'open' ? 'Open sourcing' : 'Sourcing history'
+                  : currentUser.role === 'Supervisor' ? supervisorHistory ? 'Sourcing history' : 'Sourcing exceptions' : 'Sourcing record'}</h2>
               </div>
               <div className="lav-filter-row">
                 <label>
@@ -388,12 +430,8 @@ export function LiveProcurementView({ currentUser }: LiveProcurementViewProps) {
             <div className="lav-purchase-list">
               {filteredRounds.length === 0 ? (
                 <EmptyState
-                  title="No sourcing rounds here"
-                  detail={
-                    rounds.length
-                      ? 'Choose another project.'
-                      : 'An approved material request is needed before Procurement can start sourcing.'
-                  }
+                  title={procurement && procurementSection === 'open' ? 'No open sourcing' : procurement ? 'No sourcing history' : 'No sourcing rounds here'}
+                  detail={projectFilter ? 'Choose another project.' : procurement && procurementSection === 'open' ? 'No sourcing round is currently open.' : procurement ? 'No completed sourcing round is recorded.' : rounds.length ? 'Choose another project.' : 'An approved material request is needed before Procurement can start sourcing.'}
                 />
               ) : (
                 filteredRounds.map((round) => (
@@ -414,7 +452,7 @@ export function LiveProcurementView({ currentUser }: LiveProcurementViewProps) {
                 ))
               )}
             </div>
-          </section>
+          </section>}
         </>
       )}
     </div>
@@ -1026,6 +1064,11 @@ export function LivePurchaseOrdersView({ currentUser }: LivePurchaseOrdersViewPr
   const [notice, setNotice] = useState<string | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
   const [projectFilter, setProjectFilter] = useState('')
+  const procurement = currentUser.role === 'Procurement Officer'
+  const requestedProcurementSection = searchParams.get('section')
+  const procurementSection = requestedProcurementSection === 'waiting' || requestedProcurementSection === 'sent' || requestedProcurementSection === 'history'
+    ? requestedProcurementSection
+    : 'action'
   const simplifiedOrderRole = currentUser.role === 'Supervisor' || currentUser.role === 'Storekeeper' || currentUser.role === 'Finance Officer'
   const showHistory = searchParams.get('view') === 'history'
 
@@ -1056,6 +1099,12 @@ export function LivePurchaseOrdersView({ currentUser }: LivePurchaseOrdersViewPr
     return orders.filter(
       (order) => {
         if (projectFilter && order.projectId !== Number(projectFilter)) return false
+        if (procurement) {
+          if (procurementSection === 'action') return (order.status === 'Draft' && order.createdByUserId === currentUser.id) || order.status === 'Approved'
+          if (procurementSection === 'waiting') return order.status === 'Submitted'
+          if (procurementSection === 'sent') return order.status === 'Issued'
+          return order.status === 'Rejected' || order.status === 'Cancelled'
+        }
         if (!simplifiedOrderRole) return true
         const current = currentUser.role === 'Storekeeper'
           ? order.status === 'Issued'
@@ -1065,7 +1114,25 @@ export function LivePurchaseOrdersView({ currentUser }: LivePurchaseOrdersViewPr
         return showHistory ? !current : current
       },
     )
-  }, [currentUser.role, orders, projectFilter, showHistory, simplifiedOrderRole])
+  }, [currentUser.id, currentUser.role, orders, procurement, procurementSection, projectFilter, showHistory, simplifiedOrderRole])
+
+  const sectionTitle = procurement
+    ? procurementSection === 'action'
+      ? 'Orders needing action'
+      : procurementSection === 'waiting'
+        ? 'Waiting approval'
+        : procurementSection === 'sent'
+          ? 'Sent to supplier'
+          : 'Order history'
+    : simplifiedOrderRole
+      ? showHistory
+        ? 'Order history'
+        : currentUser.role === 'Storekeeper'
+          ? 'Expected deliveries'
+          : currentUser.role === 'Supervisor'
+            ? 'Orders to review'
+            : 'Current orders'
+      : 'Orders'
 
   function replaceOrder(updated: PurchaseOrder, message: string) {
     setOrders((current) => current.map((order) => (order.id === updated.id ? updated : order)))
@@ -1091,7 +1158,7 @@ export function LivePurchaseOrdersView({ currentUser }: LivePurchaseOrdersViewPr
         <div>
           <h1>Purchase orders</h1>
         </div>
-        <span className="lav-count-chip">{orders.length} visible</span>
+        <span className="lav-count-chip">{filteredOrders.length} visible</span>
       </header>
 
       {error && (
@@ -1121,13 +1188,20 @@ export function LivePurchaseOrdersView({ currentUser }: LivePurchaseOrdersViewPr
         <button type="button" className={showHistory ? 'active' : ''} aria-current={showHistory ? 'page' : undefined} onClick={() => setSearchParams({ view: 'history' }, { replace: true })}>History</button>
       </nav>}
 
+      {procurement && <nav className="lav-po-section-nav procurement-order-nav" aria-label="Procurement purchase order sections">
+        <button type="button" className={procurementSection === 'action' ? 'active' : ''} aria-current={procurementSection === 'action' ? 'page' : undefined} onClick={() => setSearchParams({}, { replace: true })}>Needs action</button>
+        <button type="button" className={procurementSection === 'waiting' ? 'active' : ''} aria-current={procurementSection === 'waiting' ? 'page' : undefined} onClick={() => setSearchParams({ section: 'waiting' }, { replace: true })}>Waiting approval</button>
+        <button type="button" className={procurementSection === 'sent' ? 'active' : ''} aria-current={procurementSection === 'sent' ? 'page' : undefined} onClick={() => setSearchParams({ section: 'sent' }, { replace: true })}>Sent to supplier</button>
+        <button type="button" className={procurementSection === 'history' ? 'active' : ''} aria-current={procurementSection === 'history' ? 'page' : undefined} onClick={() => setSearchParams({ section: 'history' }, { replace: true })}>History</button>
+      </nav>}
+
       {loading ? (
         <LoadingBlock label="Loading purchase orders…" />
       ) : (
         <section className="lav-panel">
           <header className="lav-panel-head lav-request-toolbar">
             <div>
-              <h2>{simplifiedOrderRole ? showHistory ? 'Order history' : currentUser.role === 'Storekeeper' ? 'Expected deliveries' : currentUser.role === 'Supervisor' ? 'Orders to review' : 'Current orders' : 'Orders'}</h2>
+              <h2>{sectionTitle}</h2>
             </div>
             <div className="lav-filter-row">
               <label>
