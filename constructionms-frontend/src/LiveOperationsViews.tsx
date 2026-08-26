@@ -466,7 +466,7 @@ export function LiveFinanceView({ currentUser }: { currentUser: CurrentUser }) {
     {role === 'Finance Officer' && financeSection === 'authorized' && <FinancePaymentActions currentUser={currentUser} authorizations={authorizations} run={run}/>}
     {role !== 'Procurement Officer' && (role !== 'Finance Officer' || financeSection === 'executed') && <section className="lav-panel ops-panel">
       <header className="lav-panel-head"><div><span className="lav-kicker">PAYMENT PROOF</span><h2>Executed payments</h2></div></header>
-      {payments.length ? <div className="ops-table">
+      {payments.length ? <div className="ops-table ops-payment-table" role="region" aria-label="Executed payments table" tabIndex={0}>
         <div className="ops-row payment head"><span>Payment</span><span>Amount</span><span>Method</span><span>External proof</span><span>Files</span></div>
         {payments.map(payment => <div className="ops-row payment" key={payment.id}>
           <span data-label="Payment"><b>{payment.displayNumber}</b><small>{when(payment.paidAt)}</small></span>

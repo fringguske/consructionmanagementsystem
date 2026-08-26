@@ -63,3 +63,47 @@
 
 .ops-row.payment{grid-template-columns:1.2fr 1fr .8fr 1.4fr auto}
 @media(max-width:680px){.ops-row.payment>.record-evidence{align-self:end}.ops-row.payment>.record-evidence .lav-button{width:100%}}
+
+.ops-payment-table {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-color: #81938e #edf1f0;
+  scrollbar-gutter: stable;
+  -webkit-overflow-scrolling: touch;
+}
+
+.ops-payment-table .ops-row.payment {
+  grid-template-columns: minmax(145px, 1.2fr) minmax(115px, 1fr) minmax(105px, .8fr) minmax(190px, 1.4fr) minmax(115px, auto);
+  min-width: 760px;
+}
+
+.ops-payment-table .ops-row.payment > span,
+.ops-payment-table .ops-row.payment > .record-evidence {
+  min-width: 0;
+}
+
+.ops-payment-table .ops-row.payment > span b {
+  overflow-wrap: anywhere;
+}
+
+.ops-payment-table:focus-visible {
+  outline: 3px solid #c59a52;
+  outline-offset: 2px;
+}
+
+@media(max-width:680px) {
+  .ops-payment-table .ops-row.payment.head {
+    display: grid;
+  }
+
+  .ops-payment-table .ops-row.payment:not(.head) > span::before {
+    content: none;
+  }
+
+  .ops-payment-table .ops-row.payment > .record-evidence {
+    align-self: center;
+  }
+}
