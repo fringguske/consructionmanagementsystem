@@ -14,6 +14,7 @@ import './live-shell-extras.css'
 
 const LiveDashboardView = lazy(() => import('./LiveApiViews').then(module => ({ default: module.LiveDashboardView })))
 const LiveLoginView = lazy(() => import('./LiveApiViews').then(module => ({ default: module.LiveLoginView })))
+const PublicLandingView = lazy(() => import('./LiveApiViews').then(module => ({ default: module.PublicLandingView })))
 const LiveProjectsView = lazy(() => import('./LiveApiViews').then(module => ({ default: module.LiveProjectsView })))
 const LiveRequisitionsView = lazy(() => import('./LiveApiViews').then(module => ({ default: module.LiveRequisitionsView })))
 const LiveProcurementView = lazy(() => import('./LivePurchaseViews').then(module => ({ default: module.LiveProcurementView })))
@@ -508,6 +509,8 @@ function LiveSession() {
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>()
   const [sessionError, setSessionError] = useState<string | null>(null)
   const [sessionMessage, setSessionMessage] = useState<string | null>(null)
+  const location = useLocation()
+  const navigate = useNavigate()
 
   useEffect(() => {
     const controller = new AbortController()
@@ -520,15 +523,23 @@ function LiveSession() {
   }, [])
 
   if (currentUser === undefined) return <SessionLoading/>
-  if (currentUser === null) return <>{sessionError && <div className="lav-bootstrap-notice" role="alert">{sessionError}</div>}{sessionMessage && <div className="lav-bootstrap-notice success" role="status">{sessionMessage}</div>}<LiveLoginView onAuthenticated={user => { setCurrentUser(user); setSessionError(null); setSessionMessage(null) }}/></>
+  if (currentUser === null) {
+    if (location.pathname !== '/' && location.pathname !== '/login') return <Navigate to="/" replace/>
+    const notices = <>{sessionError && <div className="lav-bootstrap-notice" role="alert">{sessionError}</div>}{sessionMessage && <div className="lav-bootstrap-notice success" role="status">{sessionMessage}</div>}</>
+    if (location.pathname === '/') {
+      return <>{notices}<PublicLandingView onSignIn={() => navigate('/login')} onRequestAccess={() => navigate('/login?mode=request')}/></>
+    }
+    const initialMode = new URLSearchParams(location.search).get('mode') === 'request' ? 'signup' : 'signin'
+    return <>{notices}<LiveLoginView key={initialMode} initialMode={initialMode} onBack={() => navigate('/')} onAuthenticated={user => { setCurrentUser(user); setSessionError(null); setSessionMessage(null); navigate('/') }}/></>
+  }
 
   async function logout() {
     try { await authApi.logout() } finally { setCurrentUser(null) }
   }
   function credentialsChanged(message: string) { setCurrentUser(null); setSessionError(null); setSessionMessage(message) }
-  return <BrowserRouter><Shell currentUser={currentUser} onLogout={() => void logout()} onRoleChanged={setCurrentUser} onCredentialsChanged={credentialsChanged}/></BrowserRouter>
+  return <Shell currentUser={currentUser} onLogout={() => void logout()} onRoleChanged={setCurrentUser} onCredentialsChanged={credentialsChanged}/>
 }
 
 export default function LiveApp() {
-  return <Suspense fallback={<SessionLoading/>}><LiveSession/></Suspense>
+  return <BrowserRouter><Suspense fallback={<SessionLoading/>}><LiveSession/></Suspense></BrowserRouter>
 }

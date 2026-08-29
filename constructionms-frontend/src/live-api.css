@@ -1,5 +1,6 @@
 .lav-view,
-.lav-login-page {
+.lav-login-page,
+.lav-public-page {
   --lav-ink: #1d2a27;
   --lav-muted: #687771;
   --lav-line: #dfe5e1;
@@ -318,6 +319,141 @@
   }
 }
 
+/* Public site */
+.lav-public-page {
+  display: grid;
+  min-height: 100vh;
+  grid-template-rows: auto 1fr auto;
+  background: #f4f6f4;
+}
+
+.lav-public-header,
+.lav-public-footer {
+  display: flex;
+  width: min(1180px, calc(100% - 48px));
+  margin: 0 auto;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.lav-public-header {
+  min-height: 88px;
+  border-bottom: 1px solid var(--lav-line);
+}
+
+.lav-public-brand {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+}
+
+.lav-public-brand .lav-login-mark {
+  width: 34px;
+  height: 34px;
+  margin: 0;
+  padding: 0 4px 4px;
+}
+
+.lav-public-brand .lav-login-mark i {
+  width: 5px;
+  background: var(--lav-forest);
+}
+
+.lav-public-brand .lav-login-mark i:nth-child(1) { height: 11px; }
+.lav-public-brand .lav-login-mark i:nth-child(2) { height: 19px; }
+.lav-public-brand .lav-login-mark i:nth-child(3) { height: 27px; background: var(--lav-clay); }
+
+.lav-public-brand > div:last-child {
+  display: grid;
+  gap: 2px;
+}
+
+.lav-public-brand strong {
+  color: var(--lav-forest-dark);
+  font-size: 17px;
+  line-height: 1;
+}
+
+.lav-public-brand span {
+  color: var(--lav-muted);
+  font-size: 11px;
+}
+
+.lav-public-hero {
+  display: grid;
+  width: min(1180px, calc(100% - 48px));
+  margin: 0 auto;
+  grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr);
+  align-items: center;
+  gap: clamp(48px, 8vw, 110px);
+  padding: 72px 0;
+}
+
+.lav-public-copy h1 {
+  max-width: 720px;
+  margin: 0;
+  color: var(--lav-forest-dark);
+  font-size: clamp(39px, 5vw, 68px);
+  font-weight: 700;
+  letter-spacing: -0.055em;
+  line-height: 1;
+}
+
+.lav-public-copy > p {
+  max-width: 590px;
+  margin: 24px 0 0;
+  color: var(--lav-muted);
+  font-size: 16px;
+  line-height: 1.6;
+}
+
+.lav-public-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 32px;
+}
+
+.lav-public-actions .lav-button {
+  min-width: 150px;
+}
+
+.lav-public-scope {
+  display: grid;
+  border: 1px solid var(--lav-line);
+  background: var(--lav-paper);
+}
+
+.lav-public-scope > div {
+  display: grid;
+  gap: 4px;
+  min-height: 88px;
+  align-content: center;
+  padding: 18px 22px;
+  border-bottom: 1px solid var(--lav-line);
+}
+
+.lav-public-scope > div:last-child {
+  border-bottom: 0;
+}
+
+.lav-public-scope strong {
+  color: var(--lav-ink);
+  font-size: 14px;
+}
+
+.lav-public-scope span {
+  color: var(--lav-muted);
+  font-size: 12px;
+}
+
+.lav-public-footer {
+  min-height: 68px;
+  border-top: 1px solid var(--lav-line);
+  color: var(--lav-muted);
+  font-size: 11px;
+}
+
 /* Sign in */
 .lav-login-page {
   display: grid;
@@ -339,6 +475,25 @@
 }
 
 .lav-login-brand::after { content: none; }
+
+.lav-login-back {
+  position: absolute;
+  top: 30px;
+  left: clamp(42px, 8vw, 108px);
+  padding: 8px 0;
+  border: 0;
+  border-bottom: 1px solid #71847e;
+  border-radius: 0;
+  background: transparent;
+  color: #dce6e2;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.lav-login-back:hover {
+  border-bottom-color: #dc8a53;
+  color: white;
+}
 
 .lav-login-mark {
   display: flex;
@@ -380,6 +535,13 @@
   font-weight: 680;
   letter-spacing: -0.045em;
   line-height: 1.04;
+}
+
+.lav-login-identity {
+  margin: 18px 0 0;
+  color: #b6c7c1;
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .lav-login-intro {
@@ -2240,13 +2402,46 @@
 }
 
 @media (max-width: 860px) {
+  .lav-public-header,
+  .lav-public-footer,
+  .lav-public-hero {
+    width: min(100% - 32px, 680px);
+  }
+
+  .lav-public-header {
+    min-height: 76px;
+  }
+
+  .lav-public-brand span {
+    display: none;
+  }
+
+  .lav-public-hero {
+    grid-template-columns: 1fr;
+    gap: 42px;
+    padding: 54px 0;
+  }
+
+  .lav-public-copy h1 {
+    font-size: clamp(38px, 10vw, 58px);
+  }
+
+  .lav-public-footer {
+    min-height: 64px;
+  }
+
   .lav-login-page {
     grid-template-columns: 1fr;
   }
 
   .lav-login-brand {
     min-height: auto;
-    padding: 44px clamp(24px, 8vw, 70px);
+    padding: 82px clamp(24px, 8vw, 70px) 44px;
+  }
+
+  .lav-login-back {
+    top: 24px;
+    left: clamp(24px, 8vw, 70px);
   }
 
   .lav-login-brand h1 {
