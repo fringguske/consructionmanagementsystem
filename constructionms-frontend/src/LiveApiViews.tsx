@@ -348,16 +348,14 @@ export function PublicLandingView({ onSignIn, onRequestAccess }: PublicLandingVi
       <header className="lav-public-header">
         <div className="lav-public-brand">
           <div className="lav-login-mark" aria-hidden="true"><i /><i /><i /></div>
-          <div><strong>Gilgal</strong><span>Construction Management System</span></div>
+          <strong>Construction Management System</strong>
         </div>
         <button className="lav-button secondary" type="button" onClick={onSignIn}>Staff sign in</button>
       </header>
 
       <section className="lav-public-hero">
         <div className="lav-public-copy">
-          <span className="lav-kicker">Official project system</span>
-          <h1>Gilgal Construction Management System</h1>
-          <p>Project records for Gilgal 2, Gilgal 3, SNEP HQ and Church.</p>
+          <h1>Construction Management System</h1>
           <div className="lav-public-actions">
             <button className="lav-button primary" type="button" onClick={onSignIn}>Staff sign in</button>
             <button className="lav-button secondary" type="button" onClick={onRequestAccess}>Request access</button>
@@ -365,17 +363,12 @@ export function PublicLandingView({ onSignIn, onRequestAccess }: PublicLandingVi
         </div>
 
         <div className="lav-public-scope" aria-label="System areas">
-          <div><strong>Projects</strong><span>Progress and budgets</span></div>
-          <div><strong>Materials</strong><span>Stock and custody</span></div>
-          <div><strong>Procurement</strong><span>Requests and orders</span></div>
-          <div><strong>Finance</strong><span>Payments and audit</span></div>
+          <div><strong>Projects</strong></div>
+          <div><strong>Materials</strong></div>
+          <div><strong>Procurement</strong></div>
+          <div><strong>Finance and audit</strong></div>
         </div>
       </section>
-
-      <footer className="lav-public-footer">
-        <span>Official Gilgal staff system</span>
-        <span>gilgal.duckdns.org</span>
-      </footer>
     </main>
   )
 }
@@ -399,7 +392,7 @@ export function LiveLoginView({ onAuthenticated, onBack, initialMode = 'signin' 
     const previousRobots = robots?.content
     const previousTitle = document.title
     if (robots) robots.content = 'noindex, nofollow'
-    document.title = 'Staff access | Gilgal Construction Management System'
+    document.title = 'Staff access | Construction Management System'
     return () => {
       if (robots && previousRobots) robots.content = previousRobots
       document.title = previousTitle
@@ -438,7 +431,7 @@ export function LiveLoginView({ onAuthenticated, onBack, initialMode = 'signin' 
 
   return (
     <main className="lav-login-page">
-      <section className="lav-login-brand" aria-label="Gilgal Construction Management System">
+      <section className="lav-login-brand" aria-label="Construction Management System">
         <button className="lav-login-back" type="button" onClick={onBack}>← Public home</button>
         <div className="lav-login-mark" aria-hidden="true">
           <i />
@@ -446,8 +439,7 @@ export function LiveLoginView({ onAuthenticated, onBack, initialMode = 'signin' 
           <i />
         </div>
         <div>
-          <h1>Gilgal Construction Management System</h1>
-          <p className="lav-login-identity">Official staff portal · gilgal.duckdns.org</p>
+          <h1>Construction Management System</h1>
         </div>
       </section>
 
@@ -458,9 +450,8 @@ export function LiveLoginView({ onAuthenticated, onBack, initialMode = 'signin' 
             <button type="button" className={mode === 'signup' ? 'active' : ''} onClick={() => { setMode('signup'); setError(null); setMessage(null); setPassword(''); setConfirmPassword('') }}>Request access</button>
           </div>
           <header>
-            <span className="lav-kicker">{mode === 'signin' ? 'Gilgal staff access' : 'New Gilgal account'}</span>
+            <span className="lav-kicker">{mode === 'signin' ? 'Staff access' : 'New account'}</span>
             <h2>{mode === 'signin' ? 'Sign in' : 'Request to join'}</h2>
-            <p>{mode === 'signin' ? 'Use your approved Gilgal account.' : 'Create login details for Administrator approval.'}</p>
           </header>
 
           {error && <Notice tone="error">{error}</Notice>}
@@ -503,7 +494,7 @@ export function LiveLoginView({ onAuthenticated, onBack, initialMode = 'signin' 
           </label>
 
           <label className="lav-field" htmlFor={passwordId}>
-            <span>{mode === 'signup' ? 'Set Gilgal password' : 'Gilgal password'}</span>
+            <span>{mode === 'signup' ? 'Set password' : 'Password'}</span>
             <input
               id={passwordId}
               type="password"

@@ -323,12 +323,11 @@
 .lav-public-page {
   display: grid;
   min-height: 100vh;
-  grid-template-rows: auto 1fr auto;
+  grid-template-rows: auto 1fr;
   background: #f4f6f4;
 }
 
-.lav-public-header,
-.lav-public-footer {
+.lav-public-header {
   display: flex;
   width: min(1180px, calc(100% - 48px));
   margin: 0 auto;
@@ -363,20 +362,10 @@
 .lav-public-brand .lav-login-mark i:nth-child(2) { height: 19px; }
 .lav-public-brand .lav-login-mark i:nth-child(3) { height: 27px; background: var(--lav-clay); }
 
-.lav-public-brand > div:last-child {
-  display: grid;
-  gap: 2px;
-}
-
 .lav-public-brand strong {
   color: var(--lav-forest-dark);
-  font-size: 17px;
+  font-size: 14px;
   line-height: 1;
-}
-
-.lav-public-brand span {
-  color: var(--lav-muted);
-  font-size: 11px;
 }
 
 .lav-public-hero {
@@ -399,14 +388,6 @@
   line-height: 1;
 }
 
-.lav-public-copy > p {
-  max-width: 590px;
-  margin: 24px 0 0;
-  color: var(--lav-muted);
-  font-size: 16px;
-  line-height: 1.6;
-}
-
 .lav-public-actions {
   display: flex;
   flex-wrap: wrap;
@@ -426,8 +407,7 @@
 
 .lav-public-scope > div {
   display: grid;
-  gap: 4px;
-  min-height: 88px;
+  min-height: 70px;
   align-content: center;
   padding: 18px 22px;
   border-bottom: 1px solid var(--lav-line);
@@ -440,18 +420,6 @@
 .lav-public-scope strong {
   color: var(--lav-ink);
   font-size: 14px;
-}
-
-.lav-public-scope span {
-  color: var(--lav-muted);
-  font-size: 12px;
-}
-
-.lav-public-footer {
-  min-height: 68px;
-  border-top: 1px solid var(--lav-line);
-  color: var(--lav-muted);
-  font-size: 11px;
 }
 
 /* Sign in */
@@ -535,13 +503,6 @@
   font-weight: 680;
   letter-spacing: -0.045em;
   line-height: 1.04;
-}
-
-.lav-login-identity {
-  margin: 18px 0 0;
-  color: #b6c7c1;
-  font-size: 12px;
-  line-height: 1.5;
 }
 
 .lav-login-intro {
@@ -2403,17 +2364,12 @@
 
 @media (max-width: 860px) {
   .lav-public-header,
-  .lav-public-footer,
   .lav-public-hero {
     width: min(100% - 32px, 680px);
   }
 
   .lav-public-header {
     min-height: 76px;
-  }
-
-  .lav-public-brand span {
-    display: none;
   }
 
   .lav-public-hero {
@@ -2424,10 +2380,6 @@
 
   .lav-public-copy h1 {
     font-size: clamp(38px, 10vw, 58px);
-  }
-
-  .lav-public-footer {
-    min-height: 64px;
   }
 
   .lav-login-page {
