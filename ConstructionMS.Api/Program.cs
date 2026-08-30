@@ -231,6 +231,7 @@ builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IRoleService, RoleService>();
 builder.Services.AddScoped<IProjectService, ProjectService>();
 builder.Services.AddScoped<IMaterialService, MaterialService>();
+builder.Services.AddScoped<IMaterialCatalogRequestService, MaterialCatalogRequestService>();
 builder.Services.AddScoped<ISupplierService, SupplierService>();
 builder.Services.AddScoped<ISupplierOnboardingService, SupplierOnboardingService>();
 builder.Services.AddScoped<IRequisitionWorkflowService, RequisitionWorkflowService>();

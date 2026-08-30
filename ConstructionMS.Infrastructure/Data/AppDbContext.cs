@@ -12,6 +12,10 @@ public class AppDbContext : DbContext
 
     private const string NormalizedKraPinSql =
         "nullif(upper(btrim(\"KraPin\", ' ' || chr(9) || chr(10) || chr(11) || chr(12) || chr(13))), '')";
+    private const string NormalizedMaterialNameSql =
+        "lower(btrim(\"Name\", ' ' || chr(9) || chr(10) || chr(11) || chr(12) || chr(13)))";
+    private const string NormalizedMaterialUnitSql =
+        "lower(btrim(\"Unit\", ' ' || chr(9) || chr(10) || chr(11) || chr(12) || chr(13)))";
 
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
@@ -34,6 +38,7 @@ public class AppDbContext : DbContext
     public DbSet<AccessRequest> AccessRequests => Set<AccessRequest>();
     public DbSet<Project> Projects => Set<Project>();
     public DbSet<Material> Materials => Set<Material>();
+    public DbSet<MaterialCatalogRequest> MaterialCatalogRequests => Set<MaterialCatalogRequest>();
     public DbSet<MaterialTechnicalAcceptancePolicyEvent> MaterialTechnicalAcceptancePolicyEvents => Set<MaterialTechnicalAcceptancePolicyEvent>();
     public DbSet<Supplier> Suppliers => Set<Supplier>();
     public DbSet<SupplierOnboardingRequest> SupplierOnboardingRequests => Set<SupplierOnboardingRequest>();
@@ -98,6 +103,7 @@ public class AppDbContext : DbContext
         GuardPurchaseOrderCommercialFields();
         GuardOperationalSourceFields();
         GuardSupplierOnboarding();
+        GuardMaterialCatalogRequests();
 
         var changedEvidence = ChangeTracker.Entries()
             .FirstOrDefault(entry =>
@@ -185,6 +191,46 @@ public class AppDbContext : DbContext
             {
                 throw new InvalidOperationException(
                     "Supplier proposal fields are immutable; submit a new onboarding request instead.");
+            }
+        }
+    }
+
+    private void GuardMaterialCatalogRequests()
+    {
+        var allowedDecisionProperties = new HashSet<string>(StringComparer.Ordinal)
+        {
+            nameof(MaterialCatalogRequest.Status),
+            nameof(MaterialCatalogRequest.ReviewedByUserId),
+            nameof(MaterialCatalogRequest.ReviewedAt),
+            nameof(MaterialCatalogRequest.ReviewNotes),
+            nameof(MaterialCatalogRequest.ApprovedMaterialId)
+        };
+
+        foreach (var entry in ChangeTracker.Entries<MaterialCatalogRequest>())
+        {
+            if (entry.State == EntityState.Deleted)
+            {
+                throw new InvalidOperationException("Material catalog requests cannot be deleted.");
+            }
+
+            if (entry.State != EntityState.Modified)
+            {
+                continue;
+            }
+
+            if (!string.Equals(
+                    entry.OriginalValues.GetValue<string>(nameof(MaterialCatalogRequest.Status)),
+                    MaterialCatalogRequestStatuses.Pending,
+                    StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException("A reviewed material catalog request is immutable.");
+            }
+
+            if (entry.Properties.Any(property =>
+                    property.IsModified && !allowedDecisionProperties.Contains(property.Metadata.Name)))
+            {
+                throw new InvalidOperationException(
+                    "Material proposal fields are immutable; submit a new request instead.");
             }
         }
     }
@@ -358,6 +404,7 @@ public class AppDbContext : DbContext
         ConfigureAccessRequests(modelBuilder);
         ConfigureProjects(modelBuilder, seedDate, seedProjectDate);
         ConfigureMaterials(modelBuilder);
+        ConfigureMaterialCatalogRequests(modelBuilder);
         ConfigureMaterialTechnicalAcceptancePolicyEvents(modelBuilder);
         ConfigureSuppliers(modelBuilder);
         ConfigureSupplierOnboardingRequests(modelBuilder);
@@ -580,6 +627,11 @@ public class AppDbContext : DbContext
         materials.Property(material => material.StandardPrice).HasPrecision(18, 2);
         materials.Property(material => material.ReorderLevel).HasPrecision(18, 3);
         materials.Property(material => material.RequiresTechnicalAcceptance).HasDefaultValue(true);
+        materials.Property<string>("NormalizedName")
+            .HasComputedColumnSql(NormalizedMaterialNameSql, stored: true);
+        materials.Property<string>("NormalizedUnit")
+            .HasComputedColumnSql(NormalizedMaterialUnitSql, stored: true);
+        materials.HasIndex("NormalizedName", "NormalizedUnit").IsUnique();
         materials.ToTable(table =>
         {
             table.HasCheckConstraint(
@@ -589,6 +641,71 @@ public class AppDbContext : DbContext
                 "CK_Materials_ReorderLevel_NonNegative",
                 "\"ReorderLevel\" <> 'NaN'::numeric AND \"ReorderLevel\" >= 0");
         });
+    }
+
+    private static void ConfigureMaterialCatalogRequests(ModelBuilder modelBuilder)
+    {
+        var requests = modelBuilder.Entity<MaterialCatalogRequest>();
+
+        requests.Property(request => request.RequestNumber).HasMaxLength(40);
+        requests.Property(request => request.Name).HasMaxLength(150);
+        requests.Property(request => request.Category).HasMaxLength(100);
+        requests.Property(request => request.Unit).HasMaxLength(30);
+        requests.Property(request => request.Purpose).HasMaxLength(500);
+        requests.Property(request => request.Status).HasMaxLength(20).IsConcurrencyToken();
+        requests.Property(request => request.ReviewNotes).HasMaxLength(1_000);
+        requests.Property<string>("NormalizedName")
+            .HasComputedColumnSql(NormalizedMaterialNameSql, stored: true);
+        requests.Property<string>("NormalizedUnit")
+            .HasComputedColumnSql(NormalizedMaterialUnitSql, stored: true);
+
+        requests.HasIndex(request => request.RequestNumber).IsUnique();
+        requests.HasIndex(request => request.Status);
+        requests.HasIndex(request => new { request.ProjectId, request.Status, request.SubmittedAt });
+        requests.HasIndex("NormalizedName", "NormalizedUnit")
+            .IsUnique()
+            .HasFilter("\"Status\" = 'Pending'");
+
+        requests.ToTable(table =>
+        {
+            table.HasCheckConstraint(
+                "CK_MaterialCatalogRequests_Status_Valid",
+                "\"Status\" IN ('Pending', 'Approved', 'Rejected')");
+            table.HasCheckConstraint(
+                "CK_MaterialCatalogRequests_Decision_Consistent",
+                "(\"Status\" = 'Pending' AND \"ReviewedByUserId\" IS NULL " +
+                "AND \"ReviewedAt\" IS NULL AND \"ReviewNotes\" IS NULL " +
+                "AND \"ApprovedMaterialId\" IS NULL) OR " +
+                "(\"Status\" = 'Approved' AND \"ReviewedByUserId\" IS NOT NULL " +
+                "AND \"ReviewedAt\" IS NOT NULL AND length(btrim(\"ReviewNotes\")) >= 3 " +
+                "AND \"ApprovedMaterialId\" IS NOT NULL) OR " +
+                "(\"Status\" = 'Rejected' AND \"ReviewedByUserId\" IS NOT NULL " +
+                "AND \"ReviewedAt\" IS NOT NULL AND length(btrim(\"ReviewNotes\")) >= 3 " +
+                "AND \"ApprovedMaterialId\" IS NULL)");
+            table.HasCheckConstraint(
+                "CK_MaterialCatalogRequests_Actors_Distinct",
+                "\"ReviewedByUserId\" IS NULL OR \"ReviewedByUserId\" <> \"SubmittedByUserId\"");
+            table.HasCheckConstraint(
+                "CK_MaterialCatalogRequests_Review_After_Submission",
+                "\"ReviewedAt\" IS NULL OR \"ReviewedAt\" >= \"SubmittedAt\"");
+        });
+
+        requests.HasOne(request => request.Project)
+            .WithMany()
+            .HasForeignKey(request => request.ProjectId)
+            .OnDelete(DeleteBehavior.Restrict);
+        requests.HasOne(request => request.SubmittedByUser)
+            .WithMany()
+            .HasForeignKey(request => request.SubmittedByUserId)
+            .OnDelete(DeleteBehavior.Restrict);
+        requests.HasOne(request => request.ReviewedByUser)
+            .WithMany()
+            .HasForeignKey(request => request.ReviewedByUserId)
+            .OnDelete(DeleteBehavior.Restrict);
+        requests.HasOne(request => request.ApprovedMaterial)
+            .WithMany()
+            .HasForeignKey(request => request.ApprovedMaterialId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 
     private static void ConfigureSuppliers(ModelBuilder modelBuilder)

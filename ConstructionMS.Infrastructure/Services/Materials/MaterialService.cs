@@ -12,6 +12,8 @@ using System.Data;
 /// <summary>EF Core implementation of IMaterialService.</summary>
 public class MaterialService : IMaterialService
 {
+    private const string NormalizedNameProperty = "NormalizedName";
+    private const string NormalizedUnitProperty = "NormalizedUnit";
     private readonly AppDbContext _db;
 
     public MaterialService(AppDbContext db) => _db = db;
@@ -46,11 +48,19 @@ public class MaterialService : IMaterialService
 
     public async Task<MaterialResponseDto> CreateAsync(CreateMaterialRequestDto dto)
     {
+        var name = InputNormalizer.RequiredText(dto.Name, nameof(dto.Name), 2, 150);
+        var unit = InputNormalizer.RequiredText(dto.Unit, nameof(dto.Unit), maximumLength: 30);
+        await using var transaction = await _db.Database.BeginTransactionAsync(IsolationLevel.Serializable);
+        if (await HasEquivalentAsync(name, unit))
+        {
+            throw new InvalidOperationException("That material and unit already exist in the catalog.");
+        }
+
         var material = new Material
         {
-            Name = InputNormalizer.RequiredText(dto.Name, nameof(dto.Name), 2, 150),
+            Name = name,
             Category = InputNormalizer.OptionalText(dto.Category, nameof(dto.Category), 100),
-            Unit = InputNormalizer.RequiredText(dto.Unit, nameof(dto.Unit), maximumLength: 30),
+            Unit = unit,
             StandardPrice = InputNormalizer.NonNegative(dto.StandardPrice, nameof(dto.StandardPrice), 18, 2),
             ReorderLevel = InputNormalizer.NonNegative(dto.ReorderLevel, nameof(dto.ReorderLevel), 18, 3),
             RequiresTechnicalAcceptance = true,
@@ -59,6 +69,7 @@ public class MaterialService : IMaterialService
 
         _db.Materials.Add(material);
         await _db.SaveChangesAsync();
+        await transaction.CommitAsync();
         return ToDto(material);
     }
 
@@ -79,6 +90,11 @@ public class MaterialService : IMaterialService
             return null;
         }
 
+        if (await HasEquivalentAsync(name, unit, id))
+        {
+            throw new InvalidOperationException("That material and unit already exist in the catalog.");
+        }
+
         if (!string.Equals(material.Unit, unit, StringComparison.Ordinal)
             && (await _db.Requisitions.AnyAsync(item => item.MaterialId == id)
                 || await _db.StockBalances.AnyAsync(item => item.MaterialId == id)
@@ -95,6 +111,16 @@ public class MaterialService : IMaterialService
         await _db.SaveChangesAsync();
         await transaction.CommitAsync();
         return ToDto(material);
+    }
+
+    private Task<bool> HasEquivalentAsync(string name, string unit, int? excludingId = null)
+    {
+        var nameKey = name.Trim().ToLowerInvariant();
+        var unitKey = unit.Trim().ToLowerInvariant();
+        return _db.Materials.AsNoTracking().AnyAsync(material =>
+            (!excludingId.HasValue || material.Id != excludingId.Value)
+            && EF.Property<string>(material, NormalizedNameProperty) == nameKey
+            && EF.Property<string>(material, NormalizedUnitProperty) == unitKey);
     }
 
     public async Task<MaterialResponseDto?> SetTechnicalAcceptancePolicyAsync(

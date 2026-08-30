@@ -6,12 +6,12 @@ The React application is live-only: every displayed record and counter comes fro
 
 ## Repository structure
 
-- `constructionms-frontend` — React/Vite UI backed by the live API.
-- `ConstructionMS.Api` — authenticated HTTP endpoints, authorization, rate limiting and health checks.
-- `ConstructionMS.Application` — request/response contracts and service interfaces.
-- `ConstructionMS.Domain` — persistent workflow entities.
-- `ConstructionMS.Infrastructure` — EF Core, PostgreSQL mappings, migrations and workflow services.
-- `docs/api-map.md` — frontend → API → service → database map for the implemented paths.
+- `constructionms-frontend`: React/Vite UI backed by the live API.
+- `ConstructionMS.Api`: authenticated HTTP endpoints, authorization, rate limiting and health checks.
+- `ConstructionMS.Application`: request/response contracts and service interfaces.
+- `ConstructionMS.Domain`: persistent workflow entities.
+- `ConstructionMS.Infrastructure`: EF Core, PostgreSQL mappings, migrations and workflow services.
+- `docs/api-map.md`: frontend → API → service → database map for the implemented paths.
 
 ## Implemented live paths
 
@@ -123,8 +123,8 @@ All frontend requests send the HTTP-only session cookie and use the typed client
 
 ## Health endpoints
 
-- `GET /api/v1/health/live` — process liveness only.
-- `GET /api/v1/health` — readiness; returns 503 when PostgreSQL cannot be reached or migrations are pending.
+- `GET /api/v1/health/live`: process liveness only.
+- `GET /api/v1/health`: readiness; returns 503 when PostgreSQL cannot be reached or migrations are pending.
 
 ## Reproducible verification
 

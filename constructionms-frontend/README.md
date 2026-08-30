@@ -1,4 +1,4 @@
-# Construct Control System — frontend
+# Construct Control System frontend
 
 React and TypeScript frontend for the multi-project construction management system.
 

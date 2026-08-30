@@ -7,6 +7,7 @@ import type {
   CostCode,
   CorrectPurchaseOrderRequest,
   CreateCostCodeRequest,
+  CreateMaterialCatalogRequest,
   CreateMaterialRequest,
   CreateProjectProgressVerificationRequest,
   CreateProjectRequest,
@@ -20,6 +21,8 @@ import type {
   LoginRequest,
   RegisterAccessRequest,
   Material,
+  MaterialCatalogRequest,
+  MaterialCatalogRequestStatus,
   PageQuery,
   PaginatedResult,
   Project,
@@ -55,6 +58,7 @@ import type {
   UpdateMaterialRequest,
   UpdateSupplierRequest,
   ReviewSupplierOnboardingRequest,
+  ReviewMaterialCatalogRequest,
   UserAccount,
   WorkflowReasonRequest,
   GoodsReceipt,
@@ -509,6 +513,36 @@ export const materialsApi = {
   update: (materialId: number, payload: UpdateMaterialRequest, signal?: AbortSignal) =>
     request<Material>(`/materials/${materialId}`, {
       method: 'PUT',
+      body: payload,
+      signal,
+    }),
+}
+
+export const materialCatalogRequestsApi = {
+  list: (
+    query: PageQuery & { status?: MaterialCatalogRequestStatus } = {},
+    signal?: AbortSignal,
+  ) =>
+    request<PaginatedResult<MaterialCatalogRequest>>(
+      '/material-catalog-requests',
+      { signal },
+      pageQuery(query),
+    ),
+
+  submit: (payload: CreateMaterialCatalogRequest, signal?: AbortSignal) =>
+    request<MaterialCatalogRequest>('/material-catalog-requests', {
+      method: 'POST',
+      body: payload,
+      signal,
+    }),
+
+  review: (
+    requestId: number,
+    payload: ReviewMaterialCatalogRequest,
+    signal?: AbortSignal,
+  ) =>
+    request<MaterialCatalogRequest>(`/material-catalog-requests/${requestId}/decision`, {
+      method: 'POST',
       body: payload,
       signal,
     }),

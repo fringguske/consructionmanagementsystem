@@ -235,6 +235,7 @@ const roleContextSections: Partial<Record<ConstructionRole, readonly ContextSect
     links: [
       { to: '/sourcing', label: 'Ready requests' },
       { to: '/sourcing?section=open', label: 'Sourcing' },
+      { to: '/sourcing?section=catalog', label: 'Material catalog' },
       { to: '/purchase-orders', label: 'Purchase orders' },
       { to: '/suppliers', label: 'Suppliers' },
     ],
@@ -288,7 +289,7 @@ function SessionLoading() {
 }
 
 function AccessRestricted({ role }: { role: ConstructionRole }) {
-  return <div className="lav-view"><div className="lav-empty"><span aria-hidden="true">—</span><h3>Access unavailable</h3><p>This page is not assigned to the {role} role.</p></div></div>
+  return <div className="lav-view"><div className="lav-empty"><span aria-hidden="true"/><h3>Access unavailable</h3><p>This page is not assigned to the {role} role.</p></div></div>
 }
 
 function AccountDialog({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
@@ -349,6 +350,7 @@ function notificationTarget(item: AppNotification, role: ConstructionRole) {
     return '/requisitions?view=action'
   }
   if (role === 'Procurement Officer') {
+    if (item.taskType === 'MaterialCatalogReview') return '/sourcing?section=catalog'
     if (item.taskType === 'OpenSourcing' && path === '/sourcing') return '/sourcing'
     if (item.taskType === 'CompleteSourcing' && path === '/sourcing') return '/sourcing?section=open'
     if ((item.taskType === 'SubmitPurchaseOrder' || item.taskType === 'IssuePurchaseOrder') && path === '/purchase-orders') {

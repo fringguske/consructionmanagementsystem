@@ -167,7 +167,7 @@ export function LiveSuppliersView({ currentUser }: LiveSuppliersViewProps) {
           <h1>{currentUser.role === 'Finance Officer' ? 'Supplier approvals' : 'Supplier onboarding'}</h1>
         </div>
         <div className={pendingCount > 0 ? 'needs-review' : ''}>
-          <strong>{requestsLoading || requestsLoadError ? '—' : pendingCount}</strong>
+          <strong>{requestsLoading || requestsLoadError ? 'Unavailable' : pendingCount}</strong>
           <span>awaiting review</span>
         </div>
       </header>
@@ -245,7 +245,7 @@ export function LiveSuppliersView({ currentUser }: LiveSuppliersViewProps) {
             <span>APPROVED REGISTER</span>
             <h2>Suppliers available for quotation</h2>
           </div>
-          <b>{suppliersLoading || suppliersLoadError ? '—' : suppliers.filter(supplier => !supplier.isBlacklisted).length} available</b>
+          <b>{suppliersLoading || suppliersLoadError ? 'Unavailable' : suppliers.filter(supplier => !supplier.isBlacklisted).length} available</b>
         </header>
         {suppliersLoadError && <div className="supplier-notice error" role="alert">Supplier register could not be loaded: {suppliersLoadError}</div>}
         {suppliersLoading ? <SupplierLoading /> : suppliers.length === 0 ? (

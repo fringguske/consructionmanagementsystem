@@ -690,6 +690,27 @@ public sealed class MyTasksService(
         IReadOnlyCollection<int> projectIds,
         CancellationToken cancellationToken)
     {
+        var materialCatalogRequests = await db.MaterialCatalogRequests.AsNoTracking()
+            .Where(item => item.Status == MaterialCatalogRequestStatuses.Pending
+                && projectIds.Contains(item.ProjectId))
+            .Select(item => new
+            {
+                item.Id,
+                item.Name,
+                item.Unit,
+                item.SubmittedAt,
+                item.ProjectId,
+                ProjectName = item.Project.Name
+            })
+            .ToListAsync(cancellationToken);
+        foreach (var item in materialCatalogRequests)
+        {
+            Add(tasks, $"material-catalog-review:{item.Id}", "MaterialCatalogReview",
+                "Review material", $"{item.Name} · {item.Unit}", "Procurement Officer",
+                item.ProjectId, item.ProjectName, "MaterialCatalogRequest", item.Id,
+                "/sourcing", item.SubmittedAt);
+        }
+
         var liveOrderStatuses = new[]
         {
             PurchaseOrderWorkflowStates.Draft,

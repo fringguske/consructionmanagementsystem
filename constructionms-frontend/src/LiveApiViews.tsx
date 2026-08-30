@@ -2,6 +2,7 @@ import {
   useEffect,
   useId,
   useMemo,
+  useRef,
   useState,
   type FormEvent,
   type ReactNode,
@@ -11,12 +12,14 @@ import {
   ApiError,
   authApi,
   dashboardApi,
+  materialCatalogRequestsApi,
   materialsApi,
   projectsApi,
   requisitionsApi,
   type CurrentUser,
   type DashboardResponse,
   type Material,
+  type MaterialCatalogRequest,
   type Project,
   type ProjectSummary,
   type Requisition,
@@ -335,7 +338,7 @@ function LoadingBlock({ label }: { label: string }) {
 function EmptyState({ title, detail }: { title: string; detail: string }) {
   return (
     <div className="lav-empty">
-      <span aria-hidden="true">—</span>
+      <span aria-hidden="true" />
       <h3>{title}</h3>
       <p>{detail}</p>
     </div>
@@ -1135,7 +1138,7 @@ function CostCodeForm({ projectId, onSaved }: CostCodeFormProps) {
       await onSaved()
       setCode('')
       setName('')
-      setMessage({ tone: 'success', text: `${created.code} — ${created.name} was added.` })
+      setMessage({ tone: 'success', text: `${created.code}: ${created.name} was added.` })
     } catch (requestError) {
       setMessage({ tone: 'error', text: errorMessage(requestError) })
     } finally {
@@ -1435,6 +1438,7 @@ export function LiveRequisitionsView({ currentUser }: LiveRequisitionsViewProps)
   const [searchParams, setSearchParams] = useSearchParams()
   const [requisitions, setRequisitions] = useState<Requisition[]>([])
   const [materials, setMaterials] = useState<Material[]>([])
+  const [catalogRequests, setCatalogRequests] = useState<MaterialCatalogRequest[]>([])
   const [projectSummaries, setProjectSummaries] = useState<Record<number, ProjectSummary>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -1450,21 +1454,24 @@ export function LiveRequisitionsView({ currentUser }: LiveRequisitionsViewProps)
 
       if (currentUser.role !== 'Foreman') {
         setMaterials([])
+        setCatalogRequests([])
         setProjectSummaries({})
         setError(null)
         return
       }
 
-      const [materialResult, summaryResult] = await Promise.allSettled([
+      const [materialResult, summaryResult, catalogRequestResult] = await Promise.allSettled([
         everyPage<Material>(page => materialsApi.list({ page, pageSize: 100 }, controller.signal)),
         Promise.all(currentUser.projects.map(project => projectsApi.getSummary(project.id, controller.signal))),
+        everyPage<MaterialCatalogRequest>(page => materialCatalogRequestsApi.list({ page, pageSize: 100 }, controller.signal)),
       ])
       if (controller.signal.aborted) return
 
       setMaterials(materialResult.status === 'fulfilled' ? materialResult.value : [])
+      setCatalogRequests(catalogRequestResult.status === 'fulfilled' ? catalogRequestResult.value : [])
       const summaries = summaryResult.status === 'fulfilled' ? summaryResult.value : []
       setProjectSummaries(Object.fromEntries(summaries.map(summary => [summary.project.id, summary])))
-      setError(materialResult.status === 'rejected' || summaryResult.status === 'rejected'
+      setError(materialResult.status === 'rejected' || summaryResult.status === 'rejected' || catalogRequestResult.status === 'rejected'
         ? 'New-request setup is temporarily unavailable. Existing requests are still shown.'
         : null)
     }
@@ -1556,7 +1563,26 @@ export function LiveRequisitionsView({ currentUser }: LiveRequisitionsViewProps)
               materials={materials}
               openInitially={searchParams.get('new') === '1'}
               onCreated={upsertRequisition}
+              onCatalogSubmitted={(request) => setCatalogRequests((current) => [request, ...current])}
             />
+          )}
+
+          {currentUser.role === 'Foreman' && catalogRequests.length > 0 && (
+            <details className="lav-catalog-request-status">
+              <summary>
+                <span>Material catalog requests</span>
+                <b>{catalogRequests.filter((request) => request.status === 'Pending').length} waiting</b>
+              </summary>
+              <div>
+                {catalogRequests.map((request) => (
+                  <article key={request.id}>
+                    <span><strong>{request.name}</strong><small>{request.unit} · {request.projectName}</small></span>
+                    <b className={`status-${request.status.toLowerCase()}`}>{request.status}</b>
+                    {request.reviewNotes && <small>{request.reviewNotes}</small>}
+                  </article>
+                ))}
+              </div>
+            </details>
           )}
 
           {hasSimpleQueue && <nav className="ops-action-nav requisition-section-nav" aria-label="Material request sections">
@@ -1624,9 +1650,30 @@ interface CreateRequisitionFormProps {
   materials: Material[]
   openInitially?: boolean
   onCreated: (requisition: Requisition) => void
+  onCatalogSubmitted: (request: MaterialCatalogRequest) => void
 }
 
-function CreateRequisitionForm({ projects, materials, openInitially = false, onCreated }: CreateRequisitionFormProps) {
+const missingMaterialValue = '__material_not_listed__'
+const otherMaterialUnitValue = '__other_unit__'
+const commonMaterialUnits = [
+  'bags',
+  'boxes',
+  'cubic metres',
+  'kilograms',
+  'lengths',
+  'litres',
+  'metres',
+  'packets',
+  'pieces',
+  'rolls',
+  'sets',
+  'sheets',
+  'square metres',
+  'tonnes',
+  'units',
+]
+
+function CreateRequisitionForm({ projects, materials, openInitially = false, onCreated, onCatalogSubmitted }: CreateRequisitionFormProps) {
   const [open, setOpen] = useState(openInitially)
   const [projectId, setProjectId] = useState('')
   const [materialId, setMaterialId] = useState('')
@@ -1635,9 +1682,17 @@ function CreateRequisitionForm({ projects, materials, openInitially = false, onC
   const [neededByDate, setNeededByDate] = useState('')
   const [purpose, setPurpose] = useState('')
   const [notes, setNotes] = useState('')
+  const [proposedMaterial, setProposedMaterial] = useState({
+    name: '',
+    category: '',
+    unit: '',
+    customUnit: '',
+  })
+  const requestSubmitLock = useRef(false)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<{ tone: 'error' | 'success'; text: string } | null>(null)
   const hasMaterials = materials.length > 0
+  const materialNotListed = materialId === missingMaterialValue
 
   const selectedProject = projects.find((project) => project.project.id === Number(projectId))
   const selectedMaterial = materials.find((material) => material.id === Number(materialId))
@@ -1658,11 +1713,41 @@ function CreateRequisitionForm({ projects, materials, openInitially = false, onC
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (busy) return
+    if (requestSubmitLock.current) return
 
+    requestSubmitLock.current = true
     setBusy(true)
     setMessage(null)
     try {
+      if (materialNotListed) {
+        const proposedUnit = proposedMaterial.unit === otherMaterialUnitValue
+          ? proposedMaterial.customUnit.trim()
+          : proposedMaterial.unit
+        if (proposedMaterial.name.trim().length < 2) {
+          throw new Error('Enter the material name.')
+        }
+        if (!proposedUnit) {
+          throw new Error('Choose or enter the material unit.')
+        }
+        const catalogRequest = await materialCatalogRequestsApi.submit({
+          projectId: Number(projectId),
+          name: proposedMaterial.name.trim(),
+          category: proposedMaterial.category.trim() || null,
+          unit: proposedUnit,
+          purpose: purpose.trim(),
+        })
+        onCatalogSubmitted(catalogRequest)
+        setMaterialId('')
+        setCostCodeId('')
+        setQuantity('')
+        setNeededByDate('')
+        setPurpose('')
+        setNotes('')
+        setProposedMaterial({ name: '', category: '', unit: '', customUnit: '' })
+        setMessage({ tone: 'success', text: 'Material sent to Procurement for review.' })
+        return
+      }
+
       const created = await requisitionsApi.create({
         projectId: Number(projectId),
         materialId: Number(materialId),
@@ -1683,6 +1768,7 @@ function CreateRequisitionForm({ projects, materials, openInitially = false, onC
     } catch (requestError) {
       setMessage({ tone: 'error', text: errorMessage(requestError) })
     } finally {
+      requestSubmitLock.current = false
       setBusy(false)
     }
   }
@@ -1706,12 +1792,6 @@ function CreateRequisitionForm({ projects, materials, openInitially = false, onC
       {open && (
         <form onSubmit={submit}>
           {message && <Notice tone={message.tone}>{message.text}</Notice>}
-          {!hasMaterials && (
-            <Notice tone="error">
-              The material catalog is empty. Procurement must load the catalog before a foreman
-              can send a request.
-            </Notice>
-          )}
           <div className="lav-form-grid request-form">
             <label className="lav-field compact">
               <span>Project</span>
@@ -1731,7 +1811,7 @@ function CreateRequisitionForm({ projects, materials, openInitially = false, onC
                 ))}
               </select>
             </label>
-            <label className="lav-field compact">
+            {!materialNotListed && <label className="lav-field compact">
               <span>Budget area</span>
               <select
                 value={costCodeId}
@@ -1748,17 +1828,23 @@ function CreateRequisitionForm({ projects, materials, openInitially = false, onC
                 </option>
                 {costCodes.map((code) => (
                   <option key={code.id} value={code.id}>
-                    {code.code} — {code.name}
+                    {code.code}: {code.name}
                   </option>
                 ))}
               </select>
-            </label>
+            </label>}
             <label className="lav-field compact">
               <span>Material</span>
               <select
                 value={materialId}
-                onChange={(event) => setMaterialId(event.currentTarget.value)}
-                disabled={!hasMaterials}
+                onChange={(event) => {
+                  const nextMaterialId = event.currentTarget.value
+                  setMaterialId(nextMaterialId)
+                  if (nextMaterialId === missingMaterialValue) setCostCodeId('')
+                  setQuantity('')
+                  setNeededByDate('')
+                  setNotes('')
+                }}
                 required
               >
                 <option value="">
@@ -1768,13 +1854,59 @@ function CreateRequisitionForm({ projects, materials, openInitially = false, onC
                   <optgroup label={group.category} key={group.category}>
                     {group.items.map((material) => (
                       <option key={material.id} value={material.id}>
-                        {material.name} — {material.unit}
+                        {material.name} ({material.unit})
                       </option>
                     ))}
                   </optgroup>
                 ))}
+                <option value={missingMaterialValue}>Material not listed</option>
               </select>
             </label>
+            {materialNotListed ? (
+              <>
+                <label className="lav-field compact">
+                  <span>Material name</span>
+                  <input
+                    value={proposedMaterial.name}
+                    onChange={(event) => setProposedMaterial({ ...proposedMaterial, name: event.currentTarget.value })}
+                    minLength={2}
+                    maxLength={150}
+                    required
+                  />
+                </label>
+                <label className="lav-field compact">
+                  <span>Category <small>Optional</small></span>
+                  <input
+                    value={proposedMaterial.category}
+                    onChange={(event) => setProposedMaterial({ ...proposedMaterial, category: event.currentTarget.value })}
+                    maxLength={100}
+                  />
+                </label>
+                <label className="lav-field compact">
+                  <span>Unit of measure</span>
+                  <select
+                    value={proposedMaterial.unit}
+                    onChange={(event) => setProposedMaterial({ ...proposedMaterial, unit: event.currentTarget.value, customUnit: '' })}
+                    required
+                  >
+                    <option value="">Choose unit</option>
+                    {commonMaterialUnits.map((unit) => <option value={unit} key={unit}>{unit}</option>)}
+                    <option value={otherMaterialUnitValue}>Other unit</option>
+                  </select>
+                </label>
+                {proposedMaterial.unit === otherMaterialUnitValue && (
+                  <label className="lav-field compact">
+                    <span>Other unit</span>
+                    <input
+                      value={proposedMaterial.customUnit}
+                      onChange={(event) => setProposedMaterial({ ...proposedMaterial, customUnit: event.currentTarget.value })}
+                      maxLength={30}
+                      required
+                    />
+                  </label>
+                )}
+              </>
+            ) : <>
             <label className="lav-field compact">
               <span>Quantity</span>
               <input
@@ -1803,6 +1935,7 @@ function CreateRequisitionForm({ projects, materials, openInitially = false, onC
                 required
               />
             </label>
+            </>}
             <label className="lav-field compact span-two">
               <span>Purpose</span>
               <input
@@ -1814,7 +1947,7 @@ function CreateRequisitionForm({ projects, materials, openInitially = false, onC
                 required
               />
             </label>
-            <label className="lav-field compact span-three">
+            {!materialNotListed && <label className="lav-field compact span-three">
               <span>Notes <small>Optional</small></span>
               <textarea
                 value={notes}
@@ -1823,12 +1956,12 @@ function CreateRequisitionForm({ projects, materials, openInitially = false, onC
                 rows={2}
                 placeholder="Add a short site detail."
               />
-            </label>
+            </label>}
           </div>
           <div className="lav-form-actions">
             <span />
-            <button className="lav-button primary" type="submit" disabled={busy || !hasMaterials}>
-              {busy ? 'Sending…' : 'Send request'}
+            <button className="lav-button primary" type="submit" disabled={busy}>
+              {busy ? 'Sending…' : materialNotListed ? 'Send for review' : 'Send request'}
             </button>
           </div>
         </form>
@@ -1996,12 +2129,12 @@ function ForemanRevisionForm({
           >
             {costCodes.length === 0 && (
               <option value={requisition.costCodeId}>
-                {requisition.costCode} — {requisition.costCodeName}
+                {requisition.costCode}: {requisition.costCodeName}
               </option>
             )}
             {costCodes.map((code) => (
               <option key={code.id} value={code.id}>
-                {code.code} — {code.name}
+                {code.code}: {code.name}
               </option>
             ))}
           </select>

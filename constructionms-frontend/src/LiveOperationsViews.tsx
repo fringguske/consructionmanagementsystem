@@ -47,7 +47,7 @@ function money(value: number) {
 }
 
 function when(value: string | null) {
-  return value ? new Intl.DateTimeFormat('en-KE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(value)) : '—'
+  return value ? new Intl.DateTimeFormat('en-KE', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(value)) : 'Not recorded'
 }
 
 async function everyPage<T>(load: (page: number) => Promise<{ items: T[]; totalPages: number }>) {
@@ -899,7 +899,7 @@ function PettyCashCard({ item, currentUser, run }: { item: PettyCashRequest; cur
   const role = currentUser.role
   return <article className="petty-cash-card">
     <header><div><span>{item.projectName}</span><small className="petty-cash-purpose-label">Purpose</small><h3>{item.purpose}</h3><small>{item.costCode} · requested by {item.requestedByName}</small></div><b className={`ops-status ${item.status.toLowerCase()}`}>{item.status.replaceAll(/([A-Z])/g, ' $1').trim()}</b></header>
-    <div className="petty-cash-facts"><span>Requested<strong>{money(item.amountRequested)}</strong></span><span>Approved<strong>{item.amountApproved ? money(item.amountApproved) : '—'}</strong></span><span>Needed<strong>{new Intl.DateTimeFormat('en-KE', { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(`${item.neededByDate}T00:00:00`))}</strong></span><span>Evidence<strong>{item.latestReconciliation?.evidenceReference ?? item.disbursement?.evidenceReference ?? 'Waiting'}</strong></span></div>
+    <div className="petty-cash-facts"><span>Requested<strong>{money(item.amountRequested)}</strong></span><span>Approved<strong>{item.amountApproved ? money(item.amountApproved) : 'Waiting'}</strong></span><span>Needed<strong>{new Intl.DateTimeFormat('en-KE', { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(`${item.neededByDate}T00:00:00`))}</strong></span><span>Evidence<strong>{item.latestReconciliation?.evidenceReference ?? item.disbursement?.evidenceReference ?? 'Waiting'}</strong></span></div>
     {item.disbursement && <p className="petty-cash-proof">Handed to {item.disbursement.recipientName}: {money(item.disbursement.amount)} by {item.disbursement.method} · {item.disbursement.externalReference}</p>}
     {item.receiptConfirmation && <p className="petty-cash-proof">Receipt confirmed by {item.receiptConfirmation.confirmedByName} · {when(item.receiptConfirmation.confirmedAt)}</p>}
     {item.latestReconciliation && <p className="petty-cash-proof">Accounted: {money(item.latestReconciliation.amountSpent)} spent + {money(item.latestReconciliation.amountReturned)} returned · {item.latestReconciliation.status}</p>}

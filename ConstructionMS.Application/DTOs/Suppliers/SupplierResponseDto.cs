@@ -2,7 +2,7 @@ namespace ConstructionMS.Application.DTOs.Suppliers;
 
 /// <summary>
 /// Represents a Supplier as returned by the API.
-/// Includes all fields except internal/system fields — the full contact
+/// Includes all fields except internal/system fields. The full contact
 /// picture is useful for procurement officers building purchase orders.
 /// </summary>
 public class SupplierResponseDto
@@ -16,7 +16,7 @@ public class SupplierResponseDto
     public string? PhoneNumber { get; set; }
     public string? Email { get; set; }
 
-    /// <summary>Kenya Revenue Authority PIN — required for formal procurement.</summary>
+    /// <summary>Kenya Revenue Authority PIN, required for formal procurement.</summary>
     public string? KraPin { get; set; }
 
     /// <summary>M-Pesa business/till number for mobile payment.</summary>

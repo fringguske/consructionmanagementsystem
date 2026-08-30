@@ -160,6 +160,41 @@ export interface MaterialWriteRequest {
 export type CreateMaterialRequest = MaterialWriteRequest
 export type UpdateMaterialRequest = MaterialWriteRequest
 
+export type MaterialCatalogRequestStatus = 'Pending' | 'Approved' | 'Rejected'
+
+export interface MaterialCatalogRequest {
+  id: number
+  requestNumber: string
+  projectId: number
+  projectName: string
+  name: string
+  category: string | null
+  unit: string
+  purpose: string
+  status: MaterialCatalogRequestStatus
+  submittedByUserId: number
+  submittedByName: string
+  submittedAt: IsoDateTime
+  reviewedByUserId: number | null
+  reviewedByName: string | null
+  reviewedAt: IsoDateTime | null
+  reviewNotes: string | null
+  approvedMaterialId: number | null
+}
+
+export interface CreateMaterialCatalogRequest {
+  projectId: number
+  name: string
+  category?: string | null
+  unit: string
+  purpose: string
+}
+
+export interface ReviewMaterialCatalogRequest {
+  approve: boolean
+  notes: string
+}
+
 export interface SupplierSummary {
   id: number
   name: string

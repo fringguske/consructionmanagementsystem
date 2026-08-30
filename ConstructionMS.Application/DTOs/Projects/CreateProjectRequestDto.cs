@@ -24,7 +24,7 @@ public class CreateProjectRequestDto : IValidatableObject
     /// <summary>Date the project kicked off. Required.</summary>
     public DateOnly StartDate { get; set; }
 
-    /// <summary>Planned end date. Optional — leave null for open-ended projects.</summary>
+    /// <summary>Planned end date. Optional; leave null for open-ended projects.</summary>
     public DateOnly? EndDate { get; set; }
 
     /// <summary>

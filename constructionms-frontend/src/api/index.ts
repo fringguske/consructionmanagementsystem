@@ -6,6 +6,7 @@ export {
   dashboardApi,
   documentsApi,
   materialsApi,
+  materialCatalogRequestsApi,
   inventoryApi,
   financeApi,
   notificationsApi,

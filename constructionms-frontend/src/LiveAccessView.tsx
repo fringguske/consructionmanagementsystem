@@ -306,7 +306,7 @@ export function LiveAccessView({ currentUser }: LiveAccessViewProps) {
     return (
       <div className="lav-view">
         <div className="lav-empty">
-          <span aria-hidden="true">—</span>
+          <span aria-hidden="true" />
           <h3>Administrator access only</h3>
           <p>Join requests, account status and project assignments are managed by the Administrator.</p>
         </div>

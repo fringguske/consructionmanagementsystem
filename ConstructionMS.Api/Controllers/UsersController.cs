@@ -47,7 +47,7 @@ public class UsersController : ControllerBase
     }
 
     /// <summary>
-    /// Creates a new user. Supply a plain-text password — the service hashes it.
+    /// Creates a new user. Supply a plain-text password; the service hashes it.
     /// </summary>
     [HttpPost]
     [ProducesResponseType(typeof(ApiResponse<UserResponseDto>), StatusCodes.Status201Created)]

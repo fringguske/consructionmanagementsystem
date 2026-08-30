@@ -9,6 +9,7 @@ All paths use the `/api/v1` prefix. Except for login, liveness and readiness, th
 | Sign in and load the correct workspace | `authApi`, `dashboardApi` | `AuthController`, `DashboardController` | `AuthenticationService`, `DashboardService` | `Users`, `Roles`, `UserProjectAssignments` |
 | View assigned projects and verified progress | `projectsApi` | `ProjectsController` | `ProjectService` | `Projects`, `ProjectProgressVerifications` |
 | View/control budgets by construction activity | `projectsApi` | `ProjectsController` | `ProjectService` | `CostCodes`, `ProjectBudgets`, `ProjectBudgetAllocations`, approved `PurchaseOrderLines` |
+| Propose and approve an unlisted material | `materialCatalogRequestsApi` | `MaterialCatalogRequestsController` | `MaterialCatalogRequestService` | `MaterialCatalogRequests`, approved `Materials`, hash-linked `ControlEvents` |
 | Request materials and independently approve need | `requisitionsApi` | `V1/RequisitionsController` | `RequisitionWorkflowService` | `Requisitions`, `EngineerTechnicalChecks`, `RequisitionApprovalEvents` |
 | Submit and independently approve supplier companies | `supplierOnboardingApi`, `suppliersApi` | `SupplierOnboardingController`, `SuppliersController` | `SupplierOnboardingService`, `SupplierService` | `SupplierOnboardingRequests`, `Suppliers` |
 | Collect comparable supplier offers | `sourcingRoundsApi`, `suppliersApi` | `SourcingRoundsController`, `SuppliersController` | `SourcingService`, `SupplierService` | `SourcingRounds`, `SourcingRoundEvents`, `SupplierQuotes`, `Suppliers` |
@@ -236,6 +237,9 @@ New operational evidence is protected twice: application guards reject deletion/
 | `GET /materials` / `GET /materials/{id}` | Signed-in | Select the shared material catalog. |
 | `POST /materials`, `PUT /materials/{id}` | CEO or Procurement | Maintain catalog metadata/reference price. |
 | `PATCH /materials/{id}/technical-acceptance-policy` | CEO | Change whether future PO lines for a material require Engineer delivery acceptance. The decision is append-only audited; existing PO lines retain their snapshotted policy. |
+| `GET /material-catalog-requests` | Foreman, Procurement, CEO, Auditor | Read pending and reviewed proposals in role and project scope. Foremen see only their own proposals. |
+| `POST /material-catalog-requests` | Assigned Foreman | Propose a material that is absent from the shared catalog. |
+| `POST /material-catalog-requests/{id}/decision` | Different assigned Procurement officer | Approve and create or link the catalog material, or reject the proposal. |
 | `GET /supplier-onboarding` | Procurement, Finance, CEO, Auditor | Read pending and completed supplier applications. |
 | `POST /supplier-onboarding` | Procurement | Submit locked company, contact, KRA and payment-contact details for review. |
 | `POST /supplier-onboarding/{id}/decision` | Finance or CEO | Independently approve/reject once. Approval atomically creates the usable supplier record. |

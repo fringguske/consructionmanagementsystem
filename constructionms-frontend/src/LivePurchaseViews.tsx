@@ -1,12 +1,14 @@
-import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { useSearchParams } from 'react-router'
 import {
   ApiError,
+  materialCatalogRequestsApi,
   purchaseOrdersApi,
   requisitionsApi,
   sourcingRoundsApi,
   suppliersApi,
   type CurrentUser,
+  type MaterialCatalogRequest,
   type PurchaseOrder,
   type PurchaseOrderStatus,
   type Requisition,
@@ -78,7 +80,7 @@ function LoadingBlock({ label }: { label: string }) {
 function EmptyState({ title, detail }: { title: string; detail: string }) {
   return (
     <div className="lav-empty">
-      <span aria-hidden="true">—</span>
+      <span aria-hidden="true" />
       <h3>{title}</h3>
       <p>{detail}</p>
     </div>
@@ -194,6 +196,8 @@ export function LiveProcurementView({ currentUser }: LiveProcurementViewProps) {
   const [approvedRequisitions, setApprovedRequisitions] = useState<Requisition[]>([])
   const [suppliers, setSuppliers] = useState<SupplierSummary[]>([])
   const [orders, setOrders] = useState<PurchaseOrder[]>([])
+  const [catalogRequests, setCatalogRequests] = useState<MaterialCatalogRequest[]>([])
+  const [catalogLoadError, setCatalogLoadError] = useState<string | null>(null)
   const [loading, setLoading] = useState(allowed)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
@@ -201,7 +205,7 @@ export function LiveProcurementView({ currentUser }: LiveProcurementViewProps) {
   const [projectFilter, setProjectFilter] = useState('')
   const procurement = currentUser.role === 'Procurement Officer'
   const requestedProcurementSection = searchParams.get('section')
-  const procurementSection = requestedProcurementSection === 'open' || requestedProcurementSection === 'history'
+  const procurementSection = requestedProcurementSection === 'open' || requestedProcurementSection === 'history' || requestedProcurementSection === 'catalog'
     ? requestedProcurementSection
     : 'ready'
   const supervisorHistory = currentUser.role === 'Supervisor' && searchParams.get('view') === 'history'
@@ -220,12 +224,22 @@ export function LiveProcurementView({ currentUser }: LiveProcurementViewProps) {
       procurement
         ? everyPage<SupplierSummary>(page => suppliersApi.list({ page, pageSize: 100 }, controller.signal)).then(items => ({ items }))
         : Promise.resolve(null),
+      procurement
+        ? everyPage<MaterialCatalogRequest>(page => materialCatalogRequestsApi.list({ page, pageSize: 100 }, controller.signal))
+          .then(items => ({ items, error: null as string | null }))
+          .catch((requestError: unknown) => {
+            if (requestError instanceof DOMException && requestError.name === 'AbortError') throw requestError
+            return { items: [] as MaterialCatalogRequest[], error: errorMessage(requestError) }
+          })
+        : Promise.resolve(null),
     ])
-      .then(([roundResult, orderResult, requisitionResult, supplierResult]) => {
+      .then(([roundResult, orderResult, requisitionResult, supplierResult, catalogRequestResult]) => {
         setRounds(roundResult.items)
         setOrders(orderResult.items)
         setApprovedRequisitions(requisitionResult?.items ?? [])
         setSuppliers(supplierResult?.items ?? [])
+        setCatalogRequests(catalogRequestResult?.items ?? [])
+        setCatalogLoadError(catalogRequestResult?.error ?? null)
         setError(null)
       })
       .catch((requestError: unknown) => {
@@ -281,11 +295,15 @@ export function LiveProcurementView({ currentUser }: LiveProcurementViewProps) {
   )
   const sourcingCount = procurement && procurementSection === 'ready'
     ? visibleReadyRequisitions.length
+    : procurement && procurementSection === 'catalog'
+      ? catalogLoadError ? 'Unavailable' : catalogRequests.filter((request) => request.status === 'Pending').length
     : procurement
       ? filteredRounds.length
       : rounds.length
   const sourcingCountLabel = procurement && procurementSection === 'ready'
     ? 'ready'
+    : procurement && procurementSection === 'catalog'
+      ? catalogLoadError ? '' : 'waiting'
     : procurement && procurementSection === 'open'
       ? 'open'
       : procurement ? 'records' : 'rounds'
@@ -380,6 +398,7 @@ export function LiveProcurementView({ currentUser }: LiveProcurementViewProps) {
         <button type="button" className={procurementSection === 'ready' ? 'active' : ''} aria-current={procurementSection === 'ready' ? 'page' : undefined} onClick={() => setSearchParams({}, { replace: true })}>Ready requests</button>
         <button type="button" className={procurementSection === 'open' ? 'active' : ''} aria-current={procurementSection === 'open' ? 'page' : undefined} onClick={() => setSearchParams({ section: 'open' }, { replace: true })}>Open sourcing</button>
         <button type="button" className={procurementSection === 'history' ? 'active' : ''} aria-current={procurementSection === 'history' ? 'page' : undefined} onClick={() => setSearchParams({ section: 'history' }, { replace: true })}>History</button>
+        <button type="button" className={procurementSection === 'catalog' ? 'active' : ''} aria-current={procurementSection === 'catalog' ? 'page' : undefined} onClick={() => setSearchParams({ section: 'catalog' }, { replace: true })}>Material catalog</button>
       </nav>}
 
       {loading ? (
@@ -402,7 +421,18 @@ export function LiveProcurementView({ currentUser }: LiveProcurementViewProps) {
             <CreateSourcingRoundForm requisitions={visibleReadyRequisitions} onCreated={addRound}/>
           </section>}
 
-          {(!procurement || procurementSection !== 'ready') && <section className="lav-panel">
+          {procurement && procurementSection === 'catalog' && (
+            <MaterialCatalogReview
+              requests={catalogRequests}
+              loadError={catalogLoadError}
+              onReviewed={(updated) => {
+                setCatalogRequests((current) => current.map((item) => item.id === updated.id ? updated : item))
+                setNotice(`Material catalog request ${updated.status.toLowerCase()}.`)
+              }}
+            />
+          )}
+
+          {(!procurement || procurementSection === 'open' || procurementSection === 'history') && <section className="lav-panel">
             <header className="lav-panel-head lav-request-toolbar">
               <div>
                 <h2>{procurement
@@ -456,6 +486,132 @@ export function LiveProcurementView({ currentUser }: LiveProcurementViewProps) {
         </>
       )}
     </div>
+  )
+}
+
+function MaterialCatalogReview({
+  requests,
+  loadError,
+  onReviewed,
+}: {
+  requests: MaterialCatalogRequest[]
+  loadError: string | null
+  onReviewed: (request: MaterialCatalogRequest) => void
+}) {
+  const pending = requests.filter((request) => request.status === 'Pending')
+  const reviewed = requests.filter((request) => request.status !== 'Pending')
+
+  return (
+    <section className="lav-panel material-catalog-review">
+      <header className="lav-panel-head">
+        <div><h2>Material catalog requests</h2></div>
+        <span className="lav-count-chip">{pending.length} waiting</span>
+      </header>
+
+      {loadError && <Notice tone="error">Material catalog requests could not be loaded. {loadError}</Notice>}
+
+      <div className="material-catalog-group pending">
+        <h3>Waiting review</h3>
+        {!loadError && pending.length === 0
+          ? <div className="material-catalog-empty">No pending catalog requests.</div>
+          : pending.map((request) => (
+            <MaterialCatalogRequestCard key={request.id} request={request} canReview onReviewed={onReviewed} />
+          ))}
+      </div>
+
+      {reviewed.length > 0 && (
+        <details className="material-catalog-history">
+          <summary>Reviewed <b>{reviewed.length}</b></summary>
+          <div>
+            {reviewed.map((request) => (
+              <MaterialCatalogRequestCard key={request.id} request={request} canReview={false} onReviewed={onReviewed} />
+            ))}
+          </div>
+        </details>
+      )}
+    </section>
+  )
+}
+
+function MaterialCatalogRequestCard({
+  request,
+  canReview,
+  onReviewed,
+}: {
+  request: MaterialCatalogRequest
+  canReview: boolean
+  onReviewed: (request: MaterialCatalogRequest) => void
+}) {
+  const [decision, setDecision] = useState<'approve' | 'reject' | null>(null)
+  const [notes, setNotes] = useState('')
+  const reviewLock = useRef(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function review(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!decision || reviewLock.current) return
+    reviewLock.current = true
+    setBusy(true)
+    setError(null)
+    try {
+      const updated = await materialCatalogRequestsApi.review(request.id, {
+        approve: decision === 'approve',
+        notes: notes.trim(),
+      })
+      onReviewed(updated)
+      setDecision(null)
+      setNotes('')
+    } catch (requestError) {
+      setError(errorMessage(requestError))
+    } finally {
+      reviewLock.current = false
+      setBusy(false)
+    }
+  }
+
+  return (
+    <article className={`material-catalog-card status-${request.status.toLowerCase()}`}>
+      <header>
+        <div><h3>{request.name}</h3><span>{request.unit}</span></div>
+        <b>{request.status}</b>
+      </header>
+      <dl>
+        <div><dt>Project</dt><dd>{request.projectName}</dd></div>
+        <div><dt>Category</dt><dd>{request.category || 'Not specified'}</dd></div>
+        <div><dt>Requested by</dt><dd>{request.submittedByName}</dd></div>
+        <div><dt>Submitted</dt><dd>{formatDateTime(request.submittedAt)}</dd></div>
+      </dl>
+      <p><strong>Purpose</strong>{request.purpose}</p>
+
+      {request.status !== 'Pending' && (
+        <div className="material-catalog-decision">
+          <strong>{request.status} by {request.reviewedByName}</strong>
+          {request.reviewNotes && <span>{request.reviewNotes}</span>}
+        </div>
+      )}
+
+      {canReview && request.status === 'Pending' && !decision && (
+        <footer>
+          <button type="button" className="lav-button secondary" onClick={() => setDecision('reject')}>Reject</button>
+          <button type="button" className="lav-button primary" onClick={() => setDecision('approve')}>Approve material</button>
+        </footer>
+      )}
+
+      {decision && (
+        <form onSubmit={review}>
+          {error && <Notice tone="error">{error}</Notice>}
+          <label className="lav-field">
+            <span>{decision === 'approve' ? 'Approval note' : 'Reason for rejection'}</span>
+            <textarea required minLength={3} maxLength={1000} rows={2} value={notes} onChange={(event) => setNotes(event.currentTarget.value)} />
+          </label>
+          <div>
+            <button type="button" className="lav-button secondary" onClick={() => setDecision(null)}>Cancel</button>
+            <button className="lav-button primary" disabled={busy}>{busy ? 'Saving…' : 'Confirm'}</button>
+          </div>
+        </form>
+      )}
+    </article>
   )
 }
 
