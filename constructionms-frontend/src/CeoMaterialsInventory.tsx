@@ -1,11 +1,13 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   ApiError,
   financeApi,
+  inventoryApi,
   type ControlEvent,
   type CurrentUser,
   type GoodsReceipt,
   type MaterialIssue,
+  type MaterialReturn,
   type StockBalance,
   type StockCount,
   type StockLedgerEntry,
@@ -45,6 +47,8 @@ type Props = {
   transfers: StockTransfer[]
   counts: StockCount[]
   receipts: GoodsReceipt[]
+  returns: MaterialReturn[]
+  onChanged: (message: string) => void
 }
 
 function number(value: number) {
@@ -67,6 +71,7 @@ function documentReference(entry: StockLedgerEntry) {
     GoodsReceipt: 'GRN',
     StockTransfer: 'TRF',
     StockCount: 'CNT',
+    MaterialReturn: 'MRT',
   }[entry.referenceType] ?? entry.referenceNumber.split('-')[0] ?? 'MOV'
   return `${prefix}-${String(entry.referenceId).padStart(4, '0')}`
 }
@@ -79,10 +84,9 @@ function inputDate(value: Date) {
 }
 
 function custodyAmount(issue: MaterialIssue) {
-  const received = issue.status === 'AwaitingConfirmation'
+  return issue.status === 'AwaitingConfirmation'
     ? issue.quantityIssued
-    : issue.confirmedQuantity ?? 0
-  return Math.max(0, received - issue.usedQuantity - issue.wastedQuantity)
+    : issue.unaccountedQuantity
 }
 
 function materialPositions(
@@ -130,6 +134,7 @@ function movementContext(
   transfers: StockTransfer[],
   counts: StockCount[],
   receipts: GoodsReceipt[],
+  returns: MaterialReturn[],
 ): MovementContext {
   const issue = entry.referenceType === 'MaterialIssue'
     ? issues.find(item => item.id === entry.referenceId)
@@ -142,6 +147,12 @@ function movementContext(
     : undefined
   const receipt = entry.referenceType === 'GoodsReceipt'
     ? receipts.find(item => item.id === entry.referenceId)
+    : undefined
+  const materialReturn = entry.referenceType === 'MaterialReturn'
+    ? returns.find(item => item.id === entry.referenceId)
+    : undefined
+  const returnedIssue = materialReturn
+    ? issues.find(item => item.id === materialReturn.materialIssueId)
     : undefined
   if (issue) return {
     entry,
@@ -171,6 +182,12 @@ function movementContext(
     action: 'Count adjusted',
     route: `${entry.projectName} Store`,
   }
+  if (materialReturn) return {
+    entry,
+    chainKey: returnedIssue ? `REQ-${returnedIssue.requisitionId}` : null,
+    action: `Returned by ${materialReturn.returnedByName}`,
+    route: `${materialReturn.returnedByName} → ${entry.projectName} Store`,
+  }
   return {
     entry,
     chainKey: null,
@@ -180,10 +197,11 @@ function movementContext(
 }
 
 export function CeoMaterialsInventory(props: Props) {
-  const { currentUser, balances, ledger, issues, transfers, counts, receipts } = props
+  const { currentUser, balances, ledger, issues, transfers, counts, receipts, returns, onChanged } = props
   const [tab, setTab] = useState<InventoryTab>('overview')
   const [selectedMaterialId, setSelectedMaterialId] = useState<number | null>(null)
   const [auditMovement, setAuditMovement] = useState<MovementContext | null>(null)
+  const [resolveTransfer, setResolveTransfer] = useState<StockTransfer | null>(null)
   const now = useMemo(() => new Date(), [])
   const [fromDate, setFromDate] = useState(inputDate(new Date(now.getFullYear(), now.getMonth(), 1)))
   const [toDate, setToDate] = useState(inputDate(now))
@@ -198,17 +216,18 @@ export function CeoMaterialsInventory(props: Props) {
   const contexts = useMemo(
     () => [...ledger]
       .sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime() || b.id - a.id)
-      .map(entry => movementContext(entry, issues, transfers, counts, receipts)),
-    [ledger, issues, transfers, counts, receipts],
+      .map(entry => movementContext(entry, issues, transfers, counts, receipts, returns)),
+    [ledger, issues, transfers, counts, receipts, returns],
   )
   const selected = positions.find(item => item.materialId === selectedMaterialId) ?? null
 
   useEffect(() => {
-    if (!selectedMaterialId && !auditMovement) return
+    if (!selectedMaterialId && !auditMovement && !resolveTransfer) return
     const previousOverflow = document.body.style.overflow
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return
       if (auditMovement) setAuditMovement(null)
+      else if (resolveTransfer) setResolveTransfer(null)
       else setSelectedMaterialId(null)
     }
     document.body.style.overflow = 'hidden'
@@ -217,15 +236,17 @@ export function CeoMaterialsInventory(props: Props) {
       document.body.style.overflow = previousOverflow
       document.removeEventListener('keydown', closeOnEscape)
     }
-  }, [auditMovement, selectedMaterialId])
+  }, [auditMovement, resolveTransfer, selectedMaterialId])
 
   const pendingHandovers = issues.filter(item => item.status === 'AwaitingConfirmation')
   const countDifferences = counts.filter(item => item.status === 'AwaitingReview' && item.variance !== 0)
   const disputedTransfers = transfers.filter(item => item.status === 'Disputed')
   const categories = [...new Set(positions.map(item => item.category))].sort()
 
-  const from = new Date(`${fromDate}T00:00:00`)
-  const toExclusive = new Date(`${toDate}T00:00:00`)
+  const safeFromDate = fromDate || inputDate(new Date(now.getFullYear(), now.getMonth(), 1))
+  const safeToDate = toDate || inputDate(now)
+  const from = new Date(`${safeFromDate}T00:00:00`)
+  const toExclusive = new Date(`${safeToDate}T00:00:00`)
   toExclusive.setDate(toExclusive.getDate() + 1)
   const scopedLedger = ledger.filter(item => projectId === 'all' || item.projectId === Number(projectId))
   const scopedIssues = issues.filter(item => projectId === 'all' || item.projectId === Number(projectId))
@@ -243,8 +264,8 @@ export function CeoMaterialsInventory(props: Props) {
     })
     const received = periodEntries.filter(item => ['Receipt', 'TechnicalAcceptance', 'TransferIn'].includes(item.movementType)).reduce((sum, item) => sum + Math.max(0, item.quantityDelta), 0)
     const issued = Math.abs(periodEntries.filter(item => item.movementType === 'Issue' || item.movementType === 'TransferOut').reduce((sum, item) => sum + Math.min(0, item.quantityDelta), 0))
-    const returned = periodEntries.filter(item => item.movementType === 'Return').reduce((sum, item) => sum + Math.max(0, item.quantityDelta), 0)
-    const other = periodEntries.filter(item => !['Receipt', 'TechnicalAcceptance', 'TransferIn', 'Issue', 'TransferOut', 'Return'].includes(item.movementType)).reduce((sum, item) => sum + item.quantityDelta, 0)
+    const returned = periodEntries.filter(item => item.movementType === 'ReturnToStore').reduce((sum, item) => sum + Math.max(0, item.quantityDelta), 0)
+    const other = periodEntries.filter(item => !['Receipt', 'TechnicalAcceptance', 'TransferIn', 'Issue', 'TransferOut', 'ReturnToStore'].includes(item.movementType)).reduce((sum, item) => sum + item.quantityDelta, 0)
     const closing = opening + periodEntries.reduce((sum, item) => sum + item.quantityDelta, 0)
     const usage = scopedIssues.flatMap(item => item.materialId === position.materialId ? item.usage : []).filter(item => {
       const occurred = new Date(item.recordedAt)
@@ -309,10 +330,10 @@ export function CeoMaterialsInventory(props: Props) {
     </>}
 
     {tab === 'ledger' && <section className="ceo-inventory-panel">
-      <header className="ledger-heading"><div><h2>Materials ledger</h2><p>{new Intl.DateTimeFormat('en-KE', { day: 'numeric', month: 'long', year: 'numeric' }).format(from)} to {new Intl.DateTimeFormat('en-KE', { day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(toDate))}</p></div></header>
+      <header className="ledger-heading"><div><h2>Materials ledger</h2><p>{new Intl.DateTimeFormat('en-KE', { day: 'numeric', month: 'long', year: 'numeric' }).format(from)} to {new Intl.DateTimeFormat('en-KE', { day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(`${safeToDate}T00:00:00`))}</p></div></header>
       <div className="inventory-filters">
-        <label><span>From</span><input type="date" value={fromDate} max={toDate} onChange={event => setFromDate(event.target.value)}/></label>
-        <label><span>To</span><input type="date" value={toDate} min={fromDate} onChange={event => setToDate(event.target.value)}/></label>
+        <label><span>From</span><input type="date" required value={fromDate} max={safeToDate} onChange={event => setFromDate(event.target.value || safeFromDate)}/></label>
+        <label><span>To</span><input type="date" required value={toDate} min={safeFromDate} onChange={event => setToDate(event.target.value || safeToDate)}/></label>
         <label><span>Project</span><select value={projectId} onChange={event => setProjectId(event.target.value)}><option value="all">All projects</option>{currentUser.projects.map(project => <option key={project.id} value={project.id}>{project.name}</option>)}</select></label>
         <label><span>Category</span><select value={category} onChange={event => setCategory(event.target.value)}><option value="all">All categories</option>{categories.map(item => <option key={item}>{item}</option>)}</select></label>
         <label><span>Stock status</span><select value={stockStatus} onChange={event => setStockStatus(event.target.value)}><option value="all">All statuses</option><option>In stock</option><option>Low stock</option><option>Out of stock</option></select></label>
@@ -352,7 +373,7 @@ export function CeoMaterialsInventory(props: Props) {
         {countDifferences.map(item => <article key={item.id}><div><strong>{item.materialName}</strong><span>{item.projectName} · counted by {item.countedByName}</span></div><b>{item.variance > 0 ? '+' : ''}{quantity(item.variance, item.materialUnit)}</b></article>)}
       </ExceptionList>
       <ExceptionList title="Transfer differences" empty="No transfer is disputed.">
-        {disputedTransfers.map(item => <article key={item.id}><div><strong>{item.materialName}</strong><span>{item.fromProjectName} to {item.toProjectName}</span></div><b>{quantity(item.quantity, item.materialUnit)}</b></article>)}
+        {disputedTransfers.map(item => <article key={item.id}><div><strong>{item.materialName}</strong><span>{item.fromProjectName} to {item.toProjectName}</span></div><div className="exception-action"><b>{quantity(item.quantity, item.materialUnit)}</b><button type="button" className="inventory-text-button" onClick={() => setResolveTransfer(item)}>Resolve variance</button></div></article>)}
       </ExceptionList>
     </section>}
 
@@ -371,7 +392,39 @@ export function CeoMaterialsInventory(props: Props) {
     </div>}
 
     {auditMovement && <AuditHistoryModal key={`${auditMovement.entry.id}-${auditMovement.chainKey ?? 'unlinked'}`} movement={auditMovement} onClose={() => setAuditMovement(null)}/>}
+    {resolveTransfer && <ResolveTransferModal transfer={resolveTransfer} onClose={() => setResolveTransfer(null)} onResolved={() => { setResolveTransfer(null); onChanged('Transfer variance resolved.') }}/>}
   </section>
+}
+
+function ResolveTransferModal({ transfer, onClose, onResolved }: { transfer: StockTransfer; onClose: () => void; onResolved: () => void }) {
+  const variance = Math.max(0, transfer.quantity - (transfer.receivedQuantity ?? 0))
+  const [disposition, setDisposition] = useState<'AcceptedLoss' | 'RecoveredAtDestination' | 'ReturnedToSource'>('AcceptedLoss')
+  const [notes, setNotes] = useState('')
+  const [evidenceReference, setEvidenceReference] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const busyRef = useRef(false)
+  const submit = async () => {
+    if (busyRef.current) return
+    busyRef.current = true
+    setBusy(true)
+    setError(null)
+    try {
+      await inventoryApi.resolveTransfer(transfer.id, { disposition, notes: notes.trim(), evidenceReference: evidenceReference.trim() || null })
+      onResolved()
+    } catch (cause) {
+      setError(cause instanceof ApiError || cause instanceof Error ? cause.message : 'Transfer variance could not be resolved.')
+    } finally {
+      busyRef.current = false
+      setBusy(false)
+    }
+  }
+  return <div className="inventory-audit-backdrop" onMouseDown={event => { if (!busy && event.target === event.currentTarget) onClose() }}>
+    <form className="inventory-audit-card transfer-resolution-modal" role="dialog" aria-modal="true" aria-labelledby="transfer-resolution-title" onSubmit={event => { event.preventDefault(); void submit() }}>
+      <header><div><span>{transfer.fromProjectName} → {transfer.toProjectName}</span><h2 id="transfer-resolution-title">Resolve transfer variance</h2><p>{transfer.materialName} · {quantity(variance, transfer.materialUnit)}</p></div><div className="inventory-audit-heading-actions"><button type="button" aria-label="Close" disabled={busy} onClick={onClose}>×</button></div></header>
+      <div className="transfer-resolution-fields">{error && <p className="inventory-audit-error">{error}</p>}<label><span>Decision</span><select required value={disposition} onChange={event => setDisposition(event.target.value as typeof disposition)}><option value="AcceptedLoss">Accept as loss</option><option value="RecoveredAtDestination">Recovered at destination</option><option value="ReturnedToSource">Returned to source store</option></select></label><label><span>Notes</span><textarea autoFocus required minLength={3} maxLength={1000} rows={4} value={notes} onChange={event => setNotes(event.target.value)}/></label><label><span>Evidence reference (optional)</span><input maxLength={500} value={evidenceReference} onChange={event => setEvidenceReference(event.target.value)}/></label><div><button type="button" className="lav-button secondary" disabled={busy} onClick={onClose}>Cancel</button><button type="submit" className="lav-button primary" disabled={busy || notes.trim().length < 3 || variance <= 0}>{busy ? 'Saving…' : 'Resolve variance'}</button></div></div>
+    </form>
+  </div>
 }
 
 function MaterialStockCard({ position, movements, issues, onMovementClick, onBack }: {

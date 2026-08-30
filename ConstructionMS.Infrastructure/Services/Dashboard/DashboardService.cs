@@ -44,7 +44,13 @@ public sealed class DashboardService : IDashboardService
                 && order.Status == PurchaseOrderWorkflowStates.Issued)
             .CountAsync(order => order.Lines.Any(line =>
                 (_db.GoodsReceipts
-                    .Where(receipt => receipt.PurchaseOrderLineId == line.Id)
+                    .Where(receipt => receipt.PurchaseOrderLineId == line.Id
+                        && (!line.RequiresTechnicalAcceptance
+                            || !receipt.TechnicalAcceptances.Any()
+                            || receipt.TechnicalAcceptances
+                                .OrderByDescending(review => review.ReviewSequence)
+                                .Select(review => review.Outcome)
+                                .FirstOrDefault() != TechnicalAcceptanceOutcomes.Rejected))
                     .Sum(receipt => (decimal?)receipt.AcceptedQuantity) ?? 0) < line.Quantity));
 
         var pendingInvoiceCaptureCount = await _db.PurchaseOrders
@@ -53,7 +59,12 @@ public sealed class DashboardService : IDashboardService
                 && order.Status == PurchaseOrderWorkflowStates.Issued)
             .CountAsync(order => order.Lines.Any(line =>
                     (_db.GoodsReceipts
-                        .Where(receipt => receipt.PurchaseOrderLineId == line.Id)
+                        .Where(receipt => receipt.PurchaseOrderLineId == line.Id
+                            && (!line.RequiresTechnicalAcceptance
+                                || receipt.TechnicalAcceptances
+                                    .OrderByDescending(review => review.ReviewSequence)
+                                    .Select(review => review.Outcome)
+                                    .FirstOrDefault() == TechnicalAcceptanceOutcomes.Accepted))
                         .Sum(receipt => (decimal?)receipt.AcceptedQuantity) ?? 0) == line.Quantity)
                 && !_db.SupplierInvoices.Any(invoice =>
                     invoice.PurchaseOrderId == order.Id && activeInvoiceStatuses.Contains(invoice.Status)));
@@ -77,6 +88,7 @@ public sealed class DashboardService : IDashboardService
             PendingGoodsReceiptCount = pendingGoodsReceiptCount,
             PendingMaterialIssueCount = await requisitions.CountAsync(requisition =>
                 requisition.Status == RequisitionWorkflowStates.Approved
+                && requisition.RequestType == RequisitionTypes.SiteUse
                 && !_db.MaterialIssues.Any(issue => issue.RequisitionId == requisition.Id)),
             PendingMaterialConfirmationCount = await _db.MaterialIssues.CountAsync(issue =>
                 visibleProjectIds.Contains(issue.ProjectId)

@@ -1,5 +1,6 @@
 export {
   ApiError,
+  authenticationExpiredEvent,
   accessRequestsApi,
   authApi,
   dashboardApi,

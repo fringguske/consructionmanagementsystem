@@ -70,7 +70,9 @@ public sealed class PettyCashService(AppDbContext db, IActorRoleResolver roles) 
     {
         await RequireAnyRoleAsync(actorUserId, actorRole, "Finance Officer");
         var notes = InputNormalizer.RequiredText(request.Notes, nameof(request.Notes), 3, 1_000);
-        await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable);
+        await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted);
+        await db.Database.ExecuteSqlInterpolatedAsync(
+            $"SELECT 1 FROM \"Projects\" project JOIN \"PettyCashRequests\" request ON request.\"ProjectId\" = project.\"Id\" WHERE request.\"Id\" = {id} FOR UPDATE OF project");
         var item = await db.PettyCashRequests.SingleOrDefaultAsync(candidate => candidate.Id == id)
             ?? throw new KeyNotFoundException("The petty-cash request was not found.");
         if (item.Status != PettyCashStatuses.PendingFinanceApproval) throw new InvalidOperationException("This petty-cash request has already been decided.");
@@ -81,6 +83,12 @@ public sealed class PettyCashService(AppDbContext db, IActorRoleResolver roles) 
         {
             approvedAmount = InputNormalizer.Positive(request.AmountApproved ?? item.AmountRequested, nameof(request.AmountApproved), 18, 2);
             if (approvedAmount > item.AmountRequested) throw new ArgumentException("Approved amount cannot exceed the requested amount.");
+            await BudgetCommitmentGuard.EnsureAvailableAsync(
+                db,
+                item.ProjectId,
+                item.CostCodeId,
+                approvedAmount.Value,
+                excludedPettyCashRequestId: item.Id);
         }
         var now = DateTime.UtcNow;
         item.AmountApproved = approvedAmount;

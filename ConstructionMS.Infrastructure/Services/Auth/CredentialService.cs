@@ -52,12 +52,14 @@ public sealed class CredentialService : ICredentialService
         await using var transaction = await _db.Database.BeginTransactionAsync(
             IsolationLevel.Serializable,
             cancellationToken);
+        await UsernameReservationLock.AcquireAsync(_db, newUsername, cancellationToken);
         var usernameUnavailable = await _db.Users.AsNoTracking().AnyAsync(candidate =>
                 candidate.Id != user.Id
                 && EF.Property<string>(candidate, NormalizedUsernameProperty) == newUsername,
                 cancellationToken)
             || await _db.AccessRequests.AsNoTracking().AnyAsync(candidate =>
-                EF.Property<string>(candidate, NormalizedUsernameProperty) == newUsername,
+                candidate.Status == "Pending"
+                && EF.Property<string>(candidate, NormalizedUsernameProperty) == newUsername,
                 cancellationToken);
         if (usernameUnavailable)
         {

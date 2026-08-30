@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useMemo, useState, type FormEvent, type Reac
 import { BrowserRouter, Link, Navigate, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router'
 import {
   ApiError,
+  authenticationExpiredEvent,
   authApi,
   notificationsApi,
   type AppNotification,
@@ -521,6 +522,18 @@ function LiveSession() {
     })
     return () => controller.abort()
   }, [])
+
+  useEffect(() => {
+    if (!currentUser) return
+    const sessionExpired = () => {
+      setSessionError('Session expired. Sign in again.')
+      setSessionMessage(null)
+      navigate('/login', { replace: true })
+      setCurrentUser(null)
+    }
+    window.addEventListener(authenticationExpiredEvent, sessionExpired)
+    return () => window.removeEventListener(authenticationExpiredEvent, sessionExpired)
+  }, [currentUser, navigate])
 
   if (currentUser === undefined) return <SessionLoading/>
   if (currentUser === null) {

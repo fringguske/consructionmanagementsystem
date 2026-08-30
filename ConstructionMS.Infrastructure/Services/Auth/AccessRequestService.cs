@@ -30,11 +30,13 @@ public sealed class AccessRequestService(AppDbContext db) : IAccessRequestServic
         await using var transaction = await db.Database.BeginTransactionAsync(
             IsolationLevel.Serializable,
             cancellationToken);
+        await UsernameReservationLock.AcquireAsync(db, username, cancellationToken);
         if (await db.Users.AsNoTracking().AnyAsync(user =>
                 EF.Property<string>(user, NormalizedUsernameProperty) == username,
                 cancellationToken)
             || await db.AccessRequests.AsNoTracking().AnyAsync(candidate =>
-                EF.Property<string>(candidate, NormalizedUsernameProperty) == username,
+                candidate.Status == "Pending"
+                && EF.Property<string>(candidate, NormalizedUsernameProperty) == username,
                 cancellationToken))
         {
             throw new InvalidOperationException("That username is already reserved.");
@@ -116,6 +118,10 @@ public sealed class AccessRequestService(AppDbContext db) : IAccessRequestServic
         {
             throw new InvalidOperationException("This access request has already been reviewed.");
         }
+        await UsernameReservationLock.AcquireAsync(
+            db,
+            accessRequest.Username,
+            cancellationToken);
 
         var role = await db.Roles.SingleOrDefaultAsync(role => role.Id == request.RoleId, cancellationToken)
             ?? throw new ArgumentException("The selected role does not exist.", nameof(request.RoleId));

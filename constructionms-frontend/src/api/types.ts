@@ -679,17 +679,20 @@ export interface MaterialIssue {
   issuedByName: string; issuedToUserId: number; issuedToName: string; notes: string | null
   issuedAt: IsoDateTime; confirmedQuantity: number | null; confirmationNotes: string | null
   confirmedAt: IsoDateTime | null; usedQuantity: number; wastedQuantity: number
-  unaccountedQuantity: number; usage: MaterialUsage[]
+  returnedQuantity: number; unaccountedQuantity: number; custodyStatus: string; usage: MaterialUsage[]
 }
 
 export interface StockTransfer {
   id: number; transferNumber: string; fromProjectId: number; fromProjectName: string
   toProjectId: number; toProjectName: string; materialId: number; materialName: string
   materialUnit: string; quantity: number; reason: string
-  status: 'PendingDispatch' | 'InTransit' | 'Received' | 'Disputed'
+  status: 'PendingDispatch' | 'InTransit' | 'Received' | 'Disputed' | 'Resolved'
   requestedByName: string; requestedAt: IsoDateTime; dispatchedByUserId: number | null; dispatchedByName: string | null
   dispatchedAt: IsoDateTime | null; receivedByName: string | null; receivedQuantity: number | null
   receiptNotes: string | null; receivedAt: IsoDateTime | null
+  resolvedByName: string | null; resolutionDisposition: 'AcceptedLoss' | 'RecoveredAtDestination' | 'ReturnedToSource' | null
+  resolutionQuantity: number | null; resolutionNotes: string | null
+  resolutionEvidenceReference: string | null; resolvedAt: IsoDateTime | null
 }
 
 export interface StockCount {

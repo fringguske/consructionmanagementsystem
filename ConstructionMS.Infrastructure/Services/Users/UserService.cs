@@ -1,11 +1,13 @@
 namespace ConstructionMS.Infrastructure.Services.Users;
 
+using System.Data;
 using ConstructionMS.Application.Common;
 using ConstructionMS.Application.DTOs.Users;
 using ConstructionMS.Application.Services.Users;
 using ConstructionMS.Domain.Entities;
 using ConstructionMS.Infrastructure.Common;
 using ConstructionMS.Infrastructure.Data;
+using ConstructionMS.Infrastructure.Services.Auth;
 using Microsoft.EntityFrameworkCore;
 
 /// <summary>Persists users and hashes passwords with BCrypt.</summary>
@@ -51,15 +53,26 @@ public class UserService : IUserService
         return user is null ? null : ToDto(user);
     }
 
-    public async Task<UserResponseDto> CreateAsync(CreateUserRequestDto dto)
+    public async Task<UserResponseDto> CreateAsync(
+        CreateUserRequestDto dto,
+        int? administratorUserId = null)
     {
+        await using var transaction = await _db.Database.BeginTransactionAsync(
+            IsolationLevel.Serializable);
+        if (administratorUserId.HasValue)
+        {
+            await RequireAdministratorAsync(administratorUserId.Value);
+        }
+
         var email = InputNormalizer.Email(dto.Email, nameof(dto.Email));
         var username = InputNormalizer.Username(dto.Username, nameof(dto.Username));
+        await UsernameReservationLock.AcquireAsync(_db, username);
 
         if (await _db.Users.AnyAsync(user =>
                 EF.Property<string>(user, NormalizedUsernameProperty) == username)
             || await _db.AccessRequests.AnyAsync(request =>
-                EF.Property<string>(request, NormalizedUsernameProperty) == username))
+                request.Status == "Pending"
+                && EF.Property<string>(request, NormalizedUsernameProperty) == username))
         {
             throw new InvalidOperationException("A user with that username already exists.");
         }
@@ -87,27 +100,43 @@ public class UserService : IUserService
         };
 
         _db.Users.Add(user);
+        if (administratorUserId.HasValue)
+        {
+            _db.SecurityAuditEvents.Add(NewAdministratorAuditEvent(
+                SecurityAuditEventTypes.UserCreated,
+                user,
+                administratorUserId.Value));
+        }
         await _db.SaveChangesAsync();
+        await transaction.CommitAsync();
 
         await _db.Entry(user).Reference(u => u.Role).LoadAsync();
 
         return ToDto(user);
     }
 
-    public async Task<UserResponseDto?> UpdateAsync(int id, UpdateUserRequestDto dto)
+    public async Task<UserResponseDto?> UpdateAsync(
+        int id,
+        UpdateUserRequestDto dto,
+        int administratorUserId)
     {
+        await using var transaction = await _db.Database.BeginTransactionAsync(
+            IsolationLevel.Serializable);
+        await RequireAdministratorAsync(administratorUserId);
         var user = await _db.Users.FindAsync(id);
 
         if (user is null) return null;
 
         var email = InputNormalizer.Email(dto.Email, nameof(dto.Email));
         var username = InputNormalizer.Username(dto.Username, nameof(dto.Username));
+        await UsernameReservationLock.AcquireAsync(_db, username);
 
         if (await _db.Users.AnyAsync(existing =>
                 existing.Id != id
                 && EF.Property<string>(existing, NormalizedUsernameProperty) == username)
             || await _db.AccessRequests.AnyAsync(request =>
-                request.ApprovedUserId != id
+                request.Status == "Pending"
+                && request.ApprovedUserId != id
                 && EF.Property<string>(request, NormalizedUsernameProperty) == username))
         {
             throw new InvalidOperationException("A user with that username already exists.");
@@ -118,7 +147,8 @@ public class UserService : IUserService
             throw new ArgumentException("The selected role does not exist.", nameof(dto.RoleId));
         }
 
-        if (user.RoleId != dto.RoleId)
+        var roleChanged = user.RoleId != dto.RoleId;
+        if (roleChanged)
         {
             var currentRole = await _db.Roles
                 .Where(role => role.Id == user.RoleId)
@@ -138,23 +168,52 @@ public class UserService : IUserService
             }
         }
 
-        user.FullName = InputNormalizer.RequiredText(dto.FullName, nameof(dto.FullName), 2, 150);
-        user.Username = username;
-        user.Email = email;
-        user.PhoneNumber = InputNormalizer.RequiredText(
+        var fullName = InputNormalizer.RequiredText(dto.FullName, nameof(dto.FullName), 2, 150);
+        var phoneNumber = InputNormalizer.RequiredText(
             dto.PhoneNumber,
             nameof(dto.PhoneNumber),
             maximumLength: 30);
+        var profileChanged = user.FullName != fullName
+            || user.Username != username
+            || user.Email != email
+            || user.PhoneNumber != phoneNumber;
+
+        user.FullName = fullName;
+        user.Username = username;
+        user.Email = email;
+        user.PhoneNumber = phoneNumber;
         user.RoleId = dto.RoleId;
 
+        if (profileChanged)
+        {
+            _db.SecurityAuditEvents.Add(NewAdministratorAuditEvent(
+                SecurityAuditEventTypes.UserProfileUpdated,
+                user,
+                administratorUserId));
+        }
+        if (roleChanged)
+        {
+            _db.SecurityAuditEvents.Add(NewAdministratorAuditEvent(
+                SecurityAuditEventTypes.UserRoleChanged,
+                user,
+                administratorUserId));
+        }
+
         await _db.SaveChangesAsync();
+        await transaction.CommitAsync();
 
         return await GetByIdAsync(id)
             ?? throw new InvalidOperationException("User was saved but could not be retrieved.");
     }
 
-    public async Task<bool> SetActiveStatusAsync(int id, bool isActive)
+    public async Task<bool> SetActiveStatusAsync(
+        int id,
+        bool isActive,
+        int administratorUserId)
     {
+        await using var transaction = await _db.Database.BeginTransactionAsync(
+            IsolationLevel.Serializable);
+        await RequireAdministratorAsync(administratorUserId);
         var user = await _db.Users.FindAsync(id);
         if (user is null) return false;
 
@@ -173,10 +232,46 @@ public class UserService : IUserService
             }
         }
 
+        if (user.IsActive == isActive)
+        {
+            await transaction.CommitAsync();
+            return true;
+        }
+
         user.IsActive = isActive;
+        _db.SecurityAuditEvents.Add(NewAdministratorAuditEvent(
+            isActive
+                ? SecurityAuditEventTypes.UserActivated
+                : SecurityAuditEventTypes.UserDeactivated,
+            user,
+            administratorUserId));
         await _db.SaveChangesAsync();
+        await transaction.CommitAsync();
         return true;
     }
+
+    private async Task RequireAdministratorAsync(int userId)
+    {
+        if (!await _db.Users.AsNoTracking().AnyAsync(user =>
+            user.Id == userId
+            && user.IsActive
+            && user.Role.RoleName == "Administrator"))
+        {
+            throw new UnauthorizedAccessException("Only an active Administrator may manage users.");
+        }
+    }
+
+    private static SecurityAuditEvent NewAdministratorAuditEvent(
+        string eventType,
+        User targetUser,
+        int administratorUserId) => new()
+        {
+            EventType = eventType,
+            Source = SecurityAuditSources.Administrator,
+            TargetUser = targetUser,
+            ActorUserId = administratorUserId,
+            OccurredAt = DateTime.UtcNow
+        };
 
     private Task<int> CountActiveUsersInRoleAsync(string roleName) =>
         _db.Users.CountAsync(candidate =>

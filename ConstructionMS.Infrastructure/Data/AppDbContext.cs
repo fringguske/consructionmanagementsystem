@@ -521,7 +521,9 @@ public class AppDbContext : DbContext
         requests.Property(request => request.DecisionNote).HasMaxLength(500);
         requests.Property<string>("NormalizedUsername")
             .HasComputedColumnSql(NormalizedUsernameSql, stored: true);
-        requests.HasIndex("NormalizedUsername").IsUnique();
+        requests.HasIndex("NormalizedUsername")
+            .IsUnique()
+            .HasFilter("\"Status\" = 'Pending'");
         requests.HasIndex(request => new { request.Status, request.RequestedAt });
         requests.ToTable(table => table.HasCheckConstraint(
             "CK_AccessRequests_Status",
@@ -1097,6 +1099,7 @@ public class AppDbContext : DbContext
         lines.Property(line => line.Quantity).HasPrecision(18, 3);
         lines.Property(line => line.UnitPrice).HasPrecision(18, 2);
         lines.Property(line => line.RequiresTechnicalAcceptance).HasDefaultValue(true);
+        lines.HasIndex(line => line.PurchaseOrderId).IsUnique();
         lines.HasIndex(line => line.RequisitionId);
         lines.ToTable(table =>
         {
@@ -1185,6 +1188,7 @@ public class AppDbContext : DbContext
         receipts.Property(item => item.EvidenceReference).HasMaxLength(500);
         receipts.Property(item => item.DiscrepancyNotes).HasMaxLength(1_000);
         receipts.HasIndex(item => item.ReceiptNumber).IsUnique();
+        receipts.HasIndex(item => new { item.SupplierId, item.DeliveryNoteReference }).IsUnique();
         receipts.HasIndex(item => new { item.PurchaseOrderLineId, item.ReceivedAt });
         receipts.ToTable(table =>
         {
@@ -1193,9 +1197,13 @@ public class AppDbContext : DbContext
                 "AND \"DeliveredQuantity\" = \"AcceptedQuantity\" + \"RejectedQuantity\"");
             table.HasCheckConstraint("CK_GoodsReceipts_Condition",
                 "\"Condition\" IN ('Good', 'Damaged', 'Mixed')");
+            table.HasCheckConstraint("CK_GoodsReceipts_DeliveryNoteReference",
+                "length(btrim(\"DeliveryNoteReference\")) > 0 " +
+                "AND \"DeliveryNoteReference\" = upper(btrim(\"DeliveryNoteReference\"))");
         });
         receipts.HasOne(item => item.PurchaseOrder).WithMany(item => item.GoodsReceipts).HasForeignKey(item => item.PurchaseOrderId).OnDelete(DeleteBehavior.Restrict);
         receipts.HasOne(item => item.PurchaseOrderLine).WithMany().HasForeignKey(item => item.PurchaseOrderLineId).OnDelete(DeleteBehavior.Restrict);
+        receipts.HasOne(item => item.Supplier).WithMany().HasForeignKey(item => item.SupplierId).OnDelete(DeleteBehavior.Restrict);
         receipts.HasOne(item => item.Project).WithMany().HasForeignKey(item => item.ProjectId).OnDelete(DeleteBehavior.Restrict);
         receipts.HasOne(item => item.Material).WithMany().HasForeignKey(item => item.MaterialId).OnDelete(DeleteBehavior.Restrict);
         receipts.HasOne(item => item.ReceivedByUser).WithMany().HasForeignKey(item => item.ReceivedByUserId).OnDelete(DeleteBehavior.Restrict);
@@ -1255,7 +1263,7 @@ public class AppDbContext : DbContext
         ledger.ToTable(table =>
         {
             table.HasCheckConstraint("CK_StockLedgerEntries_Movement",
-                "\"MovementType\" IN ('Receipt', 'TechnicalAcceptance', 'Issue', 'TransferOut', 'TransferIn', 'CountAdjustment', 'OpeningBalance', 'ReturnToStore', 'HandoverCorrection', 'ControlledCorrection')");
+                "\"MovementType\" IN ('Receipt', 'TechnicalAcceptance', 'Issue', 'TransferOut', 'TransferIn', 'TransferVarianceRecovered', 'TransferVarianceReturned', 'CountAdjustment', 'OpeningBalance', 'ReturnToStore', 'HandoverCorrection', 'ControlledCorrection')");
             table.HasCheckConstraint("CK_StockLedgerEntries_Balance", "\"BalanceAfter\" >= 0");
             table.HasCheckConstraint("CK_StockLedgerEntries_Delta", "\"QuantityDelta\" <> 0");
         });
@@ -1299,6 +1307,10 @@ public class AppDbContext : DbContext
         usage.Property(item => item.Quantity).HasPrecision(18, 3);
         usage.Property(item => item.PurposeOrReason).HasMaxLength(500);
         usage.Property(item => item.EvidenceReference).HasMaxLength(500);
+        usage.Property(item => item.IdempotencyKey).HasMaxLength(100);
+        usage.HasIndex(item => new { item.MaterialIssueId, item.IdempotencyKey })
+            .IsUnique()
+            .HasFilter("\"IdempotencyKey\" IS NOT NULL");
         usage.HasIndex(item => new { item.MaterialIssueId, item.RecordedAt });
         usage.ToTable(table =>
         {
@@ -1318,13 +1330,24 @@ public class AppDbContext : DbContext
         transfers.Property(item => item.Reason).HasMaxLength(500);
         transfers.Property(item => item.Status).HasMaxLength(30);
         transfers.Property(item => item.ReceiptNotes).HasMaxLength(1_000);
+        transfers.Property(item => item.ResolutionDisposition).HasMaxLength(30);
+        transfers.Property(item => item.ResolutionQuantity).HasPrecision(18, 3);
+        transfers.Property(item => item.ResolutionNotes).HasMaxLength(1_000);
+        transfers.Property(item => item.ResolutionEvidenceReference).HasMaxLength(500);
         transfers.HasIndex(item => item.TransferNumber).IsUnique();
         transfers.ToTable(table =>
         {
             table.HasCheckConstraint("CK_StockTransfers_Projects", "\"FromProjectId\" <> \"ToProjectId\"");
             table.HasCheckConstraint("CK_StockTransfers_Quantity", "\"Quantity\" > 0");
             table.HasCheckConstraint("CK_StockTransfers_Status",
-                "\"Status\" IN ('PendingDispatch', 'InTransit', 'Received', 'Disputed')");
+                "\"Status\" IN ('PendingDispatch', 'InTransit', 'Received', 'Disputed', 'Resolved')");
+            table.HasCheckConstraint("CK_StockTransfers_Resolution",
+                "(\"Status\" = 'Resolved' AND \"ResolvedByUserId\" IS NOT NULL AND \"ResolvedAt\" IS NOT NULL " +
+                "AND \"ResolutionDisposition\" IN ('AcceptedLoss', 'RecoveredAtDestination', 'ReturnedToSource') " +
+                "AND \"ResolutionQuantity\" > 0 AND length(btrim(\"ResolutionNotes\")) >= 3) OR " +
+                "(\"Status\" <> 'Resolved' AND \"ResolvedByUserId\" IS NULL AND \"ResolvedAt\" IS NULL " +
+                "AND \"ResolutionDisposition\" IS NULL AND \"ResolutionQuantity\" IS NULL " +
+                "AND \"ResolutionNotes\" IS NULL AND \"ResolutionEvidenceReference\" IS NULL)");
         });
         transfers.HasOne(item => item.FromProject).WithMany().HasForeignKey(item => item.FromProjectId).OnDelete(DeleteBehavior.Restrict);
         transfers.HasOne(item => item.ToProject).WithMany().HasForeignKey(item => item.ToProjectId).OnDelete(DeleteBehavior.Restrict);
@@ -1332,6 +1355,7 @@ public class AppDbContext : DbContext
         transfers.HasOne(item => item.RequestedByUser).WithMany().HasForeignKey(item => item.RequestedByUserId).OnDelete(DeleteBehavior.Restrict);
         transfers.HasOne(item => item.DispatchedByUser).WithMany().HasForeignKey(item => item.DispatchedByUserId).OnDelete(DeleteBehavior.Restrict);
         transfers.HasOne(item => item.ReceivedByUser).WithMany().HasForeignKey(item => item.ReceivedByUserId).OnDelete(DeleteBehavior.Restrict);
+        transfers.HasOne(item => item.ResolvedByUser).WithMany().HasForeignKey(item => item.ResolvedByUserId).OnDelete(DeleteBehavior.Restrict);
     }
 
     private static void ConfigureStockCounts(ModelBuilder modelBuilder)
@@ -1586,10 +1610,11 @@ public class AppDbContext : DbContext
         {
             table.HasCheckConstraint(
                 "CK_SecurityAuditEvents_EventType",
-                "\"EventType\" IN ('UsernameChanged', 'PasswordChanged', 'AdministratorPasswordReset')");
+                "\"EventType\" IN ('UsernameChanged', 'PasswordChanged', 'AdministratorPasswordReset', " +
+                "'UserCreated', 'UserProfileUpdated', 'UserRoleChanged', 'UserActivated', 'UserDeactivated')");
             table.HasCheckConstraint(
                 "CK_SecurityAuditEvents_Source",
-                "\"Source\" IN ('SelfService', 'ServerRecovery')");
+                "\"Source\" IN ('SelfService', 'ServerRecovery', 'Administrator')");
         });
 
         events.HasOne(item => item.TargetUser)

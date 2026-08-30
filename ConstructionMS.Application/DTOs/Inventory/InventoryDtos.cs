@@ -45,6 +45,7 @@ public sealed class RecordMaterialUsageRequestDto
     [DecimalPrecision(18, 3)] public decimal Quantity { get; set; }
     [Required, StringLength(500, MinimumLength = 3)] public string PurposeOrReason { get; set; } = string.Empty;
     [StringLength(500)] public string? EvidenceReference { get; set; }
+    [Required, StringLength(100, MinimumLength = 8)] public string IdempotencyKey { get; set; } = string.Empty;
 }
 
 public sealed class CreateStockTransferRequestDto
@@ -62,6 +63,13 @@ public sealed class ReceiveStockTransferRequestDto
     [Range(typeof(decimal), "0", "999999999999999.999")]
     [DecimalPrecision(18, 3)] public decimal ReceivedQuantity { get; set; }
     [StringLength(1_000)] public string? Notes { get; set; }
+}
+
+public sealed class ResolveStockTransferDisputeRequestDto
+{
+    [Required, StringLength(30)] public string Disposition { get; set; } = string.Empty;
+    [Required, StringLength(1_000, MinimumLength = 3)] public string Notes { get; set; } = string.Empty;
+    [StringLength(500)] public string? EvidenceReference { get; set; }
 }
 
 public sealed class CreateStockCountRequestDto
@@ -237,6 +245,12 @@ public sealed class StockTransferResponseDto
     public decimal? ReceivedQuantity { get; set; }
     public string? ReceiptNotes { get; set; }
     public DateTime? ReceivedAt { get; set; }
+    public string? ResolvedByName { get; set; }
+    public string? ResolutionDisposition { get; set; }
+    public decimal? ResolutionQuantity { get; set; }
+    public string? ResolutionNotes { get; set; }
+    public string? ResolutionEvidenceReference { get; set; }
+    public DateTime? ResolvedAt { get; set; }
 }
 
 public sealed class StockCountResponseDto

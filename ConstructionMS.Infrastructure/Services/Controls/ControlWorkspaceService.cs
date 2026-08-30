@@ -975,7 +975,8 @@ public sealed class ControlWorkspaceService : IControlWorkspaceService
             var pendingTransfers = await _db.StockTransfers.CountAsync(item =>
                 (item.FromProjectId == period.ProjectId || item.ToProjectId == period.ProjectId)
                 && item.RequestedAt < endExclusive
-                && item.Status != StockTransferStatuses.Received);
+                && item.Status != StockTransferStatuses.Received
+                && item.Status != StockTransferStatuses.Resolved);
             var pendingCounts = await _db.StockCounts.CountAsync(item =>
                 item.ProjectId == period.ProjectId && item.CountedAt < endExclusive
                 && item.Status == StockCountStatuses.AwaitingReview);

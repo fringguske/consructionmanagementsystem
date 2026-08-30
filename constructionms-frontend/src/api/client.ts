@@ -103,6 +103,34 @@ interface RequestOptions {
 
 type QueryValue = string | number | boolean | null | undefined
 
+export const authenticationExpiredEvent = 'constructionms:authentication-expired'
+
+function notifyAuthenticationExpired(response: Response) {
+  if (response.status === 401) window.dispatchEvent(new Event(authenticationExpiredEvent))
+}
+
+function shouldRetryTransaction(response: Response) {
+  return response.status === 409 && response.headers.get('Retry-After') === '1'
+}
+
+async function waitForTransactionRetry(signal?: AbortSignal) {
+  await new Promise<void>((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new DOMException('The request was aborted.', 'AbortError'))
+      return
+    }
+    const timer = window.setTimeout(() => {
+      signal?.removeEventListener('abort', abort)
+      resolve()
+    }, 1_000)
+    const abort = () => {
+      window.clearTimeout(timer)
+      reject(new DOMException('The request was aborted.', 'AbortError'))
+    }
+    signal?.addEventListener('abort', abort, { once: true })
+  })
+}
+
 export class ApiError extends Error {
   readonly status: number
   readonly validationErrors: Record<string, string[]>
@@ -218,15 +246,20 @@ async function request<T>(
     headers.set('Content-Type', 'application/json')
   }
 
+  const fetchRequest = () => fetch(buildUrl(path, query), {
+    method: options.method ?? 'GET',
+    credentials: 'include',
+    headers,
+    body: options.body === undefined ? undefined : JSON.stringify(options.body),
+    signal: options.signal,
+  })
   let response: Response
   try {
-    response = await fetch(buildUrl(path, query), {
-      method: options.method ?? 'GET',
-      credentials: 'include',
-      headers,
-      body: options.body === undefined ? undefined : JSON.stringify(options.body),
-      signal: options.signal,
-    })
+    response = await fetchRequest()
+    if (shouldRetryTransaction(response)) {
+      await waitForTransactionRetry(options.signal)
+      response = await fetchRequest()
+    }
   } catch (error) {
     if (error instanceof DOMException && error.name === 'AbortError') {
       throw error
@@ -235,6 +268,7 @@ async function request<T>(
     throw new ApiError('The server could not be reached. Check your connection and try again.', 0)
   }
 
+  notifyAuthenticationExpired(response)
   const body = await readResponseBody(response)
 
   if (!response.ok) {
@@ -277,6 +311,7 @@ async function requestFormData<T>(
   }
 
   const body = await readResponseBody(response)
+  notifyAuthenticationExpired(response)
   if (!response.ok) {
     throw new ApiError(
       getErrorMessage(response, body),
@@ -308,6 +343,7 @@ async function requestFile(path: string, signal?: AbortSignal): Promise<Blob> {
     throw new ApiError('The server could not be reached. Check your connection and try again.', 0)
   }
   if (!response.ok) {
+    notifyAuthenticationExpired(response)
     const body = await readResponseBody(response)
     throw new ApiError(getErrorMessage(response, body), response.status, body, getValidationErrors(body))
   }
@@ -325,13 +361,18 @@ async function requestWithoutResponse(
       headers.set('Content-Type', 'application/json')
     }
 
-    response = await fetch(buildUrl(path), {
+    const fetchRequest = () => fetch(buildUrl(path), {
       method: options.method ?? 'POST',
       credentials: 'include',
       headers,
       body: options.body === undefined ? undefined : JSON.stringify(options.body),
       signal: options.signal,
     })
+    response = await fetchRequest()
+    if (shouldRetryTransaction(response)) {
+      await waitForTransactionRetry(options.signal)
+      response = await fetchRequest()
+    }
   } catch (error) {
     if (error instanceof DOMException && error.name === 'AbortError') {
       throw error
@@ -340,6 +381,7 @@ async function requestWithoutResponse(
     throw new ApiError('The server could not be reached. Check your connection and try again.', 0)
   }
 
+  notifyAuthenticationExpired(response)
   const body = await readResponseBody(response)
   if (!response.ok) {
     throw new ApiError(
@@ -819,7 +861,7 @@ export const inventoryApi = {
     request<MaterialIssue>('/inventory/issues', { method: 'POST', body, signal }),
   confirmIssue: (id: number, body: { receivedQuantity: number; notes?: string | null }, signal?: AbortSignal) =>
     request<MaterialIssue>(`/inventory/issues/${id}/confirm`, { method: 'POST', body, signal }),
-  recordUsage: (id: number, body: { usageType: 'Used' | 'Wastage'; quantity: number; purposeOrReason: string; evidenceReference?: string | null }, signal?: AbortSignal) =>
+  recordUsage: (id: number, body: { usageType: 'Used' | 'Wastage'; quantity: number; purposeOrReason: string; evidenceReference?: string | null; idempotencyKey: string }, signal?: AbortSignal) =>
     request<MaterialIssue>(`/inventory/issues/${id}/usage`, { method: 'POST', body, signal }),
   transfers: (signal?: AbortSignal, query: PageQuery = {}) => request<PaginatedResult<StockTransfer>>('/inventory/transfers', { signal }, pageQuery({ page: 1, pageSize: 100, ...query })),
   createTransfer: (body: { fromProjectId: number; toProjectId: number; materialId: number; quantity: number; reason: string }, signal?: AbortSignal) =>
@@ -828,6 +870,8 @@ export const inventoryApi = {
     request<StockTransfer>(`/inventory/transfers/${id}/dispatch`, { method: 'POST', body: {}, signal }),
   receiveTransfer: (id: number, body: { receivedQuantity: number; notes?: string | null }, signal?: AbortSignal) =>
     request<StockTransfer>(`/inventory/transfers/${id}/receive`, { method: 'POST', body, signal }),
+  resolveTransfer: (id: number, body: { disposition: 'AcceptedLoss' | 'RecoveredAtDestination' | 'ReturnedToSource'; notes: string; evidenceReference?: string | null }, signal?: AbortSignal) =>
+    request<StockTransfer>(`/inventory/transfers/${id}/resolve`, { method: 'POST', body, signal }),
   counts: (signal?: AbortSignal, query: PageQuery = {}) => request<PaginatedResult<StockCount>>('/inventory/counts', { signal }, pageQuery({ page: 1, pageSize: 100, ...query })),
   createCount: (body: { projectId: number; materialId: number; countedQuantity: number; notes: string }, signal?: AbortSignal) =>
     request<StockCount>('/inventory/counts', { method: 'POST', body, signal }),

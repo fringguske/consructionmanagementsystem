@@ -7,6 +7,7 @@ using ConstructionMS.Application.Services.PurchaseOrders;
 using ConstructionMS.Domain.Entities;
 using ConstructionMS.Infrastructure.Common;
 using ConstructionMS.Infrastructure.Data;
+using ConstructionMS.Infrastructure.Services.Finance;
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
 
@@ -248,7 +249,20 @@ public sealed class PurchaseOrderService : IPurchaseOrderService
         var now = DateTime.UtcNow;
         var notes = InputNormalizer.OptionalText(dto.Notes, nameof(dto.Notes), 1_000);
         await using var transaction = await _db.Database.BeginTransactionAsync();
+        await BudgetCommitmentGuard.LockProjectAsync(_db, order.ProjectId);
         await LockSourcingRoundAsync(order.SupplierQuote.SourcingRoundId);
+
+        var costCodeId = await _db.Requisitions
+            .AsNoTracking()
+            .Where(item => item.Id == order.RequisitionId)
+            .Select(item => item.CostCodeId)
+            .SingleAsync();
+        await BudgetCommitmentGuard.EnsureAvailableAsync(
+            _db,
+            order.ProjectId,
+            costCodeId,
+            order.Lines.Sum(line => line.Quantity * line.UnitPrice),
+            excludedPurchaseOrderId: order.Id);
 
         var roundUpdated = await _db.SourcingRounds
             .Where(round =>

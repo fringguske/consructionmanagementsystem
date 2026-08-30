@@ -20,13 +20,13 @@ public interface IUserService
     /// Creates a new user. The supplied password is securely hashed before
     /// persistence, and the hash is never returned.
     /// </summary>
-    Task<UserResponseDto> CreateAsync(CreateUserRequestDto dto);
+    Task<UserResponseDto> CreateAsync(CreateUserRequestDto dto, int? administratorUserId = null);
 
     /// <summary>Updates user profile fields (not password). Returns null if not found.</summary>
-    Task<UserResponseDto?> UpdateAsync(int id, UpdateUserRequestDto dto);
+    Task<UserResponseDto?> UpdateAsync(int id, UpdateUserRequestDto dto, int administratorUserId);
 
     /// <summary>
     /// Sets the user's active state explicitly. Returns false if not found.
     /// </summary>
-    Task<bool> SetActiveStatusAsync(int id, bool isActive);
+    Task<bool> SetActiveStatusAsync(int id, bool isActive, int administratorUserId);
 }

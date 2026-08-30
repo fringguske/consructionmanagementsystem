@@ -63,7 +63,7 @@ public sealed class FinanceWorkflowService : IFinanceWorkflowService
             ?? throw new KeyNotFoundException("The purchase order was not found.");
         if (order.Status != PurchaseOrderWorkflowStates.Issued) throw new InvalidOperationException("An invoice can be captured only for an issued purchase order.");
         await RequireProjectAccessAsync(actorUserId, order.ProjectId);
-        var line = order.Lines.Single();
+        var line = PurchaseOrderInvariant.RequireSingleLine(order);
         var receipts = await _db.GoodsReceipts
             .Where(item => item.PurchaseOrderId == order.Id)
             .Include(item => item.TechnicalAcceptances)
@@ -108,7 +108,7 @@ public sealed class FinanceWorkflowService : IFinanceWorkflowService
         if (invoice.Status != InvoiceStatuses.PendingReview) throw new InvalidOperationException("Only a pending invoice can be matched.");
         if (invoice.CapturedByUserId == actorUserId) throw new UnauthorizedAccessException("The invoice capturer cannot perform the independent Finance match.");
         await RequireProjectAccessAsync(actorUserId, invoice.ProjectId);
-        var line = invoice.PurchaseOrder.Lines.Single();
+        var line = PurchaseOrderInvariant.RequireSingleLine(invoice.PurchaseOrder);
         decimal accepted;
         if (line.RequiresTechnicalAcceptance)
         {
@@ -492,6 +492,10 @@ public sealed class FinanceWorkflowService : IFinanceWorkflowService
         await RequireAnyRoleAsync(actorUserId, actorRole, "CEO", "Auditor");
         if (projectId is <= 0) throw new ArgumentException("Project ID must be positive.", nameof(projectId));
         if (requisitionId is <= 0) throw new ArgumentException("Requisition ID must be positive.", nameof(requisitionId));
+        var pagination = Pagination.Normalize(page, pageSize);
+        var windowSize = (int)Math.Min(
+            int.MaxValue,
+            (long)pagination.Offset + pagination.PageSize);
 
         var normalizedChainKey = NormalizeChainKey(chainKey);
         var effectiveRequisitionId = requisitionId;
@@ -518,7 +522,8 @@ public sealed class FinanceWorkflowService : IFinanceWorkflowService
         if (projectId.HasValue) controlQuery = controlQuery.Where(item => item.ProjectId == projectId.Value);
         if (effectiveRequisitionId.HasValue) controlQuery = controlQuery.Where(item => item.RequisitionId == effectiveRequisitionId.Value);
         if (normalizedChainKey is not null) controlQuery = controlQuery.Where(item => item.ChainKey == normalizedChainKey);
-        var controls = await controlQuery.Include(item => item.Project).Include(item => item.ActorUser)
+        var controlCount = await controlQuery.CountAsync();
+        var controls = await controlQuery
             .Select(item => new ControlEventResponseDto
             {
                 ChainKey = item.ChainKey, SequenceNumber = item.SequenceNumber, RequisitionId = item.RequisitionId,
@@ -529,18 +534,24 @@ public sealed class FinanceWorkflowService : IFinanceWorkflowService
                 MaterialUnit = item.Requisition == null ? null : item.Requisition.Material.Unit,
                 RequestedQuantity = item.Requisition == null ? null : item.Requisition.Quantity,
                 DetailsJson = item.DetailsJson, OccurredAt = item.OccurredAt, EventHash = item.EventHash
-            }).ToListAsync();
-        foreach (var item in controls)
-            item.EventQuantity = ReadEventQuantity(item.EntityType, item.EventType, item.DetailsJson);
+            })
+            .OrderByDescending(item => item.OccurredAt)
+            .ThenByDescending(item => item.SequenceNumber)
+            .Take(windowSize)
+            .ToListAsync();
 
         var requisitions = new List<ControlEventResponseDto>();
         var sourcing = new List<ControlEventResponseDto>();
         var orders = new List<ControlEventResponseDto>();
+        var requisitionCount = 0;
+        var sourcingCount = 0;
+        var orderCount = 0;
         if (!isStandaloneChain)
         {
             var reqQuery = _db.RequisitionApprovalEvents.AsNoTracking().AsQueryable();
             if (projectId.HasValue) reqQuery = reqQuery.Where(item => item.Requisition.ProjectId == projectId.Value);
             if (effectiveRequisitionId.HasValue) reqQuery = reqQuery.Where(item => item.RequisitionId == effectiveRequisitionId.Value);
+            requisitionCount = await reqQuery.CountAsync();
             requisitions = await reqQuery.Select(item => new ControlEventResponseDto
             {
                 ChainKey = "REQ-" + item.RequisitionId, SequenceNumber = item.SequenceNumber, RequisitionId = item.RequisitionId,
@@ -549,11 +560,16 @@ public sealed class FinanceWorkflowService : IFinanceWorkflowService
                 ActorRole = item.ActorRole, MaterialName = item.Requisition.Material.Name,
                 MaterialUnit = item.Requisition.Material.Unit, RequestedQuantity = item.Requisition.Quantity,
                 DetailsJson = item.EventDataJson, OccurredAt = item.OccurredAt, EventHash = item.EventHash
-            }).ToListAsync();
+            })
+                .OrderByDescending(item => item.OccurredAt)
+                .ThenByDescending(item => item.SequenceNumber)
+                .Take(windowSize)
+                .ToListAsync();
 
             var sourcingQuery = _db.SourcingRoundEvents.AsNoTracking().AsQueryable();
             if (projectId.HasValue) sourcingQuery = sourcingQuery.Where(item => item.SourcingRound.Requisition.ProjectId == projectId.Value);
             if (effectiveRequisitionId.HasValue) sourcingQuery = sourcingQuery.Where(item => item.SourcingRound.RequisitionId == effectiveRequisitionId.Value);
+            sourcingCount = await sourcingQuery.CountAsync();
             sourcing = await sourcingQuery.Select(item => new ControlEventResponseDto
             {
                 ChainKey = "REQ-" + item.SourcingRound.RequisitionId, SequenceNumber = 1000 + (int)item.Id,
@@ -563,11 +579,16 @@ public sealed class FinanceWorkflowService : IFinanceWorkflowService
                 ActorRole = item.ActorRole, MaterialName = item.SourcingRound.Requisition.Material.Name,
                 MaterialUnit = item.SourcingRound.Requisition.Material.Unit, RequestedQuantity = item.SourcingRound.Requisition.Quantity,
                 DetailsJson = item.Notes, OccurredAt = item.OccurredAt, EventHash = string.Empty
-            }).ToListAsync();
+            })
+                .OrderByDescending(item => item.OccurredAt)
+                .ThenByDescending(item => item.SequenceNumber)
+                .Take(windowSize)
+                .ToListAsync();
 
             var poQuery = _db.PurchaseOrderEvents.AsNoTracking().AsQueryable();
             if (projectId.HasValue) poQuery = poQuery.Where(item => item.PurchaseOrder.ProjectId == projectId.Value);
             if (effectiveRequisitionId.HasValue) poQuery = poQuery.Where(item => item.PurchaseOrder.RequisitionId == effectiveRequisitionId.Value);
+            orderCount = await poQuery.CountAsync();
             orders = await poQuery.Select(item => new ControlEventResponseDto
             {
                 ChainKey = "REQ-" + item.PurchaseOrder.RequisitionId, SequenceNumber = 2000 + (int)item.Id,
@@ -577,13 +598,30 @@ public sealed class FinanceWorkflowService : IFinanceWorkflowService
                 ActorRole = item.ActorRole, MaterialName = item.PurchaseOrder.Requisition.Material.Name,
                 MaterialUnit = item.PurchaseOrder.Requisition.Material.Unit, RequestedQuantity = item.PurchaseOrder.Requisition.Quantity,
                 DetailsJson = item.DetailsJson, OccurredAt = item.OccurredAt, EventHash = string.Empty
-            }).ToListAsync();
+            })
+                .OrderByDescending(item => item.OccurredAt)
+                .ThenByDescending(item => item.SequenceNumber)
+                .Take(windowSize)
+                .ToListAsync();
         }
 
-        var all = requisitions.Concat(sourcing).Concat(orders).Concat(controls)
-            .OrderByDescending(item => item.OccurredAt).ThenByDescending(item => item.SequenceNumber).ToList();
-        var pagination = Pagination.Normalize(page, pageSize);
-        return Page(all.Skip(pagination.Offset).Take(pagination.PageSize).ToList(), all.Count, pagination.Page, pagination.PageSize);
+        var items = requisitions.Concat(sourcing).Concat(orders).Concat(controls)
+            .OrderByDescending(item => item.OccurredAt)
+            .ThenByDescending(item => item.SequenceNumber)
+            .Skip(pagination.Offset)
+            .Take(pagination.PageSize)
+            .ToList();
+        foreach (var item in items.Where(item =>
+            item.EntityType is not ("Requisition" or "SourcingRound" or "PurchaseOrder")))
+        {
+            item.EventQuantity = ReadEventQuantity(item.EntityType, item.EventType, item.DetailsJson);
+        }
+
+        return Page(
+            items,
+            checked(controlCount + requisitionCount + sourcingCount + orderCount),
+            pagination.Page,
+            pagination.PageSize);
     }
 
     private static IQueryable<SupplierInvoice> InvoiceQuery(IQueryable<SupplierInvoice> query) => query
@@ -608,7 +646,7 @@ public sealed class FinanceWorkflowService : IFinanceWorkflowService
 
     private static SupplierInvoiceResponseDto ToDto(SupplierInvoice invoice, PaymentAuthorization? authorization, Payment? payment)
     {
-        var line = invoice.PurchaseOrder.Lines.Single();
+        var line = PurchaseOrderInvariant.RequireSingleLine(invoice.PurchaseOrder);
         var relevantReceipts = invoice.PurchaseOrder.GoodsReceipts
             .Where(item => item.AcceptedQuantity > 0)
             .ToList();

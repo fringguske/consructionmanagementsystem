@@ -54,7 +54,10 @@ public sealed class InventoryWorkflowService : IInventoryWorkflowService
         if (accepted > delivered) throw new ArgumentException("Accepted quantity cannot exceed delivered quantity.");
         var condition = InputNormalizer.RequiredText(request.Condition, nameof(request.Condition), maximumLength: 30);
         if (condition is not ("Good" or "Damaged" or "Mixed")) throw new ArgumentException("Condition must be Good, Damaged, or Mixed.");
-        var deliveryReference = InputNormalizer.RequiredText(request.DeliveryNoteReference, nameof(request.DeliveryNoteReference), maximumLength: 100);
+        var deliveryReference = InputNormalizer.RequiredText(
+            request.DeliveryNoteReference,
+            nameof(request.DeliveryNoteReference),
+            maximumLength: 100).ToUpperInvariant();
         var evidence = InputNormalizer.OptionalText(request.EvidenceReference, nameof(request.EvidenceReference), 500);
         var discrepancy = InputNormalizer.OptionalText(request.DiscrepancyNotes, nameof(request.DiscrepancyNotes), 1_000);
         var rejected = delivered - accepted;
@@ -69,7 +72,11 @@ public sealed class InventoryWorkflowService : IInventoryWorkflowService
         if (order.Status != PurchaseOrderWorkflowStates.Issued) throw new InvalidOperationException("Goods can be received only against an issued purchase order.");
         if (order.IssuedByUserId == actorUserId) throw new UnauthorizedAccessException("The person who issued the purchase order cannot independently receive its delivery.");
         await RequireProjectAccessAsync(actorUserId, order.ProjectId);
-        var line = order.Lines.Single();
+        var line = PurchaseOrderInvariant.RequireSingleLine(order);
+        if (await _db.GoodsReceipts.AnyAsync(item =>
+                item.SupplierId == order.SupplierId
+                && item.DeliveryNoteReference.ToUpper() == deliveryReference))
+            throw new InvalidOperationException("That supplier delivery note is already recorded.");
         // A pending engineering check still reserves the outstanding PO quantity, while a
         // technically rejected receipt releases it so the supplier can deliver a replacement.
         var earlierReceipts = await _db.GoodsReceipts
@@ -88,7 +95,7 @@ public sealed class InventoryWorkflowService : IInventoryWorkflowService
         var receipt = new GoodsReceipt
         {
             ReceiptNumber = Reference("GRN", now), PurchaseOrderId = order.Id, PurchaseOrderLineId = line.Id,
-            ProjectId = order.ProjectId, MaterialId = line.MaterialId, DeliveredQuantity = delivered,
+            SupplierId = order.SupplierId, ProjectId = order.ProjectId, MaterialId = line.MaterialId, DeliveredQuantity = delivered,
             AcceptedQuantity = accepted, RejectedQuantity = rejected, Condition = condition,
             DeliveryNoteReference = deliveryReference, EvidenceReference = evidence,
             DiscrepancyNotes = discrepancy, ReceivedByUserId = actorUserId, ReceivedAt = now
@@ -369,10 +376,23 @@ public sealed class InventoryWorkflowService : IInventoryWorkflowService
         await RequireRoleAsync(actorUserId, actorRole, "Foreman");
         var received = InputNormalizer.NonNegative(request.ReceivedQuantity, nameof(request.ReceivedQuantity), 18, 3);
         var notes = InputNormalizer.OptionalText(request.Notes, nameof(request.Notes), 1_000);
+        await using var transaction = await _db.Database.BeginTransactionAsync(IsolationLevel.Serializable);
+        await LockMaterialIssueAsync(id);
         var issue = await _db.MaterialIssues.Include(item => item.Requisition).SingleOrDefaultAsync(item => item.Id == id)
             ?? throw new KeyNotFoundException("The material issue was not found.");
         if (issue.IssuedToUserId != actorUserId) throw new UnauthorizedAccessException("Only the Foreman named on this issue may confirm it.");
-        if (issue.Status != MaterialIssueStatuses.AwaitingConfirmation) throw new InvalidOperationException("This issue has already been confirmed or disputed.");
+        if (issue.Status != MaterialIssueStatuses.AwaitingConfirmation)
+        {
+            if (issue.ConfirmedByUserId == actorUserId
+                && issue.ConfirmedQuantity == received
+                && string.Equals(issue.ConfirmationNotes, notes, StringComparison.Ordinal))
+            {
+                await transaction.CommitAsync();
+                return await LoadIssueAsync(id);
+            }
+
+            throw new InvalidOperationException("This issue has already been confirmed with different details.");
+        }
         if (received > issue.QuantityIssued) throw new ArgumentException("Received quantity cannot exceed issued quantity.");
         if (received != issue.QuantityIssued && notes is null) throw new ArgumentException("Explain any difference between issued and received quantities.");
         var now = DateTime.UtcNow;
@@ -385,6 +405,7 @@ public sealed class InventoryWorkflowService : IInventoryWorkflowService
             issue.IssueNumber, issue.Status == MaterialIssueStatuses.Confirmed ? "MaterialReceiptConfirmed" : "MaterialReceiptDisputed",
             actorUserId, actorRole, new { issued = issue.QuantityIssued, received, notes }, now);
         await _db.SaveChangesAsync();
+        await transaction.CommitAsync();
         return await LoadIssueAsync(id);
     }
 
@@ -397,11 +418,26 @@ public sealed class InventoryWorkflowService : IInventoryWorkflowService
         var quantity = InputNormalizer.Positive(request.Quantity, nameof(request.Quantity), 18, 3);
         var reason = InputNormalizer.RequiredText(request.PurposeOrReason, nameof(request.PurposeOrReason), 3, 500);
         var evidence = InputNormalizer.OptionalText(request.EvidenceReference, nameof(request.EvidenceReference), 500);
+        var idempotencyKey = InputNormalizer.RequiredText(request.IdempotencyKey, nameof(request.IdempotencyKey), 8, 100);
         await using var transaction = await _db.Database.BeginTransactionAsync(IsolationLevel.Serializable);
+        await LockMaterialIssueAsync(id);
         var issue = await _db.MaterialIssues.Include(item => item.Requisition).SingleOrDefaultAsync(item => item.Id == id)
             ?? throw new KeyNotFoundException("The material issue was not found.");
         if (issue.IssuedToUserId != actorUserId) throw new UnauthorizedAccessException("Only the receiving Foreman may account for these materials.");
         if (issue.Status != MaterialIssueStatuses.Confirmed) throw new InvalidOperationException("Confirm the full material receipt before recording use or wastage.");
+        var existing = await _db.MaterialUsageRecords.AsNoTracking().SingleOrDefaultAsync(item =>
+            item.MaterialIssueId == id && item.IdempotencyKey == idempotencyKey);
+        if (existing is not null)
+        {
+            if (existing.UsageType != type
+                || existing.Quantity != quantity
+                || existing.PurposeOrReason != reason
+                || existing.EvidenceReference != evidence)
+                throw new InvalidOperationException("That idempotency key is already used for different material-use details.");
+
+            await transaction.CommitAsync();
+            return await LoadIssueAsync(id);
+        }
         if (await _db.MaterialCustodyCloseouts.AnyAsync(item =>
                 item.MaterialIssueId == id && item.Status != CustodyCloseoutStatuses.Returned))
             throw new InvalidOperationException("Material use cannot change while this custody record is under review or closed.");
@@ -420,7 +456,8 @@ public sealed class InventoryWorkflowService : IInventoryWorkflowService
         var record = new MaterialUsageRecord
         {
             MaterialIssueId = id, UsageType = type, Quantity = quantity, PurposeOrReason = reason,
-            EvidenceReference = evidence, RecordedByUserId = actorUserId, RecordedAt = now
+            EvidenceReference = evidence, IdempotencyKey = idempotencyKey,
+            RecordedByUserId = actorUserId, RecordedAt = now
         };
         _db.MaterialUsageRecords.Add(record);
         await _db.SaveChangesAsync();
@@ -475,6 +512,7 @@ public sealed class InventoryWorkflowService : IInventoryWorkflowService
     {
         await RequireRoleAsync(actorUserId, actorRole, "Storekeeper");
         await using var transaction = await _db.Database.BeginTransactionAsync(IsolationLevel.Serializable);
+        await LockStockTransferAsync(id);
         var transfer = await _db.StockTransfers.SingleOrDefaultAsync(item => item.Id == id)
             ?? throw new KeyNotFoundException("The stock transfer was not found.");
         if (transfer.Status != StockTransferStatuses.PendingDispatch) throw new InvalidOperationException("Only a pending transfer can be dispatched.");
@@ -498,6 +536,7 @@ public sealed class InventoryWorkflowService : IInventoryWorkflowService
         var quantity = InputNormalizer.NonNegative(request.ReceivedQuantity, nameof(request.ReceivedQuantity), 18, 3);
         var notes = InputNormalizer.OptionalText(request.Notes, nameof(request.Notes), 1_000);
         await using var transaction = await _db.Database.BeginTransactionAsync(IsolationLevel.Serializable);
+        await LockStockTransferAsync(id);
         var transfer = await _db.StockTransfers.SingleOrDefaultAsync(item => item.Id == id)
             ?? throw new KeyNotFoundException("The stock transfer was not found.");
         if (transfer.Status != StockTransferStatuses.InTransit) throw new InvalidOperationException("Only an in-transit transfer can be received.");
@@ -512,6 +551,85 @@ public sealed class InventoryWorkflowService : IInventoryWorkflowService
         await _events.AppendAsync($"TRF-{transfer.Id}", null, transfer.ToProjectId, "StockTransfer", transfer.Id,
             transfer.TransferNumber, transfer.Status == StockTransferStatuses.Received ? "TransferReceived" : "TransferDisputed",
             actorUserId, actorRole, new { dispatched = transfer.Quantity, received = quantity, notes }, now);
+        await _db.SaveChangesAsync();
+        await transaction.CommitAsync();
+        return await LoadTransferAsync(id);
+    }
+
+    public async Task<StockTransferResponseDto> ResolveTransferDisputeAsync(
+        long id,
+        ResolveStockTransferDisputeRequestDto request,
+        int actorUserId,
+        string actorRole)
+    {
+        await RequireRoleAsync(actorUserId, actorRole, "CEO");
+        if (id <= 0) throw new ArgumentException("Transfer ID must be positive.", nameof(id));
+        var disposition = InputNormalizer.RequiredText(request.Disposition, nameof(request.Disposition), maximumLength: 30);
+        if (disposition is not (StockTransferResolutionDispositions.AcceptedLoss
+            or StockTransferResolutionDispositions.RecoveredAtDestination
+            or StockTransferResolutionDispositions.ReturnedToSource))
+            throw new ArgumentException("Transfer resolution must be accepted loss, recovered at destination, or returned to source.");
+        var notes = InputNormalizer.RequiredText(request.Notes, nameof(request.Notes), 3, 1_000);
+        var evidence = InputNormalizer.OptionalText(request.EvidenceReference, nameof(request.EvidenceReference), 500);
+        await using var transaction = await _db.Database.BeginTransactionAsync(IsolationLevel.Serializable);
+        await LockStockTransferAsync(id);
+        var transfer = await _db.StockTransfers.SingleOrDefaultAsync(item => item.Id == id)
+            ?? throw new KeyNotFoundException("The stock transfer was not found.");
+        if (transfer.Status == StockTransferStatuses.Resolved)
+        {
+            if (transfer.ResolvedByUserId == actorUserId
+                && transfer.ResolutionDisposition == disposition
+                && transfer.ResolutionNotes == notes
+                && transfer.ResolutionEvidenceReference == evidence)
+            {
+                await transaction.CommitAsync();
+                return await LoadTransferAsync(id);
+            }
+
+            throw new InvalidOperationException("This transfer variance is already resolved with different details.");
+        }
+        if (transfer.Status != StockTransferStatuses.Disputed || !transfer.ReceivedQuantity.HasValue)
+            throw new InvalidOperationException("Only a disputed transfer can be resolved.");
+        if (actorUserId == transfer.RequestedByUserId
+            || actorUserId == transfer.DispatchedByUserId
+            || actorUserId == transfer.ReceivedByUserId)
+            throw new UnauthorizedAccessException(
+                "The transfer requester, dispatcher, or receiver cannot resolve its variance.");
+
+        var now = DateTime.UtcNow;
+        var variance = transfer.Quantity - transfer.ReceivedQuantity.Value;
+        if (variance <= 0) throw new InvalidOperationException("This transfer has no positive variance to resolve.");
+        transfer.Status = StockTransferStatuses.Resolved;
+        transfer.ResolvedByUserId = actorUserId;
+        transfer.ResolutionDisposition = disposition;
+        transfer.ResolutionQuantity = variance;
+        transfer.ResolutionNotes = notes;
+        transfer.ResolutionEvidenceReference = evidence;
+        transfer.ResolvedAt = now;
+        if (disposition == StockTransferResolutionDispositions.RecoveredAtDestination)
+            await ChangeBalanceAsync(transfer.ToProjectId, transfer.MaterialId, variance, "TransferVarianceRecovered", "StockTransfer", transfer.Id, transfer.TransferNumber, actorUserId, notes, now);
+        else if (disposition == StockTransferResolutionDispositions.ReturnedToSource)
+            await ChangeBalanceAsync(transfer.FromProjectId, transfer.MaterialId, variance, "TransferVarianceReturned", "StockTransfer", transfer.Id, transfer.TransferNumber, actorUserId, notes, now);
+        await _events.AppendAsync(
+            $"TRF-{transfer.Id}",
+            null,
+            transfer.ToProjectId,
+            "StockTransfer",
+            transfer.Id,
+            transfer.TransferNumber,
+            "TransferVarianceResolved",
+            actorUserId,
+            actorRole,
+            new
+            {
+                dispatched = transfer.Quantity,
+                received = transfer.ReceivedQuantity.Value,
+                variance,
+                disposition,
+                notes,
+                evidenceReference = evidence
+            },
+            now);
         await _db.SaveChangesAsync();
         await transaction.CommitAsync();
         return await LoadTransferAsync(id);
@@ -791,6 +909,14 @@ public sealed class InventoryWorkflowService : IInventoryWorkflowService
         _db.Database.ExecuteSqlInterpolatedAsync(
             $"SELECT 1 FROM \"GoodsReceipts\" WHERE \"Id\" = {receiptId} FOR UPDATE");
 
+    private Task<int> LockMaterialIssueAsync(long issueId) =>
+        _db.Database.ExecuteSqlInterpolatedAsync(
+            $"SELECT 1 FROM \"MaterialIssues\" WHERE \"Id\" = {issueId} FOR UPDATE");
+
+    private Task<int> LockStockTransferAsync(long transferId) =>
+        _db.Database.ExecuteSqlInterpolatedAsync(
+            $"SELECT 1 FROM \"StockTransfers\" WHERE \"Id\" = {transferId} FOR UPDATE");
+
     private static string? NormalizeTechnicalAcceptanceStatus(string? status)
     {
         if (string.IsNullOrWhiteSpace(status)) return null;
@@ -813,7 +939,8 @@ public sealed class InventoryWorkflowService : IInventoryWorkflowService
 
     private static IQueryable<StockTransfer> TransferQuery(IQueryable<StockTransfer> query) => query
         .Include(item => item.FromProject).Include(item => item.ToProject).Include(item => item.Material)
-        .Include(item => item.RequestedByUser).Include(item => item.DispatchedByUser).Include(item => item.ReceivedByUser);
+        .Include(item => item.RequestedByUser).Include(item => item.DispatchedByUser).Include(item => item.ReceivedByUser)
+        .Include(item => item.ResolvedByUser);
     private async Task<StockTransferResponseDto> LoadTransferAsync(long id) => ToDto(await TransferQuery(_db.StockTransfers.AsNoTracking()).SingleAsync(item => item.Id == id));
     private static StockTransferResponseDto ToDto(StockTransfer item) => new()
     {
@@ -824,7 +951,10 @@ public sealed class InventoryWorkflowService : IInventoryWorkflowService
         RequestedAt = item.RequestedAt, DispatchedByUserId = item.DispatchedByUserId,
         DispatchedByName = item.DispatchedByUser?.FullName, DispatchedAt = item.DispatchedAt,
         ReceivedByName = item.ReceivedByUser?.FullName, ReceivedQuantity = item.ReceivedQuantity,
-        ReceiptNotes = item.ReceiptNotes, ReceivedAt = item.ReceivedAt
+        ReceiptNotes = item.ReceiptNotes, ReceivedAt = item.ReceivedAt,
+        ResolvedByName = item.ResolvedByUser?.FullName, ResolutionNotes = item.ResolutionNotes,
+        ResolutionDisposition = item.ResolutionDisposition, ResolutionQuantity = item.ResolutionQuantity,
+        ResolutionEvidenceReference = item.ResolutionEvidenceReference, ResolvedAt = item.ResolvedAt
     };
 
     private static IQueryable<StockCount> CountQuery(IQueryable<StockCount> query) => query

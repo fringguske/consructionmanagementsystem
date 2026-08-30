@@ -13,6 +13,14 @@ public static class StockTransferStatuses
     public const string InTransit = "InTransit";
     public const string Received = "Received";
     public const string Disputed = "Disputed";
+    public const string Resolved = "Resolved";
+}
+
+public static class StockTransferResolutionDispositions
+{
+    public const string AcceptedLoss = "AcceptedLoss";
+    public const string RecoveredAtDestination = "RecoveredAtDestination";
+    public const string ReturnedToSource = "ReturnedToSource";
 }
 
 public static class StockCountStatuses
@@ -37,6 +45,8 @@ public sealed class GoodsReceipt
     public PurchaseOrder PurchaseOrder { get; set; } = null!;
     public int PurchaseOrderLineId { get; set; }
     public PurchaseOrderLine PurchaseOrderLine { get; set; } = null!;
+    public int SupplierId { get; set; }
+    public Supplier Supplier { get; set; } = null!;
     public int ProjectId { get; set; }
     public Project Project { get; set; } = null!;
     public int MaterialId { get; set; }
@@ -144,6 +154,7 @@ public sealed class MaterialUsageRecord
     public decimal Quantity { get; set; }
     public string PurposeOrReason { get; set; } = string.Empty;
     public string? EvidenceReference { get; set; }
+    public string? IdempotencyKey { get; set; }
     public int RecordedByUserId { get; set; }
     public User RecordedByUser { get; set; } = null!;
     public DateTime RecordedAt { get; set; }
@@ -174,6 +185,13 @@ public sealed class StockTransfer
     public decimal? ReceivedQuantity { get; set; }
     public string? ReceiptNotes { get; set; }
     public DateTime? ReceivedAt { get; set; }
+    public int? ResolvedByUserId { get; set; }
+    public User? ResolvedByUser { get; set; }
+    public string? ResolutionDisposition { get; set; }
+    public decimal? ResolutionQuantity { get; set; }
+    public string? ResolutionNotes { get; set; }
+    public string? ResolutionEvidenceReference { get; set; }
+    public DateTime? ResolvedAt { get; set; }
 }
 
 /// <summary>Physical count submitted by Stores and independently decided by a Supervisor.</summary>

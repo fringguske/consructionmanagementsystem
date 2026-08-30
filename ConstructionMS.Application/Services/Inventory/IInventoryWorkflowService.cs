@@ -21,6 +21,7 @@ public interface IInventoryWorkflowService
     Task<StockTransferResponseDto> CreateTransferAsync(CreateStockTransferRequestDto request, int actorUserId, string actorRole);
     Task<StockTransferResponseDto> DispatchTransferAsync(long id, int actorUserId, string actorRole);
     Task<StockTransferResponseDto> ReceiveTransferAsync(long id, ReceiveStockTransferRequestDto request, int actorUserId, string actorRole);
+    Task<StockTransferResponseDto> ResolveTransferDisputeAsync(long id, ResolveStockTransferDisputeRequestDto request, int actorUserId, string actorRole);
     Task<PaginatedResult<StockCountResponseDto>> GetCountsAsync(int page, int pageSize, int actorUserId, string actorRole);
     Task<StockCountResponseDto> CreateCountAsync(CreateStockCountRequestDto request, int actorUserId, string actorRole);
     Task<StockCountResponseDto> ReviewCountAsync(long id, ReviewStockCountRequestDto request, int actorUserId, string actorRole);

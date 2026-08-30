@@ -7,7 +7,9 @@ using ConstructionMS.Application.Services.Projects;
 using ConstructionMS.Domain.Entities;
 using ConstructionMS.Infrastructure.Common;
 using ConstructionMS.Infrastructure.Data;
+using ConstructionMS.Infrastructure.Services.Finance;
 using Microsoft.EntityFrameworkCore;
+using System.Data;
 
 /// <summary>
 /// Project queries are always scoped to the current actor. Budget revisions and
@@ -286,7 +288,9 @@ public sealed class ProjectService : IProjectService
             return (null, "Budget must fit within 18 digits and 2 decimal places.");
         }
 
-        var project = await _db.Projects.FindAsync(id);
+        await using var transaction = await _db.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted);
+        await BudgetCommitmentGuard.LockProjectAsync(_db, id);
+        var project = await _db.Projects.SingleOrDefaultAsync(item => item.Id == id);
         if (project is null)
         {
             return (null, null);
@@ -310,6 +314,14 @@ public sealed class ProjectService : IProjectService
                     "The new budget is below the current cost-code allocations. " +
                     "Use the budget endpoint to submit a revised allocation split.");
             }
+
+            await BudgetCommitmentGuard.EnsureRevisionCoversCommitmentsAsync(
+                _db,
+                project.Id,
+                dto.Budget,
+                previousBudget?.Allocations.ToDictionary(
+                    allocation => allocation.CostCodeId,
+                    allocation => allocation.AllocatedAmount) ?? new Dictionary<int, decimal>());
 
             var budgetRevision = new ProjectBudget
             {
@@ -338,6 +350,7 @@ public sealed class ProjectService : IProjectService
         project.Status = status;
 
         await _db.SaveChangesAsync();
+        await transaction.CommitAsync();
         return (ToDto(project, includeBudget: true), null);
     }
 
@@ -403,7 +416,9 @@ public sealed class ProjectService : IProjectService
             18,
             2);
 
-        var project = await _db.Projects.FindAsync(projectId)
+        await using var transaction = await _db.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted);
+        await BudgetCommitmentGuard.LockProjectAsync(_db, projectId);
+        var project = await _db.Projects.SingleOrDefaultAsync(item => item.Id == projectId)
             ?? throw new KeyNotFoundException($"Project with ID {projectId} was not found.");
 
         var allocationDtos = dto.Allocations ?? [];
@@ -445,6 +460,15 @@ public sealed class ProjectService : IProjectService
                 nameof(dto.Allocations));
         }
 
+
+        await BudgetCommitmentGuard.EnsureRevisionCoversCommitmentsAsync(
+            _db,
+            projectId,
+            approvedAmount,
+            allocationDtos.ToDictionary(
+                allocation => allocation.CostCodeId,
+                allocation => allocation.Amount));
+
         var budget = new ProjectBudget
         {
             ProjectId = projectId,
@@ -467,6 +491,7 @@ public sealed class ProjectService : IProjectService
         project.Budget = approvedAmount;
         _db.Set<ProjectBudget>().Add(budget);
         await _db.SaveChangesAsync();
+        await transaction.CommitAsync();
 
         return ToBudgetDto(budget);
     }

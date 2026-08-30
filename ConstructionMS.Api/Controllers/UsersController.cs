@@ -53,7 +53,7 @@ public class UsersController : ControllerBase
     [ProducesResponseType(typeof(ApiResponse<UserResponseDto>), StatusCodes.Status201Created)]
     public async Task<IActionResult> Create([FromBody] CreateUserRequestDto dto)
     {
-        var user = await _userService.CreateAsync(dto);
+        var user = await _userService.CreateAsync(dto, User.GetRequiredUserId());
         return CreatedAtAction(
             nameof(GetById),
             new { id = user.Id },
@@ -66,7 +66,7 @@ public class UsersController : ControllerBase
     [ProducesResponseType(typeof(ApiResponse<UserResponseDto>), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Update(int id, [FromBody] UpdateUserRequestDto dto)
     {
-        var user = await _userService.UpdateAsync(id, dto);
+        var user = await _userService.UpdateAsync(id, dto, User.GetRequiredUserId());
         if (user is null)
             return NotFound(ApiResponse<UserResponseDto>.Fail($"User with ID {id} was not found."));
 
@@ -87,7 +87,10 @@ public class UsersController : ControllerBase
                 "Use another Administrator account to deactivate your own account."));
         }
 
-        var changed = await _userService.SetActiveStatusAsync(id, request.IsActive);
+        var changed = await _userService.SetActiveStatusAsync(
+            id,
+            request.IsActive,
+            User.GetRequiredUserId());
         if (!changed)
         {
             return NotFound(ApiResponse<UserResponseDto>.Fail(

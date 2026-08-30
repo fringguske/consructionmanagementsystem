@@ -6,6 +6,7 @@ using ConstructionMS.Application.DTOs.Tasks;
 using ConstructionMS.Application.Services.Auth;
 using ConstructionMS.Application.Services.Tasks;
 using ConstructionMS.Domain.Entities;
+using ConstructionMS.Infrastructure.Common;
 using ConstructionMS.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -611,7 +612,7 @@ public sealed class MyTasksService(
             .ToListAsync(cancellationToken);
         foreach (var order in orders)
         {
-            var line = order.Lines.Single();
+            var line = PurchaseOrderInvariant.RequireSingleLine(order);
             var committed = line.RequiresTechnicalAcceptance
                 ? order.GoodsReceipts
                     .Where(receipt => receipt.AcceptedQuantity > 0
@@ -796,7 +797,7 @@ public sealed class MyTasksService(
             .ToListAsync(cancellationToken);
         foreach (var order in invoiceOrders)
         {
-            var line = order.Lines.Single();
+            var line = PurchaseOrderInvariant.RequireSingleLine(order);
             var eligible = line.RequiresTechnicalAcceptance
                 ? order.GoodsReceipts
                     .Where(receipt => receipt.AcceptedQuantity > 0

@@ -124,6 +124,14 @@ public sealed class InventoryController(IInventoryWorkflowService inventory) : C
     public async Task<IActionResult> ReceiveTransfer(long id, [FromBody] ReceiveStockTransferRequestDto request) =>
         Ok(ApiResponse<StockTransferResponseDto>.Ok(await inventory.ReceiveTransferAsync(id, request, ActorId(), Role())));
 
+    [HttpPost("transfers/{id:long}/resolve")]
+    [Authorize(Roles = "CEO")]
+    public async Task<IActionResult> ResolveTransferDispute(
+        long id,
+        [FromBody] ResolveStockTransferDisputeRequestDto request) =>
+        Ok(ApiResponse<StockTransferResponseDto>.Ok(
+            await inventory.ResolveTransferDisputeAsync(id, request, ActorId(), Role())));
+
     [HttpGet("counts")]
     [Authorize(Roles = "Storekeeper,Supervisor,CEO,Auditor")]
     public async Task<IActionResult> GetCounts(

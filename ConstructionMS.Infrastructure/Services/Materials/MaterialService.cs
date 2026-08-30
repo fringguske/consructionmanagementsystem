@@ -64,15 +64,36 @@ public class MaterialService : IMaterialService
 
     public async Task<MaterialResponseDto?> UpdateAsync(int id, UpdateMaterialRequestDto dto)
     {
-        var material = await _db.Materials.FindAsync(id);
-        if (material is null) return null;
+        var name = InputNormalizer.RequiredText(dto.Name, nameof(dto.Name), 2, 150);
+        var category = InputNormalizer.OptionalText(dto.Category, nameof(dto.Category), 100);
+        var unit = InputNormalizer.RequiredText(dto.Unit, nameof(dto.Unit), maximumLength: 30);
+        var standardPrice = InputNormalizer.NonNegative(dto.StandardPrice, nameof(dto.StandardPrice), 18, 2);
+        var reorderLevel = InputNormalizer.NonNegative(dto.ReorderLevel, nameof(dto.ReorderLevel), 18, 3);
+        await using var transaction = await _db.Database.BeginTransactionAsync(IsolationLevel.Serializable);
+        await _db.Database.ExecuteSqlInterpolatedAsync(
+            $"SELECT 1 FROM \"Materials\" WHERE \"Id\" = {id} FOR UPDATE");
+        var material = await _db.Materials.SingleOrDefaultAsync(item => item.Id == id);
+        if (material is null)
+        {
+            await transaction.RollbackAsync();
+            return null;
+        }
 
-        material.Name = InputNormalizer.RequiredText(dto.Name, nameof(dto.Name), 2, 150);
-        material.Category = InputNormalizer.OptionalText(dto.Category, nameof(dto.Category), 100);
-        material.Unit = InputNormalizer.RequiredText(dto.Unit, nameof(dto.Unit), maximumLength: 30);
-        material.StandardPrice = InputNormalizer.NonNegative(dto.StandardPrice, nameof(dto.StandardPrice), 18, 2);
-        material.ReorderLevel = InputNormalizer.NonNegative(dto.ReorderLevel, nameof(dto.ReorderLevel), 18, 3);
+        if (!string.Equals(material.Unit, unit, StringComparison.Ordinal)
+            && (await _db.Requisitions.AnyAsync(item => item.MaterialId == id)
+                || await _db.StockBalances.AnyAsync(item => item.MaterialId == id)
+                || await _db.StockLedgerEntries.AnyAsync(item => item.MaterialId == id)
+                || await _db.StockTransfers.AnyAsync(item => item.MaterialId == id)
+                || await _db.OpeningInventoryLines.AnyAsync(item => item.MaterialId == id)))
+            throw new InvalidOperationException("The material unit cannot change after the material has transaction history.");
+
+        material.Name = name;
+        material.Category = category;
+        material.Unit = unit;
+        material.StandardPrice = standardPrice;
+        material.ReorderLevel = reorderLevel;
         await _db.SaveChangesAsync();
+        await transaction.CommitAsync();
         return ToDto(material);
     }
 
