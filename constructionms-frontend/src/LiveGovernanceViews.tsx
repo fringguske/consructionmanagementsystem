@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import {
   accountingPeriodsApi,
@@ -235,6 +235,7 @@ export function CustodyCloseoutView({ currentUser }: { currentUser: CurrentUser 
   const [notice, setNotice] = useState<string | null>(null)
   const [refresh, setRefresh] = useState(0)
   const [busy, setBusy] = useState(false)
+  const submitBusyRef = useRef(false)
   const [action, setAction] = useState<CustodyAction | null>(null)
   const [latestResolution, setLatestResolution] = useState<MaterialIssueDisputeResolution | null>(null)
   const [form, setForm] = useState({ usageType: 'Used' as 'Used' | 'Wastage', quantity: '', condition: 'Good', notes: '', evidenceReference: '', idempotencyKey: '' })
@@ -249,10 +250,12 @@ export function CustodyCloseoutView({ currentUser }: { currentUser: CurrentUser 
   }, [refresh])
 
   async function run(work: () => Promise<unknown>, text: string) {
+    if (submitBusyRef.current) return
+    submitBusyRef.current = true
     setBusy(true); setError(null); setNotice(null)
     try { await work(); setNotice(text); setAction(null); setRefresh(value => value + 1) }
     catch (cause) { setError(messageOf(cause)) }
-    finally { setBusy(false) }
+    finally { submitBusyRef.current = false; setBusy(false) }
   }
 
   function issueRemaining(issue: MaterialIssue) {
@@ -267,12 +270,13 @@ export function CustodyCloseoutView({ currentUser }: { currentUser: CurrentUser 
 
   async function submitAction(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (!action) return
+    if (!action || submitBusyRef.current) return
     const selectedAction = action
     if (selectedAction.kind === 'usage') return run(() => inventoryApi.recordUsage(selectedAction.issue.id, { usageType: form.usageType, quantity: Number(form.quantity), purposeOrReason: form.notes.trim(), evidenceReference: form.evidenceReference.trim() || null, idempotencyKey: form.idempotencyKey }), 'Material use saved.')
     if (selectedAction.kind === 'return') return run(() => custodyControlsApi.createReturn({ materialIssueId: selectedAction.issue.id, quantity: Number(form.quantity), condition: form.condition, notes: form.notes.trim() || null, evidenceReference: form.evidenceReference.trim() || null }), 'Return sent to Stores.')
     if (selectedAction.kind === 'closeout') return run(() => custodyControlsApi.submitCloseout({ materialIssueId: selectedAction.issue.id, notes: form.notes.trim() || null, evidenceReference: form.evidenceReference.trim() || null }), 'Close-out sent to the Supervisor.')
     if (selectedAction.kind === 'resolve-dispute') {
+      submitBusyRef.current = true
       setBusy(true); setError(null); setNotice(null)
       try {
         const resolution = await custodyControlsApi.resolveDispute(selectedAction.issue.id, form.notes.trim(), form.evidenceReference.trim() || null)
@@ -281,7 +285,7 @@ export function CustodyCloseoutView({ currentUser }: { currentUser: CurrentUser 
         setAction(null)
         setRefresh(value => value + 1)
       } catch (cause) { setError(messageOf(cause)) }
-      finally { setBusy(false) }
+      finally { submitBusyRef.current = false; setBusy(false) }
       return
     }
     if (selectedAction.kind === 'receive-return') return run(() => custodyControlsApi.receiveReturn(selectedAction.item.id, { accept: selectedAction.accept, quantityAccepted: selectedAction.accept ? selectedAction.item.quantityOffered : 0, notes: form.notes.trim(), evidenceReference: form.evidenceReference.trim() || null }), selectedAction.accept ? 'Returned material received.' : 'Return rejected.')
