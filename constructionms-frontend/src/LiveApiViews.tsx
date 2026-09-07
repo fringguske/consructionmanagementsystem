@@ -168,7 +168,7 @@ function initials(name: string): string {
 
 function statusLabel(status: RequisitionStatus): string {
   const labels: Record<RequisitionStatus, string> = {
-    AwaitingTechnicalCheck: 'Waiting for Engineer',
+    AwaitingTechnicalCheck: 'Waiting for Supervisor',
     AwaitingSupervisorDecision: 'Waiting for Supervisor',
     ReturnedForRevision: 'Waiting for Foreman',
     Approved: 'Approved',
@@ -243,14 +243,13 @@ function dashboardActions(role: CurrentUser['role']): DashboardAction[] {
       ]
     case 'Supervisor':
       return [
-        { destination: 'requisitions', label: 'Material decisions', detail: 'Approve only Engineer-checked requests', count: 'pendingRequisitionCount', countLabel: 'requests in progress' },
+        { destination: 'requisitions', label: 'Material decisions', detail: 'Approve foreman requests directly', count: 'pendingRequisitionCount', countLabel: 'requests in progress' },
         { destination: 'finance', label: 'Payment approvals', detail: 'Authorize matched supplier invoices', count: 'pendingPaymentAuthorizationCount', countLabel: 'waiting for approval' },
         { destination: 'inventory', label: 'Stock checks', detail: 'Review independent physical-count differences', count: 'pendingStockCountReviewCount', countLabel: 'waiting for review' },
         { destination: 'projects', label: 'Projects', detail: 'Review progress and commitments', count: 'visibleProjectCount', countLabel: 'projects visible' },
       ]
     case 'Engineer':
       return [
-        { destination: 'requisitions', label: 'Technical checks', detail: 'Verify material need and quantity', count: 'pendingRequisitionCount', countLabel: 'requests in progress' },
         { destination: 'projects', label: 'Project progress', detail: 'Record verified physical progress', count: 'visibleProjectCount', countLabel: 'projects visible' },
       ]
     case 'Foreman':
@@ -301,9 +300,7 @@ function dashboardSummary(role: CurrentUser['role'], dashboard: DashboardRespons
         { label: 'Requests moving', value: dashboard.pendingRequisitionCount, detail: 'Requests not yet finally decided.', tone: 'pending' },
         { label: 'Payment approvals', value: dashboard.pendingPaymentAuthorizationCount, detail: 'Matched invoices waiting for your authorization.', tone: 'approved' }]
     case 'Engineer':
-      return [projects,
-        { label: 'Requests moving', value: dashboard.pendingRequisitionCount, detail: 'Includes requests needing technical checks.', tone: 'pending' },
-        { label: 'Approved requests', value: dashboard.approvedRequisitionCount, detail: 'Technically checked needs now approved.', tone: 'approved' }]
+      return [projects]
     case 'Foreman':
       return [projects,
         { label: 'My requests moving', value: dashboard.pendingRequisitionCount, detail: 'Not yet through the full approval chain.', tone: 'pending' },
@@ -1491,8 +1488,8 @@ export function LiveRequisitionsView({ currentUser }: LiveRequisitionsViewProps)
 
   const needsCurrentRole = (requisition: Requisition) => {
     if (currentUser.role === 'Foreman') return requisition.status === 'ReturnedForRevision'
-    if (currentUser.role === 'Engineer') return requisition.status === 'AwaitingTechnicalCheck'
-    if (currentUser.role === 'Supervisor') return requisition.status === 'AwaitingSupervisorDecision'
+    if (currentUser.role === 'Engineer') return false
+    if (currentUser.role === 'Supervisor') return requisition.status === 'AwaitingSupervisorDecision' || requisition.status === 'AwaitingTechnicalCheck'
     return false
   }
   const hasSimpleQueue = ['Foreman', 'Engineer', 'Supervisor'].includes(currentUser.role)
@@ -1987,10 +1984,10 @@ function RequisitionCard({
     currentUser.role === 'Foreman' &&
     requisition.status === 'ReturnedForRevision' &&
     requisition.requestedByUserId === currentUser.id
-  const canCheck =
-    currentUser.role === 'Engineer' && requisition.status === 'AwaitingTechnicalCheck'
+  const canCheck = false
   const canDecide =
-    currentUser.role === 'Supervisor' && requisition.status === 'AwaitingSupervisorDecision'
+    (currentUser.role === 'Supervisor'
+      && (requisition.status === 'AwaitingSupervisorDecision' || requisition.status === 'AwaitingTechnicalCheck'))
   const canSeeHistory = currentUser.role === 'CEO' || currentUser.role === 'Auditor'
 
   return (

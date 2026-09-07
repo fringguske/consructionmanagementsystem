@@ -30,12 +30,12 @@ All paths use the `/api/v1` prefix. Except for login, liveness and readiness, th
 |---|---|---|
 | `/` | Authenticated, role-scoped dashboard | Every signed-in role |
 | `/projects` | Projects, budgets/commitments when permitted, Engineer progress | CEO, Supervisor, Engineer, Finance Officer, Auditor |
-| `/requisitions` | Material request and technical/approval chain | CEO, Supervisor, Engineer, Foreman, Auditor |
+| `/requisitions` | Material request and approval chain | CEO, Supervisor, Engineer, Foreman, Auditor |
 | `/sourcing` | Sourcing rounds, quotes, supplier comparison and draft-PO creation | CEO, Supervisor, Procurement Officer, Auditor |
 | `/suppliers` | Supplier application, independent approval and approved register | CEO, Procurement Officer, Finance Officer, Auditor |
 | `/purchase-orders` | Submit, approve/return/reject, correct, cancel and issue | CEO, Supervisor, Procurement Officer, Storekeeper, Finance Officer, Auditor |
 | `/inventory` | GRNs, store balances, issues, Foreman custody, transfers and stock counts | CEO, Supervisor, Engineer, Foreman, Storekeeper, Finance Officer, Auditor |
-| `/delivery-checks` | Pending and completed Engineer technical checks for received deliveries | Engineer |
+| `/delivery-checks` | Legacy technical checks for deliveries recorded before direct posting | Engineer |
 | `/tasks` | Current role's actionable records and overdue state | Every signed-in role |
 | `/opening-positions` | Opening inventory/cash submission and independent review | Storekeeper, Supervisor, Finance Officer, CEO, Auditor |
 | `/custody-close-out` | Material returns, handover disputes and custody close-out | Foreman, Storekeeper, Supervisor, CEO, Auditor |
@@ -101,8 +101,6 @@ Administrator, CEO and Auditor can list every project; only CEO and approved fin
 ```text
 Foreman creates/revises
         ↓
-Assigned Engineer verifies need or returns it
-        ↓
 Different assigned Supervisor approves, rejects or returns it
         ↓
 Approved demand becomes visible to Procurement
@@ -115,7 +113,7 @@ Approved demand becomes visible to Procurement
 | `POST /requisitions` | Assigned Foreman | Request a catalog material against an active project and active cost code. |
 | `POST /requisitions/stock-replenishment` | Assigned Storekeeper | Request reserve stock for a project store. This goes to the Supervisor, then Procurement, and cannot be used as a Foreman issue voucher. |
 | `PATCH /requisitions/{id}` | Original Foreman | Revise before verification or after return. `ExpectedRevision` prevents overwriting a newer action. |
-| `POST /requisitions/{id}/technical-check` | Different assigned Engineer | `Verified` or `RevisionRequired`. |
+| `POST /requisitions/{id}/technical-check` | Different assigned Engineer | `Verified` or `RevisionRequired`. Legacy endpoint; new SiteUse requests skip the Engineer and go straight to the Supervisor. |
 | `POST /requisitions/{id}/decision` | Different assigned Supervisor | `Approve`, `Reject` or `ReturnForRevision`. |
 
 Every accepted command increments `WorkflowRevision` and appends a SHA-256-linked `RequisitionApprovalEvents` row. Database triggers reject update/delete attempts on both technical checks and workflow events.
@@ -149,14 +147,12 @@ Quote recording locks the sourcing round, so a quote cannot slip in concurrently
 | `POST /purchase-orders/{id}/issue` | Assigned Procurement officer | Issue only an approved PO while the project remains active. A Procurement handoff within the same assigned project is allowed and recorded. |
 | `POST /purchase-orders/{id}/cancel` | Procurement, Supervisor or CEO according to current state | Stop a non-issued PO with a required reason. |
 
-For site-use requests, the requester, technical checker, supervisor decision-maker, procurement creator and PO approver are checked as separate responsibilities. A bulk store-replenishment request is raised by Stores and independently approved by the Supervisor before Procurement sourcing; it skips the Engineer because it is an inventory-level decision rather than a technical site-use need. Database triggers also reject a PO or line whose project, requisition, material, supplier, selected quote, quantity or price do not describe the same commercial source. Commercial snapshots are stored in append-only lines/events; operational roles receive only the information required for their next step.
+For site-use requests, the requester and supervisor decision-maker are checked as separate responsibilities. A bulk store-replenishment request is raised by Stores and independently approved by the Supervisor before Procurement sourcing. Database triggers also reject a PO or line whose project, requisition, material, supplier, selected quote, quantity or price do not describe the same commercial source. Commercial snapshots are stored in append-only lines/events; operational roles receive only the information required for their next step.
 
 ## 5. Inventory and material custody
 
 ```text
-Issued PO → Storekeeper GRN → no technical check required → project store balance
-                           ↘ check required → assigned Engineer accepts → project store balance
-                                                            ↘ rejects → replacement quantity reopens
+Issued PO → Storekeeper GRN → accepted quantity posted directly to project store balance
 Approved site-use requisition → Storekeeper issue voucher → Foreman confirmation → use/wastage
 Approved store-replenishment request → Procurement sourcing → PO → Storekeeper GRN → reserve stock
 Supervisor transfer request → sending Storekeeper dispatch → different receiving Storekeeper receipt
@@ -166,9 +162,9 @@ Storekeeper physical count → Supervisor review → ledger adjustment when appr
 | Method and path | Role | Purpose |
 |---|---|---|
 | `GET /inventory/receipts` | Storekeeper, Procurement, Finance, CEO, Auditor | Read independent delivery evidence inside scope. Procurement uses it only to identify orders eligible for invoice capture. |
-| `POST /inventory/receipts` | Assigned Storekeeper | Record delivered, received and rejected quantity against an issued PO. Quantity on a line requiring technical acceptance is held outside usable stock until the Engineer accepts it. |
-| `GET /inventory/technical-acceptances` | Engineer, Finance, CEO, Auditor | Read delivery-level technical-check status inside project scope. Engineers use this as their pending and reviewed queue. |
-| `POST /inventory/receipts/{id}/technical-acceptance` | Different assigned Engineer | Append an `Accepted` or `Rejected` technical decision for a positive-quantity GRN whose snapshotted PO line requires it. Acceptance releases that receipt into usable stock. Rejection reopens its PO quantity for a replacement; reinspection remains possible only until a replacement reserves that quantity. |
+| `POST /inventory/receipts` | Assigned Storekeeper | Record delivered, received and rejected quantity against an issued PO. Accepted quantity is posted directly into usable stock. |
+| `GET /inventory/technical-acceptances` | Engineer, Finance, CEO, Auditor | Read delivery-level technical-check status for legacy receipts recorded before direct posting. New GRNs never appear here. |
+| `POST /inventory/receipts/{id}/technical-acceptance` | Different assigned Engineer | Append an `Accepted` or `Rejected` decision for a legacy positive-quantity GRN still awaiting review. Delivers no new stock for direct-posted receipts. |
 | `GET /inventory/balances` | Storekeeper, Foreman, Supervisor, Engineer, Finance, CEO, Auditor | Read each catalog material currently inside each visible project store. |
 | `GET /inventory/ledger` | Storekeeper, Supervisor, Finance, CEO, Auditor | Read the append-only movement ledger and balance after every movement. |
 | `GET /inventory/issues` | Storekeeper, Foreman, Supervisor, Engineer, CEO, Auditor | Read role-shaped issue vouchers. A Foreman sees only material handed to that account. |
@@ -179,15 +175,15 @@ Storekeeper physical count → Supervisor review → ledger adjustment when appr
 | `POST /inventory/transfers/{id}/dispatch` | Sending-site Storekeeper | Remove dispatched quantity from the source store. |
 | `POST /inventory/transfers/{id}/receive` | Different destination-site Storekeeper | Confirm destination quantity and add it to destination stock; differences are disputed. |
 | `GET`, `POST /inventory/counts` | Storekeeper, Supervisor, CEO, Auditor as appropriate | Read physical counts or let Stores submit a stock snapshot. |
-| `POST /inventory/counts/{id}/review` | Different assigned Supervisor | Approve/reject a count. Approval fails safely if stock moved after counting, and a positive adjustment cannot bypass an unresolved Engineer hold or replacement. |
+| `POST /inventory/counts/{id}/review` | Different assigned Supervisor | Approve/reject a count. Approval fails safely if stock moved after counting. |
 
 Materials come from one categorized catalog. The Foreman selects the material and types only the numeric amount; its unit (`bags`, `tonnes`, `pieces`, `lengths`, `litres`, and so on) is locked from the selected catalog record so approval, PO, GRN, store balance and usage cannot silently change units.
 
 ## 6. Invoice-to-payment control and owner trace
 
 ```text
-Storekeeper GRN → Engineer technical acceptance when required → usable stock
-Full usable PO quantity + Procurement supplier invoice → Finance three-way match
+Storekeeper GRN → accepted quantity posted directly to usable stock
+Full PO quantity accepted by Stores + Procurement supplier invoice → Finance three-way match
                                                        → CEO only for high-value exception
                                                        → assigned Supervisor authorization
                                                        → Finance executes → system receipt
@@ -196,8 +192,8 @@ Full usable PO quantity + Procurement supplier invoice → Finance three-way mat
 | Method and path | Role | Purpose |
 |---|---|---|
 | `GET /finance/invoices` | Procurement, Supervisor, Finance, CEO, Auditor | Read the scoped invoice queue without granting action rights. |
-| `POST /finance/invoices` | Assigned Procurement officer | Capture an immutable supplier invoice only after the full PO quantity is in usable stock, including every required Engineer decision. This starter release does not silently treat one invoice as a partial-invoice schedule. |
-| `POST /finance/invoices/{id}/review` | Different Finance officer | Compare invoice quantity, unit price and amount exactly with accepted GRNs and the issued PO. Matching is blocked while any required delivery check is missing or rejected. |
+| `POST /finance/invoices` | Assigned Procurement officer | Capture an immutable supplier invoice only after the full PO quantity is accepted by Stores. This starter release does not silently treat one invoice as a partial-invoice schedule. |
+| `POST /finance/invoices/{id}/review` | Different Finance officer | Compare invoice quantity, unit price and amount exactly with accepted GRNs and the issued PO. Matching is blocked while the full PO quantity is not yet accepted by Stores. |
 | `POST /finance/invoices/{id}/ceo-decision` | CEO | Decide only invoices above the configured high-value threshold; routine payments never require CEO operation. |
 | `POST /finance/invoices/{id}/authorize` | Assigned Supervisor | Create one append-only authority for the locked amount after Finance matching and any required CEO exception decision. |
 | `GET /finance/authorizations` | Supervisor, Finance, CEO, Auditor | Read payment instructions; `unpaidOnly=true` is the Finance execution queue. |
@@ -236,7 +232,7 @@ New operational evidence is protected twice: application guards reject deletion/
 |---|---|---|
 | `GET /materials` / `GET /materials/{id}` | Signed-in | Select the shared material catalog. |
 | `POST /materials`, `PUT /materials/{id}` | CEO or Procurement | Maintain catalog metadata/reference price. |
-| `PATCH /materials/{id}/technical-acceptance-policy` | CEO | Change whether future PO lines for a material require Engineer delivery acceptance. The decision is append-only audited; existing PO lines retain their snapshotted policy. |
+| `PATCH /materials/{id}/technical-acceptance-policy` | CEO | Legacy policy switch retained for audit; new PO lines post directly into usable stock regardless of this flag. The decision is append-only audited. |
 | `GET /material-catalog-requests` | Foreman, Procurement, CEO, Auditor | Read pending and reviewed proposals in role and project scope. Foremen see only their own proposals. |
 | `POST /material-catalog-requests` | Assigned Foreman | Propose a material that is absent from the shared catalog. |
 | `POST /material-catalog-requests/{id}/decision` | Different assigned Procurement officer | Approve and create or link the catalog material, or reject the proposal. |

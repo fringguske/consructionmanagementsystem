@@ -456,11 +456,17 @@ public sealed class MyTasksService(
             .Include(item => item.TechnicalAcceptances)
             .AsSplitQuery()
             .ToListAsync(cancellationToken);
+        var postedReceiptIds = new HashSet<long>(await db.StockLedgerEntries.AsNoTracking()
+            .Where(entry => entry.MovementType == "Receipt"
+                && entry.ReferenceType == "GoodsReceipt"
+                && entry.QuantityDelta > 0)
+            .Select(entry => entry.ReferenceId)
+            .ToListAsync(cancellationToken));
         var technicallyAcceptedByLine = receipts
             .Where(item => LatestTechnicalAcceptance(item)?.Outcome == TechnicalAcceptanceOutcomes.Accepted)
             .GroupBy(item => item.PurchaseOrderLineId)
             .ToDictionary(group => group.Key, group => group.Sum(item => item.AcceptedQuantity));
-        foreach (var item in receipts)
+        foreach (var item in receipts.Where(item => !postedReceiptIds.Contains(item.Id)))
         {
             var latest = LatestTechnicalAcceptance(item);
             if (latest?.Outcome == TechnicalAcceptanceOutcomes.Accepted) continue;
@@ -613,12 +619,10 @@ public sealed class MyTasksService(
         foreach (var order in orders)
         {
             var line = PurchaseOrderInvariant.RequireSingleLine(order);
-            var committed = line.RequiresTechnicalAcceptance
-                ? order.GoodsReceipts
-                    .Where(receipt => receipt.AcceptedQuantity > 0
-                        && LatestTechnicalAcceptance(receipt)?.Outcome != TechnicalAcceptanceOutcomes.Rejected)
-                    .Sum(receipt => receipt.AcceptedQuantity)
-                : order.GoodsReceipts.Sum(receipt => receipt.AcceptedQuantity);
+            var committed = order.GoodsReceipts
+                .Where(receipt => receipt.AcceptedQuantity > 0
+                    && LatestTechnicalAcceptance(receipt)?.Outcome != TechnicalAcceptanceOutcomes.Rejected)
+                .Sum(receipt => receipt.AcceptedQuantity);
             var remaining = line.Quantity - committed;
             if (remaining <= 0) continue;
             var revision = order.GoodsReceipts.Count
@@ -819,13 +823,10 @@ public sealed class MyTasksService(
         foreach (var order in invoiceOrders)
         {
             var line = PurchaseOrderInvariant.RequireSingleLine(order);
-            var eligible = line.RequiresTechnicalAcceptance
-                ? order.GoodsReceipts
-                    .Where(receipt => receipt.AcceptedQuantity > 0
-                        && LatestTechnicalAcceptance(receipt)?.Outcome == TechnicalAcceptanceOutcomes.Accepted)
-                    .Sum(receipt => receipt.AcceptedQuantity)
-                : order.GoodsReceipts.Sum(receipt => receipt.AcceptedQuantity);
-            if (eligible != line.Quantity) continue;
+            var eligible = order.GoodsReceipts
+                .Where(receipt => receipt.AcceptedQuantity > 0
+                    && LatestTechnicalAcceptance(receipt)?.Outcome != TechnicalAcceptanceOutcomes.Rejected)
+                .Sum(receipt => receipt.AcceptedQuantity);
             var openedAt = order.GoodsReceipts.Select(receipt => receipt.ReceivedAt)
                 .DefaultIfEmpty(order.IssuedAt ?? order.CreatedAt).Max();
             Add(tasks, $"capture-invoice:{order.Id}", "CaptureSupplierInvoice", "Capture supplier invoice",

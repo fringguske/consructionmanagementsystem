@@ -102,7 +102,7 @@ public sealed class InventoryWorkflowService : IInventoryWorkflowService
         };
         _db.GoodsReceipts.Add(receipt);
         await _db.SaveChangesAsync();
-        if (accepted > 0 && !line.RequiresTechnicalAcceptance)
+        if (accepted > 0)
         {
             await ChangeBalanceAsync(order.ProjectId, line.MaterialId, accepted, "Receipt", "GoodsReceipt", receipt.Id, receipt.ReceiptNumber, actorUserId, discrepancy, now);
         }
@@ -133,7 +133,12 @@ public sealed class InventoryWorkflowService : IInventoryWorkflowService
 
         var normalizedStatus = NormalizeTechnicalAcceptanceStatus(status);
         var query = _db.GoodsReceipts.AsNoTracking()
-            .Where(item => item.PurchaseOrderLine.RequiresTechnicalAcceptance && item.AcceptedQuantity > 0);
+            .Where(item => item.PurchaseOrderLine.RequiresTechnicalAcceptance && item.AcceptedQuantity > 0)
+            .Where(item => !_db.StockLedgerEntries.Any(entry =>
+                entry.ReferenceType == "GoodsReceipt"
+                && entry.ReferenceId == item.Id
+                && entry.MovementType == "Receipt"
+                && entry.QuantityDelta > 0));
         if (actorRole is not ("CEO" or "Auditor") && !await CanVerifyAllProjectsAsync(actorUserId))
         {
             query = query.Where(item => _db.UserProjectAssignments.Any(assignment =>
@@ -195,6 +200,14 @@ public sealed class InventoryWorkflowService : IInventoryWorkflowService
         if (receipt.ReceivedByUserId == actorUserId)
             throw new UnauthorizedAccessException("The Storekeeper who received the delivery cannot perform its engineering technical acceptance.");
         await RequireProjectAccessAsync(actorUserId, receipt.ProjectId);
+
+        var alreadyPosted = await _db.StockLedgerEntries.AsNoTracking().AnyAsync(item =>
+            item.ReferenceType == "GoodsReceipt"
+            && item.ReferenceId == receiptId
+            && item.MovementType == "Receipt"
+            && item.QuantityDelta > 0);
+        if (alreadyPosted)
+            throw new InvalidOperationException("This delivery was already recorded directly into usable stock by the Storekeeper; engineering technical acceptance is no longer required.");
 
         if (outcome == TechnicalAcceptanceOutcomes.Accepted)
         {
@@ -745,16 +758,24 @@ public sealed class InventoryWorkflowService : IInventoryWorkflowService
             .Include(item => item.TechnicalAcceptances)
             .ToListAsync();
 
+        // Receipts already posted to usable stock by the Storekeeper GRN need no further decision.
+
+        var postedReceiptIds = new HashSet<long>(await _db.StockLedgerEntries.AsNoTracking()
+            .Where(item => item.ReferenceType == "GoodsReceipt" && item.MovementType == "Receipt" && item.QuantityDelta > 0)
+            .Select(item => item.ReferenceId)
+            .ToListAsync());
         foreach (var line in lines)
         {
             var lineReceipts = receipts.Where(item => item.PurchaseOrderLineId == line.Id).ToList();
-            if (lineReceipts.Any(item => LatestTechnicalAcceptance(item) is null)) return true;
+            var unsettled = lineReceipts.Where(item => !postedReceiptIds.Contains(item.Id)).ToList();
+            if (unsettled.Count == 0) continue;
+            if (unsettled.Any(item => LatestTechnicalAcceptance(item) is null)) return true;
 
-            var acceptedQuantity = lineReceipts
+            var acceptedQuantity = unsettled
                 .Where(item => LatestTechnicalAcceptance(item)?.Outcome == TechnicalAcceptanceOutcomes.Accepted)
                 .Sum(item => item.AcceptedQuantity);
             if (acceptedQuantity < line.Quantity
-                && lineReceipts.Any(item => LatestTechnicalAcceptance(item)?.Outcome == TechnicalAcceptanceOutcomes.Rejected))
+                && unsettled.Any(item => LatestTechnicalAcceptance(item)?.Outcome == TechnicalAcceptanceOutcomes.Rejected))
                 return true;
         }
 

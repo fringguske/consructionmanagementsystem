@@ -71,9 +71,7 @@ public sealed class FinanceWorkflowService : IFinanceWorkflowService
         var acceptedQuantity = QuantityEligibleForInvoice(line, receipts);
         if (acceptedQuantity != line.Quantity)
             throw new InvalidOperationException(
-                line.RequiresTechnicalAcceptance
-                    ? "The full purchase-order quantity must be received and technically accepted by Engineering before its supplier invoice can enter Finance review."
-                    : "The full purchase-order quantity must be accepted by Stores before its supplier invoice can enter Finance review.");
+                "The full purchase-order quantity must be accepted by Stores before its supplier invoice can enter Finance review.");
         if (await _db.SupplierInvoices.AnyAsync(item => item.PurchaseOrderId == order.Id && ActiveInvoiceStatuses.Contains(item.Status)))
             throw new InvalidOperationException("This purchase order already has a live supplier invoice.");
         if (await _db.SupplierInvoices.AnyAsync(item => item.SupplierId == order.SupplierId && item.InvoiceNumber == invoiceNumber))
@@ -109,29 +107,13 @@ public sealed class FinanceWorkflowService : IFinanceWorkflowService
         if (invoice.CapturedByUserId == actorUserId) throw new UnauthorizedAccessException("The invoice capturer cannot perform the independent Finance match.");
         await RequireProjectAccessAsync(actorUserId, invoice.ProjectId);
         var line = PurchaseOrderInvariant.RequireSingleLine(invoice.PurchaseOrder);
-        decimal accepted;
-        if (line.RequiresTechnicalAcceptance)
+        var accepted = invoice.PurchaseOrder.GoodsReceipts
+            .Where(item => LatestTechnicalAcceptance(item)?.Outcome != TechnicalAcceptanceOutcomes.Rejected)
+            .Sum(item => item.AcceptedQuantity);
+        if (accepted != line.Quantity)
         {
-            var relevantReceipts = invoice.PurchaseOrder.GoodsReceipts
-                .Where(item => item.AcceptedQuantity > 0)
-                .ToList();
-            accepted = relevantReceipts
-                .Where(item => LatestTechnicalAcceptance(item)?.Outcome == TechnicalAcceptanceOutcomes.Accepted)
-                .Sum(item => item.AcceptedQuantity);
-            if (accepted != line.Quantity)
-            {
-                var latestReviews = relevantReceipts.Select(LatestTechnicalAcceptance).ToList();
-                if (latestReviews.Any(item => item?.Outcome == TechnicalAcceptanceOutcomes.Rejected)
-                    && latestReviews.All(item => item?.Outcome != null))
-                    throw new InvalidOperationException(
-                        "Engineering rejected part of this delivery. A technically accepted replacement is required before Finance can complete the match.");
-                throw new InvalidOperationException(
-                    "Engineering technical acceptance is required for the full purchase-order quantity before Finance can complete the match.");
-            }
-        }
-        else
-        {
-            accepted = invoice.PurchaseOrder.GoodsReceipts.Sum(item => item.AcceptedQuantity);
+            throw new InvalidOperationException(
+                "The full purchase-order quantity must be accepted by Stores before Finance can complete the match.");
         }
         var quantityMatches = invoice.Quantity == accepted;
         var priceMatches = invoice.UnitPrice == line.UnitPrice;
@@ -648,36 +630,12 @@ public sealed class FinanceWorkflowService : IFinanceWorkflowService
     {
         var line = PurchaseOrderInvariant.RequireSingleLine(invoice.PurchaseOrder);
         var relevantReceipts = invoice.PurchaseOrder.GoodsReceipts
-            .Where(item => item.AcceptedQuantity > 0)
+            .Where(item => item.AcceptedQuantity > 0
+                && LatestTechnicalAcceptance(item)?.Outcome != TechnicalAcceptanceOutcomes.Rejected)
             .ToList();
-        var receiptReviews = relevantReceipts
-            .Select(item => new { Receipt = item, Review = LatestTechnicalAcceptance(item) })
-            .ToList();
-        var latestTechnicalReview = receiptReviews
-            .Where(item => item.Review is not null)
-            .Select(item => item.Review!)
-            .OrderByDescending(item => item.ReviewedAt)
-            .ThenByDescending(item => item.Id)
-            .FirstOrDefault();
-        var acceptedTechnicalCount = receiptReviews.Count(item =>
-            item.Review?.Outcome == TechnicalAcceptanceOutcomes.Accepted);
-        var rejectedTechnicalCount = receiptReviews.Count(item =>
-            item.Review?.Outcome == TechnicalAcceptanceOutcomes.Rejected);
-        var pendingTechnicalCount = receiptReviews.Count(item => item.Review is null);
-        var technicallyAcceptedQuantity = receiptReviews
-            .Where(item => item.Review?.Outcome == TechnicalAcceptanceOutcomes.Accepted)
-            .Sum(item => item.Receipt.AcceptedQuantity);
         var accepted = invoice.ReceivedQuantitySnapshot
-            ?? (line.RequiresTechnicalAcceptance
-                ? technicallyAcceptedQuantity
-                : relevantReceipts.Sum(item => item.AcceptedQuantity));
-        var technicalAcceptanceStatus = !line.RequiresTechnicalAcceptance
-            ? "NotRequired"
-            : technicallyAcceptedQuantity == line.Quantity && pendingTechnicalCount == 0
-                ? TechnicalAcceptanceOutcomes.Accepted
-                : rejectedTechnicalCount > 0 && pendingTechnicalCount == 0
-                    ? TechnicalAcceptanceOutcomes.Rejected
-                    : "Pending";
+            ?? relevantReceipts.Sum(item => item.AcceptedQuantity);
+        const string technicalAcceptanceStatus = "NotRequired";
         return new SupplierInvoiceResponseDto
         {
             Id = invoice.Id, InvoiceNumber = invoice.InvoiceNumber, PurchaseOrderId = invoice.PurchaseOrderId,
@@ -690,13 +648,13 @@ public sealed class FinanceWorkflowService : IFinanceWorkflowService
             QuantityMatches = invoice.ReviewedAt.HasValue && invoice.Quantity == accepted,
             PriceMatches = invoice.ReviewedAt.HasValue && invoice.UnitPrice == line.UnitPrice,
             AmountMatches = invoice.ReviewedAt.HasValue && invoice.Amount == decimal.Round(invoice.Quantity * invoice.UnitPrice, 2, MidpointRounding.AwayFromZero),
-            RequiresTechnicalAcceptance = line.RequiresTechnicalAcceptance,
+            RequiresTechnicalAcceptance = false,
             TechnicalAcceptanceStatus = technicalAcceptanceStatus,
-            TechnicalAcceptanceRequiredCount = line.RequiresTechnicalAcceptance ? acceptedTechnicalCount + pendingTechnicalCount : 0,
-            TechnicalAcceptanceAcceptedCount = line.RequiresTechnicalAcceptance ? acceptedTechnicalCount : 0,
-            TechnicalAcceptanceRejectedCount = line.RequiresTechnicalAcceptance ? rejectedTechnicalCount : 0,
-            LatestTechnicalReviewerName = latestTechnicalReview?.EngineerUser.FullName,
-            LatestTechnicalReviewAt = latestTechnicalReview?.ReviewedAt,
+            TechnicalAcceptanceRequiredCount = 0,
+            TechnicalAcceptanceAcceptedCount = 0,
+            TechnicalAcceptanceRejectedCount = 0,
+            LatestTechnicalReviewerName = null,
+            LatestTechnicalReviewAt = null,
             RequiresCeoApproval = invoice.Amount > CeoExceptionThreshold, MatchNotes = invoice.MatchNotes,
             CapturedByName = invoice.CapturedByUser.FullName, CapturedAt = invoice.CapturedAt,
             ReviewedByUserId = invoice.ReviewedByUserId,
@@ -747,11 +705,9 @@ public sealed class FinanceWorkflowService : IFinanceWorkflowService
     private static decimal QuantityEligibleForInvoice(
         PurchaseOrderLine line,
         IEnumerable<GoodsReceipt> receipts) =>
-        line.RequiresTechnicalAcceptance
-            ? receipts
-                .Where(item => LatestTechnicalAcceptance(item)?.Outcome == TechnicalAcceptanceOutcomes.Accepted)
-                .Sum(item => item.AcceptedQuantity)
-            : receipts.Sum(item => item.AcceptedQuantity);
+        receipts
+            .Where(item => LatestTechnicalAcceptance(item)?.Outcome != TechnicalAcceptanceOutcomes.Rejected)
+            .Sum(item => item.AcceptedQuantity);
 
     private static decimal? ReadEventQuantity(string entityType, string eventType, string? detailsJson)
     {

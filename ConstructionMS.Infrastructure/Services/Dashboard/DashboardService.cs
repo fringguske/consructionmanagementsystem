@@ -60,11 +60,10 @@ public sealed class DashboardService : IDashboardService
             .CountAsync(order => order.Lines.Any(line =>
                     (_db.GoodsReceipts
                         .Where(receipt => receipt.PurchaseOrderLineId == line.Id
-                            && (!line.RequiresTechnicalAcceptance
-                                || receipt.TechnicalAcceptances
-                                    .OrderByDescending(review => review.ReviewSequence)
-                                    .Select(review => review.Outcome)
-                                    .FirstOrDefault() == TechnicalAcceptanceOutcomes.Accepted))
+                            && receipt.TechnicalAcceptances
+                                .OrderByDescending(review => review.ReviewSequence)
+                                .Select(review => review.Outcome)
+                                .FirstOrDefault() != TechnicalAcceptanceOutcomes.Rejected)
                         .Sum(receipt => (decimal?)receipt.AcceptedQuantity) ?? 0) == line.Quantity)
                 && !_db.SupplierInvoices.Any(invoice =>
                     invoice.PurchaseOrderId == order.Id && activeInvoiceStatuses.Contains(invoice.Status)));

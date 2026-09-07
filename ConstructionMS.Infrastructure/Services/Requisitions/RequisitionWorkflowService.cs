@@ -13,7 +13,8 @@ using System.Text;
 using System.Text.Json;
 
 /// <summary>
-/// Implements the authenticated Foreman -> Engineer -> Supervisor requisition path.
+/// Implements the authenticated Foreman -> Supervisor requisition path (the Engineer
+/// technical check step is bypassedso requests go straight to the Supervisor decision).
 /// Actor IDs are supplied by the API from authentication claims and then verified
 /// again against the database role and active project assignment.
 /// </summary>
@@ -229,7 +230,7 @@ public sealed class RequisitionWorkflowService : IRequisitionWorkflowService
             Purpose = purpose,
             Notes = notes,
             RequestedByUserId = actorUserId,
-            Status = RequisitionWorkflowStates.AwaitingTechnicalCheck,
+            Status = RequisitionWorkflowStates.AwaitingSupervisorDecision,
             WorkflowRevision = 1,
             CreatedAt = now,
             UpdatedAt = now
@@ -245,7 +246,7 @@ public sealed class RequisitionWorkflowService : IRequisitionWorkflowService
             eventType: "Requested",
             actorResult.Value!,
             fromStatus: null,
-            toStatus: RequisitionWorkflowStates.AwaitingTechnicalCheck,
+            toStatus: RequisitionWorkflowStates.AwaitingSupervisorDecision,
             comments: purpose,
             eventDataJson: SerializeRequisitionSnapshot(
                 request.ProjectId,
@@ -464,7 +465,7 @@ public sealed class RequisitionWorkflowService : IRequisitionWorkflowService
                 .SetProperty(item => item.NeededByDate, request.NeededByDate)
                 .SetProperty(item => item.Purpose, purpose)
                 .SetProperty(item => item.Notes, notes)
-                .SetProperty(item => item.Status, RequisitionWorkflowStates.AwaitingTechnicalCheck)
+                .SetProperty(item => item.Status, RequisitionWorkflowStates.AwaitingSupervisorDecision)
                 .SetProperty(item => item.UpdatedAt, now)
                 .SetProperty(item => item.WorkflowRevision, newRevision),
                 cancellationToken);
@@ -481,7 +482,7 @@ public sealed class RequisitionWorkflowService : IRequisitionWorkflowService
             "Revised",
             actorResult.Value!,
             requisition.Status,
-            RequisitionWorkflowStates.AwaitingTechnicalCheck,
+            RequisitionWorkflowStates.AwaitingSupervisorDecision,
             notes,
             SerializeRequisitionSnapshot(
                 requisition.ProjectId,
@@ -638,11 +639,16 @@ public sealed class RequisitionWorkflowService : IRequisitionWorkflowService
             return Failure<RequisitionWorkflowResponseDto>(OperationErrorKind.NotFound, "The requisition was not found.");
         }
 
+        // Legacy SiteUse rows created before the Engineer check was removed may still sit in
+        // AwaitingTechnicalCheck; the Supervisor can decide them directly, so accept either status.
+        var requiredStatus = requisition.Status == RequisitionWorkflowStates.AwaitingTechnicalCheck
+            ? RequisitionWorkflowStates.AwaitingTechnicalCheck
+            : RequisitionWorkflowStates.AwaitingSupervisorDecision;
         var accessError = await ValidateActionAccessAsync(
             actorUserId,
             requisition,
             request.ExpectedRevision,
-            RequisitionWorkflowStates.AwaitingSupervisorDecision,
+            requiredStatus,
             cancellationToken);
         if (accessError is not null)
         {
@@ -657,26 +663,11 @@ public sealed class RequisitionWorkflowService : IRequisitionWorkflowService
                 "Approve or reject a store replenishment request. A rejected request can be raised again with corrected quantities.");
         }
 
-        var technicalCheck = isStockReplenishment
-            ? null
-            : await _db.Set<EngineerTechnicalCheck>()
-                .AsNoTracking()
-                .Where(check => check.RequisitionId == requisition.Id)
-                .OrderByDescending(check => check.Id)
-                .FirstOrDefaultAsync(cancellationToken);
-        if (!isStockReplenishment && (technicalCheck is null || technicalCheck.Outcome != "Verified"))
-        {
-            return Failure<RequisitionWorkflowResponseDto>(
-                OperationErrorKind.Conflict,
-                "A verified engineer technical check is required before supervisor action.");
-        }
-
-        if (actorUserId == requisition.RequestedByUserId
-            || (!isStockReplenishment && actorUserId == technicalCheck!.EngineerUserId))
+        if (actorUserId == requisition.RequestedByUserId)
         {
             return Failure<RequisitionWorkflowResponseDto>(
                 OperationErrorKind.Forbidden,
-                "Requester, engineer, and supervisor must be different users.");
+                "The requester and the supervisor must be different users.");
         }
 
         var toStatus = decision switch

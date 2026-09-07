@@ -69,10 +69,9 @@ function committedReceiptQuantity(order: PurchaseOrder, receipts: GoodsReceipt[]
 }
 
 function invoiceEligibleQuantity(order: PurchaseOrder, receipts: GoodsReceipt[]) {
-  const requiresEngineer = order.lines[0]?.requiresTechnicalAcceptance ?? false
   return receipts
     .filter(receipt => receipt.purchaseOrderId === order.id)
-    .filter(receipt => !requiresEngineer || receipt.technicalAcceptanceStatus === 'Accepted')
+    .filter(receipt => receipt.technicalAcceptanceStatus !== 'Rejected')
     .reduce((total, receipt) => total + receipt.acceptedQuantity, 0)
 }
 
@@ -307,7 +306,7 @@ export function LiveTechnicalAcceptanceView({ currentUser }: { currentUser: Curr
       <header className="technical-acceptance-toolbar">
         <div>
           <h2>Received materials</h2>
-          <span>{pending.length} waiting</span>
+          <span>{pending.length} waiting · legacy deliveries only</span>
         </div>
         <nav aria-label="Delivery check status">
           <button type="button" className={activeList === 'pending' ? 'active' : ''} aria-current={activeList === 'pending' ? 'page' : undefined} onClick={() => setActiveList('pending')}>Waiting <b>{pending.length}</b></button>
@@ -421,7 +420,7 @@ function StorekeeperActions({ currentUser, projectSummaries, orders, receipts, r
       <div className="ops-fields"><label><span>Quantity</span><input type="number" min="0.001" step="0.001" required value={replenishment.quantity} onChange={event => setReplenishment({ ...replenishment, quantity: event.target.value })}/></label><label><span>Unit</span><select disabled value={replenishmentMaterial?.unit ?? ''}><option>{replenishmentMaterial?.unit || 'Choose material'}</option></select></label></div>
       <label><span>Needed in store by</span><input type="date" required value={replenishment.neededByDate} onChange={event => setReplenishment({ ...replenishment, neededByDate: event.target.value })}/></label><label><span>Why the store needs this stock</span><textarea minLength={3} maxLength={500} rows={3} required value={replenishment.reason} onChange={event => setReplenishment({ ...replenishment, reason: event.target.value })} placeholder="For example: maintain a 1,000-bag cement reserve for the next work stages"/></label><label><span>Notes (optional)</span><input maxLength={1000} value={replenishment.notes} onChange={event => setReplenishment({ ...replenishment, notes: event.target.value })}/></label><button className="lav-button primary" disabled={busy}>Request store stock</button>
     </form>}
-    {activeAction === 'receive' && <form className="lav-panel ops-form" onSubmit={event => { event.preventDefault(); void submit(() => inventoryApi.receive({ purchaseOrderId: Number(receiving.purchaseOrderId), deliveredQuantity: Number(receiving.delivered), acceptedQuantity: Number(receiving.accepted), condition: receiving.condition, deliveryNoteReference: receiving.deliveryNote, evidenceReference: receiving.evidence || null, discrepancyNotes: receiving.notes || null }), selectedOrderLine?.requiresTechnicalAcceptance && Number(receiving.accepted) > 0 ? 'GRN saved. Engineer acceptance is now waiting.' : Number(receiving.accepted) > 0 ? 'GRN saved and accepted stock added to the store.' : 'GRN saved with no quantity added to stock.').then(saved => { if (saved) setReceiving({ purchaseOrderId: '', delivered: '', accepted: '', condition: 'Good', deliveryNote: '', evidence: '', notes: '' }) }) }}>
+    {activeAction === 'receive' && <form className="lav-panel ops-form" onSubmit={event => { event.preventDefault(); void submit(() => inventoryApi.receive({ purchaseOrderId: Number(receiving.purchaseOrderId), deliveredQuantity: Number(receiving.delivered), acceptedQuantity: Number(receiving.accepted), condition: receiving.condition, deliveryNoteReference: receiving.deliveryNote, evidenceReference: receiving.evidence || null, discrepancyNotes: receiving.notes || null }), Number(receiving.accepted) > 0 ? 'GRN saved and accepted stock added to the store.' : 'GRN saved with no quantity added to stock.').then(saved => { if (saved) setReceiving({ purchaseOrderId: '', delivered: '', accepted: '', condition: 'Good', deliveryNote: '', evidence: '', notes: '' }) }) }}>
       <h2>Receive delivery</h2>
       <label><span>Issued purchase order</span><select required value={receiving.purchaseOrderId} onChange={e => setReceiving({ purchaseOrderId: e.target.value, delivered: '', accepted: '', condition: 'Good', deliveryNote: '', evidence: '', notes: '' })}><option value="">Choose order</option>{expectedOrders.map(order => { const committed = committedReceiptQuantity(order, receipts); const line = order.lines[0]; return <option value={order.id} key={order.id}>{line?.materialName} · {order.supplierName} · {line ? line.quantity - committed : 0} {line?.materialUnit} outstanding</option> })}</select></label>
       <div className="ops-fields three"><label><span>Delivered</span><input type="number" min="0.001" step="0.001" required value={receiving.delivered} onChange={e => setReceiving({ ...receiving, delivered: e.target.value })}/></label><label><span>Accepted</span><input type="number" min="0" step="0.001" required value={receiving.accepted} onChange={e => setReceiving({ ...receiving, accepted: e.target.value })}/></label><label><span>Unit</span><select disabled value={selectedOrderLine?.materialUnit ?? ''}><option>{selectedOrderLine?.materialUnit || 'Choose order'}</option></select></label></div>
@@ -625,7 +624,7 @@ export function LiveFinanceView({ currentUser }: { currentUser: CurrentUser }) {
     return () => controller.abort()
   }, [dataSection, financeSection, refresh, role])
   const financeReadyInvoices = invoices.filter(invoice => invoice.status === 'PendingReview'
-    && (!invoice.requiresTechnicalAcceptance || invoice.technicalAcceptanceStatus === 'Accepted'))
+    && (invoice.technicalAcceptanceStatus ?? 'NotRequired') !== 'Rejected')
   const invoiceRecords = role === 'Supervisor'
     ? invoices.filter(invoice => invoice.status === 'ReadyForAuthorization')
     : role === 'Finance Officer' && !showAllInvoiceRecords
@@ -735,9 +734,8 @@ function InvoiceCapture({ orders, receipts, invoices, onRun }: { orders: Purchas
 
 function InvoiceCard({ invoice, technicalAcceptances, currentUser, run }: { invoice: SupplierInvoice; technicalAcceptances: TechnicalAcceptanceWorkItem[]; currentUser: CurrentUser; run: (action: () => Promise<unknown>, text: string) => Promise<boolean> }) {
   const role = currentUser.role
-  const technicalStatus = invoice.requiresTechnicalAcceptance ? invoice.technicalAcceptanceStatus ?? 'Pending' : 'NotRequired'
+  const technicalStatus = invoice.requiresTechnicalAcceptance && invoice.technicalAcceptanceStatus === 'Rejected' ? 'Rejected' : 'NotRequired'
   const action = () => {
-    if (role === 'Finance Officer' && invoice.status === 'PendingReview' && technicalStatus === 'Pending') return <span className="ops-status technical-wait">Waiting for Engineer</span>
     if (role === 'Finance Officer' && invoice.status === 'PendingReview' && technicalStatus === 'Rejected') return <span className="ops-status rejected">Delivery rejected</span>
     if (role === 'Finance Officer' && invoice.status === 'PendingReview') return <button className="lav-button primary" onClick={() => void run(() => financeApi.reviewInvoice(invoice.id), 'Three-way match completed.')}>Run match</button>
     if (role === 'Supervisor' && invoice.status === 'ReadyForAuthorization' && invoice.reviewedByUserId !== currentUser.id) return <button className="lav-button primary" onClick={() => void run(() => financeApi.authorize(invoice.id), 'Payment authorized.')}>Authorize payment</button>
@@ -746,15 +744,7 @@ function InvoiceCard({ invoice, technicalAcceptances, currentUser, run }: { invo
   }
   const technicalState = technicalStatus !== 'NotRequired' && <div className={`invoice-technical-state ${technicalStatus.toLowerCase()}`}>
     <b>Engineer check</b>
-    <span>{technicalStatus === 'Accepted'
-      ? invoice.technicalAcceptanceRejectedCount > 0
-        ? `Accepted · ${invoice.technicalAcceptanceRejectedCount} earlier ${invoice.technicalAcceptanceRejectedCount === 1 ? 'delivery' : 'deliveries'} rejected`
-        : invoice.technicalAcceptanceRequiredCount > 1
-        ? `${invoice.technicalAcceptanceAcceptedCount} of ${invoice.technicalAcceptanceRequiredCount} deliveries accepted`
-        : `Accepted${invoice.latestTechnicalReviewerName ? ` by ${invoice.latestTechnicalReviewerName}` : ''}`
-      : technicalStatus === 'Rejected'
-        ? `${invoice.technicalAcceptanceRejectedCount} ${invoice.technicalAcceptanceRejectedCount === 1 ? 'delivery' : 'deliveries'} rejected`
-        : `${invoice.technicalAcceptanceAcceptedCount} of ${invoice.technicalAcceptanceRequiredCount} deliveries accepted`}</span>
+    <span>{invoice.technicalAcceptanceRejectedCount} {invoice.technicalAcceptanceRejectedCount === 1 ? 'delivery' : 'deliveries'} rejected</span>
   </div>
   return <article>
     <header><div><span>{invoice.projectName}</span><h3>{invoice.supplierName}</h3><small>Invoice {invoice.invoiceNumber}</small></div><b className={`ops-status ${invoice.status.toLowerCase()}`}>{invoice.status.replaceAll(/([A-Z])/g, ' $1').trim()}</b></header>
