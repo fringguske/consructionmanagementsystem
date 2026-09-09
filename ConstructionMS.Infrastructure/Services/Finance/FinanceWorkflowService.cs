@@ -124,16 +124,34 @@ public sealed class FinanceWorkflowService : IFinanceWorkflowService
         invoice.ReviewedByUserId = actorUserId;
         invoice.ReviewedAt = now;
         invoice.MatchNotes = notes;
+        // The Finance match itself records the payment authority; no separate Supervisor authorization step exists.
         invoice.Status = !allMatch
             ? InvoiceStatuses.Mismatch
             : invoice.Amount > CeoExceptionThreshold
                 ? InvoiceStatuses.AwaitingCeoApproval
-                : InvoiceStatuses.ReadyForAuthorization;
+                : InvoiceStatuses.Authorized;
+        PaymentAuthorization? authorization = null;
+        if (invoice.Status == InvoiceStatuses.Authorized)
+        {
+            authorization = new PaymentAuthorization
+            {
+                AuthorizationNumber = Reference("AUT", now), SupplierInvoiceId = invoice.Id, Amount = invoice.Amount,
+                AuthorizedByUserId = actorUserId, Notes = notes, AuthorizedAt = now
+            };
+            _db.PaymentAuthorizations.Add(authorization);
+        }
         await _events.AppendAsync(Chain(invoice.PurchaseOrder.RequisitionId), invoice.PurchaseOrder.RequisitionId,
             invoice.ProjectId, "SupplierInvoice", invoice.Id, invoice.InvoiceNumber,
             allMatch ? (invoice.Status == InvoiceStatuses.AwaitingCeoApproval ? "InvoiceMatchedCeoException" : "InvoiceMatched") : "InvoiceMismatch",
             actorUserId, actorRole, new { quantityMatches, priceMatches, amountMatches, accepted, notes }, now);
         await _db.SaveChangesAsync();
+        if (authorization is not null)
+        {
+            await _events.AppendAsync(Chain(invoice.PurchaseOrder.RequisitionId), invoice.PurchaseOrder.RequisitionId,
+                invoice.ProjectId, "PaymentAuthorization", authorization.Id, authorization.AuthorizationNumber, "PaymentAuthorized",
+                actorUserId, actorRole, new { authorization.Amount, notes }, now);
+            await _db.SaveChangesAsync();
+        }
         await transaction.CommitAsync();
         return await LoadInvoiceAsync(id);
     }
@@ -152,11 +170,29 @@ public sealed class FinanceWorkflowService : IFinanceWorkflowService
         var now = DateTime.UtcNow;
         invoice.CeoDecisionByUserId = actorUserId; invoice.CeoDecision = request.Approve ? "Approved" : "Rejected";
         invoice.CeoDecisionNotes = notes; invoice.CeoDecisionAt = now;
-        invoice.Status = request.Approve ? InvoiceStatuses.ReadyForAuthorization : InvoiceStatuses.Rejected;
+        // The CEO exception decision records the payment authority directly; Finance then executes it.
+        invoice.Status = request.Approve ? InvoiceStatuses.Authorized : InvoiceStatuses.Rejected;
         await _events.AppendAsync(Chain(invoice.PurchaseOrder.RequisitionId), invoice.PurchaseOrder.RequisitionId, invoice.ProjectId,
             "SupplierInvoice", invoice.Id, invoice.InvoiceNumber, request.Approve ? "CeoExceptionApproved" : "CeoExceptionRejected",
             actorUserId, actorRole, new { notes }, now);
+        PaymentAuthorization? authorization = null;
+        if (request.Approve)
+        {
+            authorization = new PaymentAuthorization
+            {
+                AuthorizationNumber = Reference("AUT", now), SupplierInvoiceId = invoice.Id, Amount = invoice.Amount,
+                AuthorizedByUserId = actorUserId, Notes = notes, AuthorizedAt = now
+            };
+            _db.PaymentAuthorizations.Add(authorization);
+        }
         await _db.SaveChangesAsync();
+        if (authorization is not null)
+        {
+            await _events.AppendAsync(Chain(invoice.PurchaseOrder.RequisitionId), invoice.PurchaseOrder.RequisitionId, invoice.ProjectId,
+                "PaymentAuthorization", authorization.Id, authorization.AuthorizationNumber, "PaymentAuthorized",
+                actorUserId, actorRole, new { authorization.Amount, notes }, now);
+            await _db.SaveChangesAsync();
+        }
         await transaction.CommitAsync();
         return await LoadInvoiceAsync(id);
     }
@@ -218,7 +254,6 @@ public sealed class FinanceWorkflowService : IFinanceWorkflowService
         var authorization = await _db.PaymentAuthorizations.Include(item => item.SupplierInvoice).ThenInclude(item => item.PurchaseOrder)
             .SingleOrDefaultAsync(item => item.Id == authorizationId) ?? throw new KeyNotFoundException("The payment authorization was not found.");
         if (authorization.SupplierInvoice.Status != InvoiceStatuses.Authorized) throw new InvalidOperationException("This authorization is not available for payment.");
-        if (authorization.AuthorizedByUserId == actorUserId) throw new UnauthorizedAccessException("The payment authorizer cannot execute the payment.");
         await RequireProjectAccessAsync(actorUserId, authorization.SupplierInvoice.ProjectId);
         var cashAccount = await ResolveCashAccountForPostingAsync(
             authorization.SupplierInvoice.ProjectId,

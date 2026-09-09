@@ -1463,7 +1463,7 @@ function PurchaseOrderCard({
       {showActions && (
         <div className="lav-card-action-row lav-multi-actions">
           {canCorrect && <button className="lav-button secondary" type="button" onClick={() => setAction('correct')}>Correct details</button>}
-          {canSubmit && <button className="lav-button primary" type="button" onClick={() => setAction('submit')}>Submit for approval</button>}
+          {canSubmit && <button className="lav-button primary" type="button" onClick={() => setAction('submit')}>Submit and approve</button>}
           {canIssue && <button className="lav-button primary" type="button" onClick={() => setAction('issue')}>Issue to supplier</button>}
           {canReview && <button className="lav-button primary" type="button" onClick={() => setAction('approve')}>Approve</button>}
           {canReview && <button className="lav-button secondary" type="button" onClick={() => setAction('return')}>Return for correction</button>}
@@ -1528,7 +1528,7 @@ function OrderActionForm({
   const reasonRequired = action === 'return' || action === 'reject' || action === 'cancel' || action === 'correct'
 
   const titles: Record<Exclude<OrderAction, null>, string> = {
-    submit: 'Submit order for approval',
+    submit: 'Submit and approve order',
     approve: 'Approve supplier order',
     issue: 'Issue approved order',
     return: 'Return order for correction',

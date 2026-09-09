@@ -655,7 +655,7 @@ export function LiveFinanceView({ currentUser }: { currentUser: CurrentUser }) {
     {role === 'CEO' && financeSection === 'summary' && cashBookLoading && <section className="lav-panel ops-panel"><Loading>Loading cash book…</Loading></section>}
     {role === 'CEO' && financeSection === 'summary' && cashBookError && <section className="lav-panel ops-panel"><Notice tone="error">{cashBookError}</Notice></section>}
     {role === 'CEO' && financeSection === 'summary' && cashBook && <CeoCashBook cashBook={cashBook}/>}
-    {role === 'Finance Officer' && financeSection === 'authorized' && <FinancePaymentActions currentUser={currentUser} authorizations={authorizations} run={run}/>}
+    {role === 'Finance Officer' && financeSection === 'authorized' && <FinancePaymentActions authorizations={authorizations} run={run}/>}
     {showExecutedPayments && <section className="lav-panel ops-panel">
       <header className="lav-panel-head"><div><span className="lav-kicker">PAYMENT PROOF</span><h2>Executed payments</h2></div></header>
       {payments.length ? <div className="ops-table ops-payment-table" role="region" aria-label="Executed payments table" tabIndex={0}>
@@ -758,7 +758,7 @@ function InvoiceCard({ invoice, technicalAcceptances, currentUser, run }: { invo
   </article>
 }
 
-function FinancePaymentActions({ currentUser, authorizations, run }: { currentUser: CurrentUser; authorizations: PaymentAuthorization[]; run: (action: () => Promise<unknown>, text: string) => Promise<boolean> }) {
+function FinancePaymentActions({ authorizations, run }: { authorizations: PaymentAuthorization[]; run: (action: () => Promise<unknown>, text: string) => Promise<boolean> }) {
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [form, setForm] = useState({ method: 'BankTransfer', reference: '', evidence: '', cashAccount: '' })
   const [cashAccounts, setCashAccounts] = useState<CashAccount[]>([])
@@ -781,16 +781,13 @@ function FinancePaymentActions({ currentUser, authorizations, run }: { currentUs
   return <section className="lav-panel ops-panel">
     <header className="lav-panel-head"><div><span className="lav-kicker">READY TO PAY</span><h2>Authorized payments</h2></div></header>
     <div className="ops-issue-grid">
-      {unpaid.map(item => {
-        const canExecute = item.authorizedByUserId !== currentUser.id
-        return <article key={item.id}>
+      {unpaid.map(item => (
+        <article key={item.id}>
           <div><span>{item.projectName}</span><b>{item.supplierName}</b><strong>{money(item.amount)}</strong></div>
           <p>Authorized by {item.authorizedByName}</p>
-          {canExecute
-            ? <button type="button" className="lav-button primary" onClick={() => { setCashAccounts([]); setCashAccountError(null); setCashAccountLoading(true); setSelectedId(item.id); setForm({ method: 'BankTransfer', reference: '', evidence: '', cashAccount: '' }) }}>Record payment</button>
-            : <span className="ops-status awaitingconfirmation">Authorization must come from another account</span>}
+          <button type="button" className="lav-button primary" onClick={() => { setCashAccounts([]); setCashAccountError(null); setCashAccountLoading(true); setSelectedId(item.id); setForm({ method: 'BankTransfer', reference: '', evidence: '', cashAccount: '' }) }}>Record payment</button>
         </article>
-      })}
+      ))}
       {unpaid.length === 0 && <Empty>No authorized payment is waiting.</Empty>}
     </div>
     {selected && <div className="ops-modal-wrap" role="presentation">

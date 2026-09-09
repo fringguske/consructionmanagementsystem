@@ -1135,7 +1135,7 @@ public class AppDbContext : DbContext
                 "\"Status\" IN ('Draft', 'Submitted', 'Approved', 'Issued', 'Rejected', 'Cancelled')");
             table.HasCheckConstraint(
                 "CK_PurchaseOrders_Actors_Distinct",
-                "(\"ApprovedByUserId\" IS NULL OR \"ApprovedByUserId\" <> \"CreatedByUserId\") AND " +
+                // Self-approval is allowed: Procurement submits and approves its own PO. Rejection stays independent.
                 "(\"RejectedByUserId\" IS NULL OR \"RejectedByUserId\" <> \"CreatedByUserId\")");
             table.HasCheckConstraint(
                 "CK_PurchaseOrders_CancellationActor",
@@ -1143,7 +1143,9 @@ public class AppDbContext : DbContext
                 "((\"ApprovedAt\" IS NOT NULL OR (\"SubmittedAt\" IS NOT NULL AND \"RejectedAt\" IS NULL)) " +
                 "AND \"CancelledByUserId\" <> \"CreatedByUserId\") OR " +
                 "((\"ApprovedAt\" IS NULL AND (\"SubmittedAt\" IS NULL OR \"RejectedAt\" IS NOT NULL)) " +
-                "AND \"CancelledByUserId\" = \"CreatedByUserId\")");
+                "AND \"CancelledByUserId\" = \"CreatedByUserId\") OR " +
+                // The creator may cancel an order they self-approved before it is issued.
+                "(\"ApprovedByUserId\" = \"CreatedByUserId\" AND \"CancelledByUserId\" = \"CreatedByUserId\")");
             table.HasCheckConstraint(
                 "CK_PurchaseOrders_WorkflowFields",
                 "(\"Status\" = 'Draft' AND \"SubmittedAt\" IS NULL AND \"ApprovedAt\" IS NULL " +

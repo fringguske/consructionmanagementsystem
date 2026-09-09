@@ -244,7 +244,6 @@ function dashboardActions(role: CurrentUser['role']): DashboardAction[] {
     case 'Supervisor':
       return [
         { destination: 'requisitions', label: 'Material decisions', detail: 'Approve foreman requests directly', count: 'pendingRequisitionCount', countLabel: 'requests in progress' },
-        { destination: 'finance', label: 'Payment approvals', detail: 'Authorize matched supplier invoices', count: 'pendingPaymentAuthorizationCount', countLabel: 'waiting for approval' },
         { destination: 'inventory', label: 'Stock checks', detail: 'Review independent physical-count differences', count: 'pendingStockCountReviewCount', countLabel: 'waiting for review' },
         { destination: 'projects', label: 'Projects', detail: 'Review progress and commitments', count: 'visibleProjectCount', countLabel: 'projects visible' },
       ]
@@ -272,7 +271,7 @@ function dashboardActions(role: CurrentUser['role']): DashboardAction[] {
       return [
         { destination: 'suppliers', label: 'Supplier approvals', detail: 'Verify supplier identity before sourcing', count: 'pendingSupplierOnboardingCount', countLabel: 'waiting for review' },
         { destination: 'finance', label: 'Invoice matching', detail: 'Match invoice, order and received goods', count: 'pendingInvoiceReviewCount', countLabel: 'waiting for review' },
-        { destination: 'finance', label: 'Ready to pay', detail: 'Record Supervisor-authorized payments', count: 'pendingPaymentCount', countLabel: 'approved payments waiting' },
+        { destination: 'finance', label: 'Ready to pay', detail: 'Record payments for matched invoices', count: 'pendingPaymentCount', countLabel: 'payments waiting' },
       ]
     default:
       return []
@@ -297,8 +296,7 @@ function dashboardSummary(role: CurrentUser['role'], dashboard: DashboardRespons
         { label: 'Payments recorded', value: dashboard.completedPaymentCount, detail: 'Completed payments with system receipts.', tone: 'approved' }]
     case 'Supervisor':
       return [projects,
-        { label: 'Requests moving', value: dashboard.pendingRequisitionCount, detail: 'Requests not yet finally decided.', tone: 'pending' },
-        { label: 'Payment approvals', value: dashboard.pendingPaymentAuthorizationCount, detail: 'Matched invoices waiting for your authorization.', tone: 'approved' }]
+        { label: 'Requests moving', value: dashboard.pendingRequisitionCount, detail: 'Requests not yet finally decided.', tone: 'pending' }]
     case 'Engineer':
       return [projects]
     case 'Foreman':
@@ -317,7 +315,7 @@ function dashboardSummary(role: CurrentUser['role'], dashboard: DashboardRespons
       return [
         { label: 'Suppliers to review', value: dashboard.pendingSupplierOnboardingCount, detail: 'Companies not yet available for sourcing.', tone: 'projects' },
         { label: 'Invoices to match', value: dashboard.pendingInvoiceReviewCount, detail: 'Waiting for the three-way check.', tone: 'pending' },
-        { label: 'Ready to pay', value: dashboard.pendingPaymentCount, detail: 'Supervisor-authorized payments waiting for execution.', tone: 'approved' }]
+        { label: 'Ready to pay', value: dashboard.pendingPaymentCount, detail: 'Matched invoices ready for payment.', tone: 'approved' }]
     default:
       return [projects]
   }

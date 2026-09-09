@@ -210,22 +210,78 @@ public sealed class PurchaseOrderService : IPurchaseOrderService
             _db, _actorRoleResolver, actorUserId, actorRole, PurchaseWorkflowAuthorization.ProcurementOfficer);
         var order = await GetWorkflowOrderAsync(id);
         await RequireCreatorAndAssignmentAsync(order, actorUserId, actorRole);
+
+        // New flow: submitting is approving. Procurement awards the sourcing round and commits the budget itself.
+        if (order.Status != PurchaseOrderWorkflowStates.Draft)
+        {
+            throw InvalidState(order, PurchaseOrderWorkflowStates.Draft, "submitted and approved");
+        }
         if (order.SupplierQuote.SourcingRound.Status != SourcingRoundWorkflowStates.Open)
         {
             throw new InvalidOperationException("The source round must be open before this PO can be submitted.");
         }
 
         EnsureSupplierCanProceed(order);
-        return await SimpleTransitionAsync(
-            order,
-            PurchaseOrderWorkflowStates.Draft,
-            PurchaseOrderWorkflowStates.Submitted,
-            "Submitted",
+        var now = DateTime.UtcNow;
+        var notes = InputNormalizer.OptionalText(dto.Notes, nameof(dto.Notes), 1_000);
+        await using var transaction = await _db.Database.BeginTransactionAsync();
+        await BudgetCommitmentGuard.LockProjectAsync(_db, order.ProjectId);
+        await LockSourcingRoundAsync(order.SupplierQuote.SourcingRoundId);
+
+        var costCodeId = await _db.Requisitions
+            .AsNoTracking()
+            .Where(item => item.Id == order.RequisitionId)
+            .Select(item => item.CostCodeId)
+            .SingleAsync();
+        await BudgetCommitmentGuard.EnsureAvailableAsync(
+            _db,
+            order.ProjectId,
+            costCodeId,
+            order.Lines.Sum(line => line.Quantity * line.UnitPrice),
+            excludedPurchaseOrderId: order.Id);
+
+        var roundUpdated = await _db.SourcingRounds
+            .Where(round =>
+                round.Id == order.SupplierQuote.SourcingRoundId
+                && round.Status == SourcingRoundWorkflowStates.Open)
+            .ExecuteUpdateAsync(updates => updates
+                .SetProperty(round => round.Status, SourcingRoundWorkflowStates.Awarded)
+                .SetProperty(round => round.ClosedAt, now));
+        EnsureTransitionWon(roundUpdated, "The source round was actioned by another user.");
+
+        var orderUpdated = await _db.PurchaseOrders
+            .Where(item => item.Id == order.Id && item.Status == PurchaseOrderWorkflowStates.Draft)
+            .ExecuteUpdateAsync(updates => updates
+                .SetProperty(item => item.Status, PurchaseOrderWorkflowStates.Approved)
+                .SetProperty(item => item.SubmittedAt, now)
+                .SetProperty(item => item.ApprovedByUserId, (int?)actorUserId)
+                .SetProperty(item => item.ApprovedAt, now));
+        EnsureTransitionWon(orderUpdated, "The purchase order was actioned by another user.");
+
+        _db.PurchaseOrderEvents.Add(NewEvent(
             actorUserId,
             actorRole,
-            dto.Notes);
+            "Approved",
+            PurchaseOrderWorkflowStates.Draft,
+            PurchaseOrderWorkflowStates.Approved,
+            notes,
+            now,
+            order.Id));
+        _db.SourcingRoundEvents.Add(NewSourcingEvent(
+            order.SupplierQuote.SourcingRoundId,
+            actorUserId,
+            actorRole,
+            "Awarded",
+            SourcingRoundWorkflowStates.Open,
+            SourcingRoundWorkflowStates.Awarded,
+            $"Awarded through {order.PurchaseOrderNumber}.",
+            now));
+        await _db.SaveChangesAsync();
+        await transaction.CommitAsync();
+        return await RequireVisibleOrderAsync(order.Id, actorUserId, actorRole);
     }
 
+    /// <summary>Legacy approval for orders submitted under the old two-step flow; new submissions approve directly.</summary>
     public async Task<PurchaseOrderResponseDto> ApproveAsync(
         int id,
         PurchaseOrderActionRequestDto dto,
@@ -455,7 +511,9 @@ public sealed class PurchaseOrderService : IPurchaseOrderService
 
         var procurementCancellation =
             (order.Status == PurchaseOrderWorkflowStates.Draft
-                || order.Status == PurchaseOrderWorkflowStates.Rejected)
+                || order.Status == PurchaseOrderWorkflowStates.Rejected
+                // A self-approved order stays cancellable by its creator until it is issued.
+                || order.Status == PurchaseOrderWorkflowStates.Approved)
             && PurchaseWorkflowAuthorization.RoleEquals(
                 actorRole, PurchaseWorkflowAuthorization.ProcurementOfficer)
             && order.CreatedByUserId == actorUserId;
@@ -470,7 +528,7 @@ public sealed class PurchaseOrderService : IPurchaseOrderService
         if (!procurementCancellation && !independentCancellation)
         {
             throw new UnauthorizedAccessException(
-                "Procurement may cancel its Draft/Rejected PO; a Submitted/Approved PO requires Supervisor or CEO cancellation.");
+                "Procurement may cancel its own Draft/Rejected/Approved PO; a legacy Submitted PO requires Supervisor or CEO cancellation.");
         }
 
         var reason = RequireReason(dto.Reason);

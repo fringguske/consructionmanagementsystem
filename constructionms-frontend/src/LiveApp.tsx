@@ -175,7 +175,7 @@ const roleContextSections: Partial<Record<ConstructionRole, readonly ContextSect
     paths: ['/finance', '/petty-cash'],
     label: 'Money',
     links: [
-      { to: '/finance', label: 'Payment approvals' },
+      { to: '/finance', label: 'Supplier payments' },
       { to: '/finance?section=executed', label: 'Executed payments' },
       { to: '/petty-cash', label: 'Petty cash' },
     ],

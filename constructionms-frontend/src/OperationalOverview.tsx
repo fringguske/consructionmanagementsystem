@@ -93,12 +93,10 @@ const workspaceConfig: Record<SimplifiedRole, WorkspaceConfig> = {
     links: [
       { label: 'Material approvals', to: '/requisitions' },
       { label: 'Stock controls', to: '/inventory' },
-      { label: 'Supplier payments', to: '/finance' },
       { label: 'Projects', to: '/projects' },
     ],
     metrics: [
       { label: 'Work waiting', value: (_dashboard, tasks) => tasks.totalCount, attention: value => value > 0 },
-      { label: 'Payment approvals', value: dashboard => dashboard.pendingPaymentAuthorizationCount, attention: value => value > 0 },
       { label: 'Count reviews', value: dashboard => dashboard.pendingStockCountReviewCount, attention: value => value > 0 },
       { label: 'Assigned projects', value: dashboard => dashboard.visibleProjectCount },
     ],

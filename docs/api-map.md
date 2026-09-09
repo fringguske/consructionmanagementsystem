@@ -13,9 +13,9 @@ All paths use the `/api/v1` prefix. Except for login, liveness and readiness, th
 | Request materials and independently approve need | `requisitionsApi` | `V1/RequisitionsController` | `RequisitionWorkflowService` | `Requisitions`, `EngineerTechnicalChecks`, `RequisitionApprovalEvents` |
 | Submit and independently approve supplier companies | `supplierOnboardingApi`, `suppliersApi` | `SupplierOnboardingController`, `SuppliersController` | `SupplierOnboardingService`, `SupplierService` | `SupplierOnboardingRequests`, `Suppliers` |
 | Collect comparable supplier offers | `sourcingRoundsApi`, `suppliersApi` | `SourcingRoundsController`, `SuppliersController` | `SourcingService`, `SupplierService` | `SourcingRounds`, `SourcingRoundEvents`, `SupplierQuotes`, `Suppliers` |
-| Prepare, approve and issue an order | `purchaseOrdersApi` | `PurchaseOrdersController` | `PurchaseOrderService` | `PurchaseOrders`, `PurchaseOrderLines`, `PurchaseOrderEvents` |
+| Prepare, self-approve and issue an order | `purchaseOrdersApi` | `PurchaseOrdersController` | `PurchaseOrderService` | `PurchaseOrders`, `PurchaseOrderLines`, `PurchaseOrderEvents` |
 | Receive, technically accept, store, issue, transfer and account for material | `inventoryApi` | `InventoryController` | `InventoryWorkflowService` | `GoodsReceipts`, `GoodsReceiptTechnicalAcceptances`, `StockBalances`, `StockLedgerEntries`, `MaterialIssues`, `MaterialUsageRecords`, `StockTransfers`, `StockCounts` |
-| Match, authorize and execute supplier payments | `financeApi` | `FinanceController` | `FinanceWorkflowService` | `SupplierInvoices`, `PaymentAuthorizations`, `Payments`, `PaymentReceipts` |
+| Match and execute supplier payments | `financeApi` | `FinanceController` | `FinanceWorkflowService` | `SupplierInvoices`, `PaymentAuthorizations`, `Payments`, `PaymentReceipts` |
 | Request, hand over, confirm and reconcile petty cash | `pettyCashApi` | `PettyCashController` | `PettyCashService` | `PettyCashRequests`, `PettyCashDisbursements`, `PettyCashReceiptConfirmations`, `PettyCashReconciliations` |
 | View role-owned work and overdue notices | `tasksApi`, `notificationsApi` | `MyTasksController`, `NotificationsController` | `MyTasksService`, `InAppNotificationService` | Authoritative workflow tables, `InAppNotifications`, read/resolution receipts |
 | Establish opening inventory and cash | `openingPositionsApi` | `ControlWorkspaceController` | `ControlWorkspaceService` | Opening-position batches/lines, independent verification/decision/posting records, stock/cash ledgers |
@@ -33,7 +33,7 @@ All paths use the `/api/v1` prefix. Except for login, liveness and readiness, th
 | `/requisitions` | Material request and approval chain | CEO, Supervisor, Engineer, Foreman, Auditor |
 | `/sourcing` | Sourcing rounds, quotes, supplier comparison and draft-PO creation | CEO, Supervisor, Procurement Officer, Auditor |
 | `/suppliers` | Supplier application, independent approval and approved register | CEO, Procurement Officer, Finance Officer, Auditor |
-| `/purchase-orders` | Submit, approve/return/reject, correct, cancel and issue | CEO, Supervisor, Procurement Officer, Storekeeper, Finance Officer, Auditor |
+| `/purchase-orders` | Submit-and-approve, correct, cancel and issue (legacy review for orders still Submitted) | CEO, Supervisor, Procurement Officer, Storekeeper, Finance Officer, Auditor |
 | `/inventory` | GRNs, store balances, issues, Foreman custody, transfers and stock counts | CEO, Supervisor, Engineer, Foreman, Storekeeper, Finance Officer, Auditor |
 | `/delivery-checks` | Legacy technical checks for deliveries recorded before direct posting | Engineer |
 | `/tasks` | Current role's actionable records and overdue state | Every signed-in role |
@@ -139,13 +139,13 @@ Quote recording locks the sourcing round, so a quote cannot slip in concurrently
 |---|---|---|
 | `GET /purchase-orders` / `GET /purchase-orders/{id}` | Procurement, Supervisor, Storekeeper, Finance, CEO, Auditor | Read a role-shaped PO queue. Storekeeper does not receive prices or the actor chain. |
 | `POST /purchase-orders` | Procurement | Build a draft from the approved requisition and chosen quote; demand and price are server-derived. |
-| `POST /purchase-orders/{id}/submit` | Creating Procurement officer | Submit for independent approval. |
-| `POST /purchase-orders/{id}/approve` | Different Supervisor or CEO | Approve the commercial commitment; only now is the sourcing round awarded. |
+| `POST /purchase-orders/{id}/submit` | Creating Procurement officer | Submit and approve in one step: awards the sourcing round and commits the budget (Draft → Approved). |
+| `POST /purchase-orders/{id}/approve` | Different Supervisor or CEO | Legacy endpoint for orders still `Submitted` under the old two-step flow; only the approval awards the sourcing round. |
 | `POST /purchase-orders/{id}/return-to-draft` | Supervisor or CEO | Return a submitted PO with a required reason. |
 | `POST /purchase-orders/{id}/reject` | Supervisor or CEO | Reject a submitted PO with a required reason. |
 | `PATCH /purchase-orders/{id}/correction` | Creating Procurement officer | Correct delivery/location/notes while in Draft and record why; a rejected PO is replaced rather than rewritten. |
 | `POST /purchase-orders/{id}/issue` | Assigned Procurement officer | Issue only an approved PO while the project remains active. A Procurement handoff within the same assigned project is allowed and recorded. |
-| `POST /purchase-orders/{id}/cancel` | Procurement, Supervisor or CEO according to current state | Stop a non-issued PO with a required reason. |
+| `POST /purchase-orders/{id}/cancel` | Procurement, Supervisor or CEO according to current state | Stop a non-issued PO with a required reason. Procurement can cancel its own Draft/Rejected/Approved order; a legacy Submitted order requires Supervisor or CEO. |
 
 For site-use requests, the requester and supervisor decision-maker are checked as separate responsibilities. A bulk store-replenishment request is raised by Stores and independently approved by the Supervisor before Procurement sourcing. Database triggers also reject a PO or line whose project, requisition, material, supplier, selected quote, quantity or price do not describe the same commercial source. Commercial snapshots are stored in append-only lines/events; operational roles receive only the information required for their next step.
 
@@ -185,7 +185,7 @@ Materials come from one categorized catalog. The Foreman selects the material an
 Storekeeper GRN → accepted quantity posted directly to usable stock
 Full PO quantity accepted by Stores + Procurement supplier invoice → Finance three-way match
                                                        → CEO only for high-value exception
-                                                       → assigned Supervisor authorization
+                                                       → payment authorization recorded by the match (or CEO)
                                                        → Finance executes → system receipt
 ```
 
@@ -193,11 +193,11 @@ Full PO quantity accepted by Stores + Procurement supplier invoice → Finance t
 |---|---|---|
 | `GET /finance/invoices` | Procurement, Supervisor, Finance, CEO, Auditor | Read the scoped invoice queue without granting action rights. |
 | `POST /finance/invoices` | Assigned Procurement officer | Capture an immutable supplier invoice only after the full PO quantity is accepted by Stores. This starter release does not silently treat one invoice as a partial-invoice schedule. |
-| `POST /finance/invoices/{id}/review` | Different Finance officer | Compare invoice quantity, unit price and amount exactly with accepted GRNs and the issued PO. Matching is blocked while the full PO quantity is not yet accepted by Stores. |
-| `POST /finance/invoices/{id}/ceo-decision` | CEO | Decide only invoices above the configured high-value threshold; routine payments never require CEO operation. |
-| `POST /finance/invoices/{id}/authorize` | Assigned Supervisor | Create one append-only authority for the locked amount after Finance matching and any required CEO exception decision. |
+| `POST /finance/invoices/{id}/review` | Different Finance officer | Compare invoice quantity, unit price and amount exactly with accepted GRNs and the issued PO. A match records the payment authorization directly; Finance can then execute the payment itself. Matching is blocked while the full PO quantity is not yet accepted by Stores. |
+| `POST /finance/invoices/{id}/ceo-decision` | CEO | Decide only invoices above the configured high-value threshold; approval records the payment authorization. Routine payments never require CEO operation. |
+| `POST /finance/invoices/{id}/authorize` | Assigned Supervisor | Legacy endpoint for invoices still `ReadyForAuthorization` under the old flow. |
 | `GET /finance/authorizations` | Supervisor, Finance, CEO, Auditor | Read payment instructions; `unpaidOnly=true` is the Finance execution queue. |
-| `POST /finance/authorizations/{id}/pay` | Finance | Execute exactly the Supervisor-authorized amount with a unique external bank/M-Pesa/cheque/cash reference. |
+| `POST /finance/authorizations/{id}/pay` | Finance | Execute exactly the authorized amount with a unique external bank/M-Pesa/cheque/cash reference. |
 | `GET /finance/payments` | Supervisor, Finance, CEO, Auditor | Read immutable payments and system receipt numbers. |
 | `GET /finance/control-events` | CEO, Auditor | Read the full chronological chain for a project or requisition across request, sourcing, PO, stock and payment. |
 

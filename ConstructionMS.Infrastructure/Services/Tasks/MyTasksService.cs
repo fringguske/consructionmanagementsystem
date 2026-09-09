@@ -794,7 +794,7 @@ public sealed class MyTasksService(
             var issue = item.Status == PurchaseOrderWorkflowStates.Approved;
             Add(tasks, $"po-{(issue ? "issue" : "draft")}:{item.Id}",
                 issue ? "IssuePurchaseOrder" : "SubmitPurchaseOrder",
-                issue ? "Send purchase order" : "Submit purchase order",
+                issue ? "Send purchase order" : "Approve purchase order",
                 $"{item.SupplierName} · {item.PurchaseOrderNumber}", "Procurement Officer",
                 item.ProjectId, item.ProjectName, "PurchaseOrder", item.Id,
                 "/purchase-orders", issue ? item.ApprovedAt ?? item.CreatedAt : item.CreatedAt);
